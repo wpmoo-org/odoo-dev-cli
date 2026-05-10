@@ -12,7 +12,7 @@ describe('package metadata', () => {
     };
 
     expect(packageJson.name).toBe('@wpmoo/odoo-dev');
-    expect(packageJson.version).toBe('0.8.19');
+    expect(packageJson.version).toBe('0.8.20');
     expect(packageJson.files).toContain('docs/assets');
     expect(packageJson.bin).toMatchObject({
       'odoo-dev': 'dist/cli.js',

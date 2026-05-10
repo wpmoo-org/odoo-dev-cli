@@ -347,21 +347,11 @@ async function addRepoOptionsFromPrompts(
 
   const repoUrl = githubRepositoryUrl(owner, repoName);
 
-  const initEmpty = await select({
-    message: menuPromptMessage('Initialize repository if it exists but has no commits?', cancelAction),
-    options: [
-      { value: true, label: 'Yes, create the selected Odoo branch' },
-      { value: false, label: 'No, fail with instructions' },
-    ],
-    initialValue: true,
-  });
-  handleCancel(initEmpty, cancelAction);
-
   return {
     target,
     repoUrl,
     odooVersion,
-    initEmptyRepos: Boolean(initEmpty),
+    initEmptyRepos: true,
     stage: true,
   };
 }

@@ -100,8 +100,9 @@ npx @wpmoo/odoo-dev
 
 Choose `Add source repo`, then enter only the repository name, such as
 `odoo_sample_module_reports`. The CLI uses the environment's GitHub owner and
-Odoo version, checks whether the repository exists, and can create it with GitHub
-CLI when needed.
+Odoo version, checks whether the repository exists, can create it with GitHub
+CLI when needed, and initializes empty repositories with the environment Odoo
+branch automatically.
 
 Non-interactive URL form:
 
