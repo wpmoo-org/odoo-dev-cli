@@ -79,6 +79,30 @@ export async function addSubmodule(
   await git.run(target, ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-b', branch, repoUrl, path]);
 }
 
+export async function isTrackedPath(git: GitRunner, target: string, path: string): Promise<boolean> {
+  try {
+    await git.run(target, ['ls-files', '--error-unmatch', path]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function ensureSubmodule(
+  git: GitRunner,
+  target: string,
+  repoUrl: string,
+  branch: string,
+  path: string,
+): Promise<void> {
+  if (await isTrackedPath(git, target, path)) {
+    await git.run(target, ['-c', 'protocol.file.allow=always', 'submodule', 'update', '--init', '--recursive', path]);
+    return;
+  }
+
+  await addSubmodule(git, target, repoUrl, branch, path);
+}
+
 export async function cloneRepository(
   git: GitRunner,
   cwd: string,

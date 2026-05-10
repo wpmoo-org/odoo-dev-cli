@@ -2,8 +2,8 @@ import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import {
-  addSubmodule,
   cloneRepository,
+  ensureSubmodule,
   ensureRemoteHasBranch,
   realGit,
   stageAll,
@@ -139,7 +139,7 @@ export async function scaffold(
     }
     await mkdir(join(options.target, 'odoo/custom/src/private'), { recursive: true });
     for (const repo of options.sourceRepos) {
-      await addSubmodule(git, options.target, repo.url, options.odooVersion, `odoo/custom/src/private/${repo.path}`);
+      await ensureSubmodule(git, options.target, repo.url, options.odooVersion, `odoo/custom/src/private/${repo.path}`);
     }
     await syncSubmodules(git, options.target);
   }

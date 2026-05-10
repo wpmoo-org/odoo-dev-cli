@@ -9,8 +9,8 @@ import { renderRepositorySetupNote } from './prompt-copy.js';
 import { promptRepositoryUrl } from './prompt-repositories.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import {
+  checkGitHubRepositories,
   createGitHubRepositories,
-  findInaccessibleGitHubRepositories,
   manualCreateCommands,
   repositoryPreflightAvailable,
 } from './repository-preflight.js';
@@ -141,9 +141,9 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
   }
 
   const initEmpty = await select({
-    message: 'Initialize empty source repos if needed?',
+    message: 'Initialize repositories that exist but have no commits?',
     options: [
-      { value: true, label: 'Yes, after confirmation in this wizard' },
+      { value: true, label: 'Yes, create the selected Odoo branch' },
       { value: false, label: 'No, fail with instructions' },
     ],
     initialValue: true,
@@ -193,11 +193,19 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
     return;
   }
 
-  const missing = await findInaccessibleGitHubRepositories(options);
+  const { accessible, inaccessible: missing } = await checkGitHubRepositories(options);
+  if (interactive && accessible.length > 0) {
+    note(
+      [
+        'These GitHub repositories already exist and are accessible:',
+        '',
+        ...accessible.map((repository) => `- ${repository.label}: ${repository.slug}`),
+      ].join('\n'),
+      'Repository check',
+    );
+  }
+
   if (missing.length === 0) {
-    if (interactive) {
-      note('All GitHub repositories are accessible.', 'Repository check');
-    }
     return;
   }
 
@@ -212,7 +220,7 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
 
   note(
     [
-      'These repositories are not accessible. They may not exist, or your GitHub account may not have access:',
+      'These GitHub repositories are not accessible. They may not exist, or your account may not have access:',
       '',
       missingList,
     ].join('\n'),
@@ -220,7 +228,7 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
   );
 
   const shouldCreate = await select({
-    message: 'Create these repositories with GitHub CLI?',
+    message: 'Create the inaccessible repositories with GitHub CLI?',
     options: [
       { value: true, label: 'Yes, create them' },
       { value: false, label: 'No, I will create/check access myself' },

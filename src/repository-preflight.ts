@@ -19,6 +19,11 @@ export type MissingRepository = RepositoryRequirement & {
   slug: string;
 };
 
+export type RepositoryCheckResult = {
+  accessible: MissingRepository[];
+  inaccessible: MissingRepository[];
+};
+
 export function repositoryRequirements(options: ScaffoldOptions): RepositoryRequirement[] {
   return [
     {
@@ -38,16 +43,27 @@ export async function findInaccessibleGitHubRepositories(
   options: ScaffoldOptions,
   runner: GitHubRunner = realGitHub,
 ): Promise<MissingRepository[]> {
-  const missing: MissingRepository[] = [];
+  return (await checkGitHubRepositories(options, runner)).inaccessible;
+}
+
+export async function checkGitHubRepositories(
+  options: ScaffoldOptions,
+  runner: GitHubRunner = realGitHub,
+): Promise<RepositoryCheckResult> {
+  const accessible: MissingRepository[] = [];
+  const inaccessible: MissingRepository[] = [];
 
   for (const requirement of repositoryRequirements(options)) {
     const status = await getGitHubRepositoryStatus(runner, requirement.url);
+    if (status.status === 'accessible') {
+      accessible.push({ ...requirement, slug: status.slug });
+    }
     if (status.status === 'inaccessible') {
-      missing.push({ ...requirement, slug: status.slug });
+      inaccessible.push({ ...requirement, slug: status.slug });
     }
   }
 
-  return missing;
+  return { accessible, inaccessible };
 }
 
 export async function createGitHubRepositories(

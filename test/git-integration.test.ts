@@ -143,4 +143,58 @@ describe('git integration', () => {
       '  - odoo_sample_module',
     );
   });
+
+  it('reuses already tracked submodules when cloning an existing dev repo', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wpmoo-git-existing-submodule-'));
+    const devRemote = join(root, 'odoo_sample_module_dev.git');
+    const sourceRemote = join(root, 'odoo_sample_module.git');
+    const seed = join(root, 'seed-dev');
+    const target = join(root, 'odoo_sample_module_dev');
+
+    await git(root, ['init', '--bare', devRemote]);
+    await git(root, ['init', '--bare', sourceRemote]);
+    await git(root, ['clone', devRemote, seed]);
+    await git(seed, ['config', 'user.name', 'Test User']);
+    await git(seed, ['config', 'user.email', 'test@example.com']);
+
+    await scaffold({
+      product: 'odoo_sample_module',
+      odooVersion: '19.0',
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: devRemote,
+      sourceRepos: [
+        {
+          url: sourceRemote,
+          path: 'odoo_sample_module',
+          addons: ['odoo_sample_module'],
+        },
+      ],
+      target: seed,
+      dryRun: false,
+      initEmptyRepos: true,
+      stage: true,
+    });
+    await git(seed, ['commit', '-m', 'Initial scaffold']);
+    await git(seed, ['push', 'origin', 'HEAD:main']);
+
+    await scaffold({
+      product: 'odoo_sample_module',
+      odooVersion: '19.0',
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: devRemote,
+      sourceRepos: [
+        {
+          url: sourceRemote,
+          path: 'odoo_sample_module',
+          addons: ['odoo_sample_module'],
+        },
+      ],
+      target,
+      dryRun: false,
+      initEmptyRepos: true,
+      stage: true,
+    });
+
+    await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module'))).resolves.toBeTruthy();
+  });
 });
