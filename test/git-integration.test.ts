@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
-import { addModuleRepo, removeModuleRepo } from '../src/repo-actions.js';
+import { addModuleRepo, listModuleRepos, removeModuleRepo } from '../src/repo-actions.js';
 import { scaffold } from '../src/scaffold.js';
 
 async function git(cwd: string, args: string[]) {
@@ -255,6 +255,54 @@ describe('git integration', () => {
     await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module_reports'))).rejects.toThrow();
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.not.toContain(
       'private/odoo_sample_module_reports:',
+    );
+  });
+
+  it('lists a module repo added before the first dev environment commit', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wpmoo-git-add-before-commit-'));
+    const baseRemote = join(root, 'moo_test.git');
+    const proRemote = join(root, 'moo_test_pro.git');
+    const target = join(root, 'moo_test_dev');
+
+    await git(root, ['init', '--bare', baseRemote]);
+    await git(root, ['init', '--bare', proRemote]);
+    await git(root, ['init', target]);
+    await git(target, ['config', 'user.name', 'Test User']);
+    await git(target, ['config', 'user.email', 'test@example.com']);
+
+    await scaffold({
+      product: 'moo_test',
+      odooVersion: '19.0',
+      devRepo: 'moo_test_dev',
+      devRepoUrl: target,
+      sourceRepos: [
+        {
+          url: baseRemote,
+          path: 'moo_test',
+          addons: ['moo_test'],
+        },
+      ],
+      target,
+      dryRun: false,
+      initEmptyRepos: true,
+      stage: true,
+    });
+
+    await addModuleRepo({
+      target,
+      repoUrl: proRemote,
+      repoPath: 'moo_test_pro',
+      odooVersion: '19.0',
+      initEmptyRepos: true,
+      stage: true,
+    });
+
+    await expect(readFile(join(target, '.gitmodules'), 'utf8')).resolves.toContain(
+      'path = odoo/custom/src/private/moo_test_pro',
+    );
+    await expect(listModuleRepos(target)).resolves.toEqual(['moo_test', 'moo_test_pro']);
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
+      'private/moo_test_pro:\n  - moo_test_pro',
     );
   });
 

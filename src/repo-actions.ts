@@ -63,6 +63,11 @@ export async function addModuleRepo(
   await mkdir(join(options.target, 'odoo/custom/src/private'), { recursive: true });
   await ensureSubmodule(git, options.target, options.repoUrl, options.odooVersion, submodulePath);
 
+  const listedRepos = await listModuleRepos(options.target);
+  if (!listedRepos.includes(repoPath)) {
+    throw new Error(`Source repo was added but is not registered in .gitmodules: ${repoPath}`);
+  }
+
   const addonsYaml = await readAddonsYaml(options.target);
   await writeAddonsYaml(
     options.target,
