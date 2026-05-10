@@ -1,6 +1,6 @@
 {
   "name": "@wpmoo/odoo-dev",
-  "version": "0.8.16",
+  "version": "0.8.17",
   "description": "Create Doodba-ready Odoo development environments.",
   "type": "module",
   "bin": {
@@ -17,6 +17,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"

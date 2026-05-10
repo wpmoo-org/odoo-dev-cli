@@ -65,7 +65,6 @@ npx @wpmoo/odoo-dev create \
   --odoo-version 19.0 \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
-  --pack agentic-stack \
   --create-missing-repos \
   --init-empty-repos
 ```
@@ -149,42 +148,24 @@ If the project has portal, demo, payment, reports, or other addons, add them
 later in Doodba's `odoo/custom/src/addons.yaml`, or pass `--source-addons` in
 non-interactive advanced usage.
 
-## Development packs
+## WPMoo Development Guidelines
 
-The create flow can record optional development packs in
-`.wpmoo/odoo-dev.json`. The `agentic-stack` pack also runs the Codex adapter
-inside the generated environment when the `agentic-stack` command is available.
-If the command is missing in the interactive wizard and Homebrew is available,
-the CLI asks whether it should install Agentic Stack with Homebrew and then
-retries the Codex adapter. On Windows, when Homebrew is unavailable, in
-non-interactive mode, or if installation fails, environment creation continues
-and prints a pack note.
+The CLI keeps environment creation focused on Doodba files, source submodules,
+and WPMoo metadata. It does not install agent tools, editor setup, doctor
+scripts, or other optional development packs.
 
-```bash
-npx @wpmoo/odoo-dev create \
-  --product odoo_sample_module \
-  --source-repo-url https://github.com/example-org/odoo_sample_module.git \
-  --pack agentic-stack,doctor
-```
-
-Use `--pack <name>` repeatedly or comma-separate values. Use `--no-packs` to
-disable optional packs explicitly.
-
-Available pack names:
-
-```text
-agentic-stack
-vscode-workspace
-doctor
-github-actions
-```
-
-Install Agentic Stack before selecting the `agentic-stack` pack:
+If you want agent-assisted workflows inside a generated environment, install
+and manage them manually in that environment. For example, Agentic Stack can be
+installed separately:
 
 ```bash
 brew tap codejunkie99/agentic-stack https://github.com/codejunkie99/agentic-stack
 brew install agentic-stack
+agentic-stack codex --yes
 ```
+
+Keep these files under normal project review, just like any other generated or
+tool-owned development guideline files.
 
 ## Notes
 

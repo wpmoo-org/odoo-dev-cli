@@ -243,46 +243,7 @@ describe('args', () => {
     expect(options?.repoVisibility).toBe('public');
   });
 
-  it('parses optional development packs from repeated and comma-separated flags', () => {
-    const options = optionsFromArgs([
-      '--product',
-      'odoo_sample_module',
-      '--source-repo-url',
-      'https://github.com/example-org/odoo_sample_module.git',
-      '--pack',
-      'agentic-stack,doctor',
-      '--pack',
-      'github-actions',
-    ]);
-
-    expect(options?.packs).toEqual({
-      agenticStack: true,
-      vscodeWorkspace: false,
-      doctor: true,
-      githubActions: true,
-    });
-  });
-
-  it('lets --no-packs explicitly disable optional development packs', () => {
-    const options = optionsFromArgs([
-      '--product',
-      'odoo_sample_module',
-      '--source-repo-url',
-      'https://github.com/example-org/odoo_sample_module.git',
-      '--pack',
-      'agentic-stack',
-      '--no-packs',
-    ]);
-
-    expect(options?.packs).toEqual({
-      agenticStack: false,
-      vscodeWorkspace: false,
-      doctor: false,
-      githubActions: false,
-    });
-  });
-
-  it('rejects unknown optional development packs', () => {
+  it('rejects the removed optional development pack flags', () => {
     expect(() =>
       optionsFromArgs([
         '--product',
@@ -290,9 +251,19 @@ describe('args', () => {
         '--source-repo-url',
         'https://github.com/example-org/odoo_sample_module.git',
         '--pack',
-        'unknown-pack',
+        'agentic-stack',
       ]),
-    ).toThrow('Unknown development pack: unknown-pack');
+    ).toThrow('Optional development packs were removed');
+
+    expect(() =>
+      optionsFromArgs([
+        '--product',
+        'odoo_sample_module',
+        '--source-repo-url',
+        'https://github.com/example-org/odoo_sample_module.git',
+        '--no-packs',
+      ]),
+    ).toThrow('Optional development packs were removed');
   });
 
   it('parses comma-separated addon lists', () => {

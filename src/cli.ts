@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { confirm, intro, isCancel, multiselect, note, outro, select, text } from '@clack/prompts';
+import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
 import { resolve } from 'node:path';
 
 import {
@@ -22,7 +22,6 @@ import {
   type RemoveModuleOptions,
 } from './module-actions.js';
 import { supportedOdooVersions } from './odoo-versions.js';
-import { developmentPackOptions, developmentPacksFromIds, emptyDevelopmentPacks, type DevelopmentPackId } from './packs.js';
 import { renderRepositorySetupNote } from './prompt-copy.js';
 import { promptRepositoryUrl } from './prompt-repositories.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
@@ -55,7 +54,6 @@ import {
   menuPromptMessage,
   type PromptCancelAction,
 } from './menu-navigation.js';
-import type { PackActionResult } from './pack-actions.js';
 
 function handleCancel(value: unknown, action: PromptCancelAction): void {
   handlePromptCancel(isCancel(value), action);
@@ -70,36 +68,6 @@ function showSubmenuIntro(title: string, showIntro: boolean, cancelAction: Promp
 function asString(value: unknown, fallback: string, cancelAction: PromptCancelAction = 'exit'): string {
   handleCancel(value, cancelAction);
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
-}
-
-function reportPackResults(results: PackActionResult[]): void {
-  for (const result of results) {
-    const title =
-      result.status === 'installed' ? 'Pack installed' : result.status === 'failed' ? 'Pack failed' : 'Pack skipped';
-    note(result.message, title);
-  }
-}
-
-async function confirmAgenticStackHomebrewInstall(): Promise<boolean> {
-  const shouldInstall = await confirm({
-    message: 'Agentic Stack is not installed. Install it with Homebrew now?',
-    active: 'Yes',
-    inactive: 'No',
-    initialValue: true,
-  });
-  handleCancel(shouldInstall, 'exit');
-  return Boolean(shouldInstall);
-}
-
-async function confirmAgenticStackPythonInstall(): Promise<boolean> {
-  const shouldInstall = await confirm({
-    message: 'Agentic Stack needs Python 3.10+. Install Homebrew Python and retry?',
-    active: 'Yes',
-    inactive: 'No',
-    initialValue: true,
-  });
-  handleCancel(shouldInstall, 'exit');
-  return Boolean(shouldInstall);
 }
 
 function githubAccountLabel(account: GitHubAccount): string {
@@ -149,24 +117,6 @@ function booleanOption(values: Record<string, string | boolean>, key: string, fa
   if (['false', '0', 'no', 'n'].includes(normalized)) return false;
 
   throw new Error(`Invalid boolean value for --${key}: ${value}`);
-}
-
-async function selectDevelopmentPacks(cancelAction: PromptCancelAction = 'exit') {
-  const selectedPacks = await multiselect({
-    message: menuPromptMessage('Optional development packs', cancelAction),
-    options: developmentPackOptions.map((pack) => ({
-      value: pack.id,
-      label: pack.label,
-      hint: pack.hint,
-    })),
-    initialValues: [],
-    required: false,
-  });
-  handleCancel(selectedPacks, cancelAction);
-
-  return Array.isArray(selectedPacks)
-    ? developmentPacksFromIds(selectedPacks as DevelopmentPackId[])
-    : emptyDevelopmentPacks();
 }
 
 async function showStartup(argv: string[], skipUpdateCheck: boolean): Promise<void> {
@@ -313,8 +263,6 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   });
   handleCancel(initEmpty, cancelAction);
 
-  const packs = await selectDevelopmentPacks(cancelAction);
-
   return {
     product,
     odooVersion,
@@ -327,7 +275,6 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
     stage: true,
     createMissingRepos: false,
     repoVisibility: 'private',
-    packs,
   };
 }
 
@@ -688,13 +635,7 @@ async function main(): Promise<void> {
     if (!detection.isEnvironment) {
       const resolvedOptions = await optionsFromPrompts();
       await ensureGitHubRepositories(resolvedOptions, true);
-      const result = await scaffold(resolvedOptions, undefined, {
-        packApplyOptions: {
-          promptInstallAgenticStack: confirmAgenticStackHomebrewInstall,
-          promptInstallAgenticStackPython: confirmAgenticStackPythonInstall,
-        },
-      });
-      reportPackResults(result.packResults);
+      await scaffold(resolvedOptions);
       outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
       return;
     }
@@ -828,18 +769,7 @@ async function main(): Promise<void> {
 
   const resolvedOptions = options ?? (await optionsFromPrompts());
   await ensureGitHubRepositories(resolvedOptions, options === undefined);
-  const result = await scaffold(
-    resolvedOptions,
-    undefined,
-    options === undefined
-      ? {
-          packApplyOptions: {
-            promptInstallAgenticStack: confirmAgenticStackHomebrewInstall,
-            promptInstallAgenticStackPython: confirmAgenticStackPythonInstall,
-          },
-        }
-      : {},
-  );
+  const result = await scaffold(resolvedOptions);
 
   if (resolvedOptions.dryRun) {
     console.log('Dry run: planned files');
@@ -849,7 +779,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  reportPackResults(result.packResults);
   outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
 }
 

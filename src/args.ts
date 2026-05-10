@@ -1,7 +1,6 @@
 import { basename, resolve } from 'node:path';
 
 import { supportedOdooVersions } from './odoo-versions.js';
-import { developmentPacksFromIds, emptyDevelopmentPacks, parsePackIdsFromArgv } from './packs.js';
 import { defaultCommunityAddons, defaultProAddons } from './templates.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
@@ -176,12 +175,22 @@ function visibilityValue(values: Record<string, string | boolean>): RepositoryVi
   throw new Error(`Invalid value for --repo-visibility: ${value}`);
 }
 
+function assertNoRemovedDevelopmentPackFlags(argv: string[]): void {
+  for (const arg of argv) {
+    const rawKey = arg.startsWith('--') ? arg.slice(2).split('=', 1)[0] : '';
+    if (rawKey === 'pack' || rawKey === 'no-packs') {
+      throw new Error('Optional development packs were removed. See the WPMoo Development Guidelines in README.md.');
+    }
+  }
+}
+
 export function defaultTargetForProduct(product: string, cwd = process.cwd()): string {
   const devRepo = `${product}_dev`;
   return basename(cwd) === devRepo ? cwd : resolve(cwd, devRepo);
 }
 
 export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
+  assertNoRemovedDevelopmentPackFlags(argv);
   const { values } = parseArgs(argv);
   const product = stringValue(values, 'product');
 
@@ -190,7 +199,6 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
   }
 
   const parsedSourceRepos = parseSourceRepos(argv);
-  const parsedPackIds = parsePackIdsFromArgv(argv);
   const hasLegacySourceConfig = [
     'org',
     'communityRepo',
@@ -258,7 +266,6 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
     communityAddons,
     proAddons,
     sourceRepos,
-    packs: parsedPackIds === undefined ? emptyDevelopmentPacks() : developmentPacksFromIds(parsedPackIds),
     target,
     dryRun: booleanValue(values, 'dryRun', false),
     initEmptyRepos: booleanValue(values, 'initEmptyRepos', false),

@@ -1,6 +1,4 @@
 import type { RepositoryVisibility } from './github.js';
-import type { PackActionResult } from './pack-actions.js';
-import type { DevelopmentPacks } from './packs.js';
 
 export type SourceRepo = {
   url: string;
@@ -14,7 +12,6 @@ export type CreateOptions = {
   devRepo: string;
   devRepoUrl: string;
   sourceRepos: SourceRepo[];
-  packs?: DevelopmentPacks;
 
   // Legacy fields kept for CLI compatibility and older tests/consumers.
   org?: string;
@@ -39,5 +36,4 @@ export type ScaffoldOptions = CreateOptions & {
 export type ScaffoldResult = {
   plannedFiles: string[];
   plannedCommands: string[];
-  packResults: PackActionResult[];
 };
