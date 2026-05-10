@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -26,6 +26,7 @@ describe('safe reset', () => {
     await expect(readFile(join(target, 'README.md'), 'utf8')).resolves.toContain(
       'Odoo Sample Module Development Environment',
     );
+    expect((await stat(join(target, 'moo'))).mode & 0o111).not.toBe(0);
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
       'private/odoo_sample_module:',
     );

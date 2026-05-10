@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import { readEnvironmentMetadata } from './environment.js';
@@ -98,6 +98,9 @@ export async function safeResetEnvironment(
     const destination = join(options.target, file.path);
     await mkdir(join(destination, '..'), { recursive: true });
     await writeFile(destination, file.content, 'utf8');
+    if (file.mode !== undefined) {
+      await chmod(destination, file.mode);
+    }
   }
 
   if (options.stage) {
