@@ -19,7 +19,7 @@ export const developmentPackOptions: DevelopmentPackOption[] = [
     id: 'agentic-stack',
     key: 'agenticStack',
     label: 'Agentic stack',
-    hint: 'Codex adapter metadata now; installation comes next',
+    hint: 'Install the Codex adapter in the generated environment',
   },
   {
     id: 'vscode-workspace',

@@ -1,4 +1,5 @@
 import type { RepositoryVisibility } from './github.js';
+import type { PackActionResult } from './pack-actions.js';
 import type { DevelopmentPacks } from './packs.js';
 
 export type SourceRepo = {
@@ -38,4 +39,5 @@ export type ScaffoldOptions = CreateOptions & {
 export type ScaffoldResult = {
   plannedFiles: string[];
   plannedCommands: string[];
+  packResults: PackActionResult[];
 };

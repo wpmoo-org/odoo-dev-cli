@@ -2,6 +2,7 @@ import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { renderEnvironmentMetadata } from './environment.js';
+import { applyDevelopmentPacks, type PackApplyOptions } from './pack-actions.js';
 import {
   cloneRepository,
   ensureSubmodule,
@@ -27,6 +28,10 @@ type GeneratedFile = {
   path: string;
   content: string;
   mode?: number;
+};
+
+export type ScaffoldRuntimeOptions = {
+  packApplyOptions?: PackApplyOptions;
 };
 
 export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
@@ -64,6 +69,10 @@ export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
       content: renderPlaceholder('build.d', 'Place executable image build hooks here.'),
     },
   ];
+}
+
+function packCommands(options: ScaffoldOptions): string[] {
+  return options.packs?.agenticStack ? ['agentic-stack codex --yes'] : [];
 }
 
 async function writeGeneratedFiles(target: string, files: GeneratedFile[]): Promise<void> {
@@ -118,12 +127,14 @@ async function prepareTargetRepository(options: ScaffoldOptions, git: GitRunner)
 export async function scaffold(
   options: ScaffoldOptions,
   git: GitRunner = realGit,
+  runtimeOptions: ScaffoldRuntimeOptions = {},
 ): Promise<ScaffoldResult> {
   const files = generatedFiles(options);
   const plannedCommands = options.sourceRepos.map(
     (repo) =>
       `git submodule add -b ${options.odooVersion} ${repo.url} odoo/custom/src/private/${repo.path}`,
   );
+  plannedCommands.push(...packCommands(options));
 
   if (options.stage) {
     plannedCommands.push('git add .');
@@ -133,6 +144,7 @@ export async function scaffold(
     return {
       plannedFiles: files.map((file) => file.path),
       plannedCommands,
+      packResults: [],
     };
   }
 
@@ -152,6 +164,8 @@ export async function scaffold(
     await syncSubmodules(git, options.target);
   }
 
+  const packResults = await applyDevelopmentPacks(options, undefined, runtimeOptions.packApplyOptions);
+
   if (options.stage) {
     await stageAll(git, options.target);
   }
@@ -159,5 +173,6 @@ export async function scaffold(
   return {
     plannedFiles: files.map((file) => file.path),
     plannedCommands,
+    packResults,
   };
 }

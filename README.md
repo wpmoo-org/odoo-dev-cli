@@ -152,8 +152,13 @@ non-interactive advanced usage.
 ## Development packs
 
 The create flow can record optional development packs in
-`.wpmoo/odoo-dev.json`. The first pack phase only stores the selection; it does
-not install external tools or write pack-specific files yet.
+`.wpmoo/odoo-dev.json`. The `agentic-stack` pack also runs the Codex adapter
+inside the generated environment when the `agentic-stack` command is available.
+If the command is missing in the interactive wizard and Homebrew is available,
+the CLI asks whether it should install Agentic Stack with Homebrew and then
+retries the Codex adapter. On Windows, when Homebrew is unavailable, in
+non-interactive mode, or if installation fails, environment creation continues
+and prints a pack note.
 
 ```bash
 npx @wpmoo/odoo-dev create \
@@ -172,6 +177,13 @@ agentic-stack
 vscode-workspace
 doctor
 github-actions
+```
+
+Install Agentic Stack before selecting the `agentic-stack` pack:
+
+```bash
+brew tap codejunkie99/agentic-stack https://github.com/codejunkie99/agentic-stack
+brew install agentic-stack
 ```
 
 ## Notes

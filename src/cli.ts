@@ -55,6 +55,7 @@ import {
   menuPromptMessage,
   type PromptCancelAction,
 } from './menu-navigation.js';
+import type { PackActionResult } from './pack-actions.js';
 
 function handleCancel(value: unknown, action: PromptCancelAction): void {
   handlePromptCancel(isCancel(value), action);
@@ -69,6 +70,25 @@ function showSubmenuIntro(title: string, showIntro: boolean, cancelAction: Promp
 function asString(value: unknown, fallback: string, cancelAction: PromptCancelAction = 'exit'): string {
   handleCancel(value, cancelAction);
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function reportPackResults(results: PackActionResult[]): void {
+  for (const result of results) {
+    const title =
+      result.status === 'installed' ? 'Pack installed' : result.status === 'failed' ? 'Pack failed' : 'Pack skipped';
+    note(result.message, title);
+  }
+}
+
+async function confirmAgenticStackHomebrewInstall(): Promise<boolean> {
+  const shouldInstall = await confirm({
+    message: 'Agentic Stack is not installed. Install it with Homebrew now?',
+    active: 'Yes',
+    inactive: 'No',
+    initialValue: true,
+  });
+  handleCancel(shouldInstall, 'exit');
+  return Boolean(shouldInstall);
 }
 
 function githubAccountLabel(account: GitHubAccount): string {
@@ -657,7 +677,12 @@ async function main(): Promise<void> {
     if (!detection.isEnvironment) {
       const resolvedOptions = await optionsFromPrompts();
       await ensureGitHubRepositories(resolvedOptions, true);
-      await scaffold(resolvedOptions);
+      const result = await scaffold(resolvedOptions, undefined, {
+        packApplyOptions: {
+          promptInstallAgenticStack: confirmAgenticStackHomebrewInstall,
+        },
+      });
+      reportPackResults(result.packResults);
       outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
       return;
     }
@@ -791,7 +816,17 @@ async function main(): Promise<void> {
 
   const resolvedOptions = options ?? (await optionsFromPrompts());
   await ensureGitHubRepositories(resolvedOptions, options === undefined);
-  const result = await scaffold(resolvedOptions);
+  const result = await scaffold(
+    resolvedOptions,
+    undefined,
+    options === undefined
+      ? {
+          packApplyOptions: {
+            promptInstallAgenticStack: confirmAgenticStackHomebrewInstall,
+          },
+        }
+      : {},
+  );
 
   if (resolvedOptions.dryRun) {
     console.log('Dry run: planned files');
@@ -801,6 +836,7 @@ async function main(): Promise<void> {
     return;
   }
 
+  reportPackResults(result.packResults);
   outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
 }
 
