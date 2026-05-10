@@ -1,8 +1,9 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 import {
   addSubmodule,
+  cloneRepository,
   ensureRemoteHasBranch,
   realGit,
   stageAll,
@@ -68,6 +69,44 @@ async function writeGeneratedFiles(target: string, files: GeneratedFile[]): Prom
   }
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isGitRepository(git: GitRunner, target: string): Promise<boolean> {
+  if (!(await pathExists(target))) {
+    return false;
+  }
+
+  try {
+    const result = await git.run(target, ['rev-parse', '--is-inside-work-tree']);
+    return result.stdout.trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+async function prepareTargetRepository(options: ScaffoldOptions, git: GitRunner): Promise<void> {
+  if (await isGitRepository(git, options.target)) {
+    return;
+  }
+
+  if (await pathExists(options.target)) {
+    throw new Error(
+      `Target exists but is not a Git repository: ${options.target}\n` +
+        'Clone the dev environment repository first, or remove the directory and run the CLI again.',
+    );
+  }
+
+  await mkdir(dirname(options.target), { recursive: true });
+  await cloneRepository(git, dirname(options.target), options.devRepoUrl, options.target);
+}
+
 export async function scaffold(
   options: ScaffoldOptions,
   git: GitRunner = realGit,
@@ -89,6 +128,9 @@ export async function scaffold(
     };
   }
 
+  if (!options.skipSubmodules || options.stage) {
+    await prepareTargetRepository(options, git);
+  }
   await writeGeneratedFiles(options.target, files);
 
   if (!options.skipSubmodules) {

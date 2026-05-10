@@ -1,5 +1,6 @@
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 
+import { supportedOdooVersions } from './odoo-versions.js';
 import { defaultCommunityAddons, defaultProAddons } from './templates.js';
 import { inferGitHubOwner, inferRepoPath } from './repo-url.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
@@ -129,6 +130,11 @@ function booleanValue(
   throw new Error(`Invalid boolean value for --${key}: ${value}`);
 }
 
+export function defaultTargetForProduct(product: string, cwd = process.cwd()): string {
+  const devRepo = `${product}_dev`;
+  return basename(cwd) === devRepo ? cwd : resolve(cwd, devRepo);
+}
+
 export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
   const { values } = parseArgs(argv);
   const product = stringValue(values, 'product');
@@ -153,12 +159,13 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
   }
 
   const org = stringValue(values, 'org') ?? inferGitHubOwner(parsedSourceRepos[0]?.url ?? '') ?? 'wpmoo-org';
-  const odooVersion = stringValue(values, 'odooVersion') ?? '19.0';
+  const odooVersion = stringValue(values, 'odooVersion') ?? supportedOdooVersions[0];
   const devRepoUrl = stringValue(values, 'devRepoUrl') ?? `https://github.com/${org}/${product}_dev.git`;
   const devRepo = stringValue(values, 'devRepo') ?? inferRepoPath(devRepoUrl);
   const communityRepo = stringValue(values, 'communityRepo') ?? product;
   const proRepo = stringValue(values, 'proRepo') ?? `${product}_pro`;
-  const target = resolve(stringValue(values, 'target') ?? process.cwd());
+  const targetValue = stringValue(values, 'target');
+  const target = targetValue ? resolve(targetValue) : defaultTargetForProduct(product);
   const communityRepoUrl =
     stringValue(values, 'communityRepoUrl') ?? `https://github.com/${org}/${communityRepo}.git`;
   const proRepoUrl = stringValue(values, 'proRepoUrl') ?? `https://github.com/${org}/${proRepo}.git`;

@@ -2,9 +2,27 @@ import { describe, expect, it } from 'vitest';
 
 import { optionsFromArgs } from '../src/args.js';
 import { renderHelp } from '../src/help.js';
+import { supportedOdooVersions } from '../src/odoo-versions.js';
 import { inferRepoPath } from '../src/repo-url.js';
 
 describe('args', () => {
+  it('defaults target directory to product_dev under the current directory', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'moo_test',
+      '--source-repo-url',
+      'https://github.com/wpmoo-org/moo_test.git',
+    ]);
+
+    expect(options?.target).toMatch(/moo_test_dev$/);
+    expect(options?.devRepoUrl).toBe('https://github.com/wpmoo-org/moo_test_dev.git');
+  });
+
+  it('offers Odoo 19 as the default selectable version', () => {
+    expect(supportedOdooVersions[0]).toBe('19.0');
+    expect(supportedOdooVersions).toContain('18.0');
+  });
+
   it('parses url-first source repositories without requiring a pro repo', () => {
     const options = optionsFromArgs([
       '--product',

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { intro, isCancel, outro, select, text } from '@clack/prompts';
+import { intro, isCancel, note, outro, select, text } from '@clack/prompts';
 
-import { isHelpRequested, optionsFromArgs } from './args.js';
+import { defaultTargetForProduct, isHelpRequested, optionsFromArgs } from './args.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
+import { supportedOdooVersions } from './odoo-versions.js';
 import { inferGitHubOwner, inferRepoPath } from './repo-url.js';
 import { scaffold } from './scaffold.js';
 import { renderBanner } from './templates.js';
@@ -14,13 +15,6 @@ function asString(value: unknown, fallback: string): string {
     process.exit(1);
   }
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
-}
-
-function csv(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 function requiredString(value: unknown, label: string): string {
@@ -42,25 +36,35 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
   const product = asString(
     await text({
       message: 'Product slug',
-      placeholder: 'moo_olympiad',
-      defaultValue: 'moo_olympiad',
+      placeholder: 'odoo_sample_module',
+      validate: (value) => (value.trim() ? undefined : 'Enter a product/module slug.'),
     }),
-    'moo_olympiad',
+    'odoo_sample_module',
   );
-  const odooVersion = asString(
-    await text({
-      message: 'Odoo version branch',
-      defaultValue: '19.0',
-    }),
-    '19.0',
+
+  const target = defaultTargetForProduct(product);
+  note(
+    [
+      `Create or have access to these Git repositories before continuing:`,
+      ``,
+      `- Dev environment repo: ${product}_dev`,
+      `- Module source repo: ${product}`,
+      ``,
+      `The CLI writes into ./${product}_dev and adds ${product} as a submodule under:`,
+      `odoo/custom/src/private/${product}`,
+      ``,
+      `If ./${product}_dev does not exist locally, the CLI will clone the dev repo URL you enter.`,
+    ].join('\n'),
+    'Repository setup',
   );
-  const target = asString(
-    await text({
-      message: 'Target directory',
-      defaultValue: process.cwd(),
-    }),
-    process.cwd(),
-  );
+
+  const selectedVersion = await select({
+    message: 'Odoo version',
+    options: supportedOdooVersions.map((version) => ({ value: version, label: version })),
+    initialValue: supportedOdooVersions[0],
+  });
+  if (isCancel(selectedVersion)) process.exit(1);
+  const odooVersion = String(selectedVersion);
 
   const detectedDevRepoUrl = await getOriginUrl(realGit, target);
   const devRepoUrl = requiredString(
@@ -85,33 +89,19 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
         : `https://github.com/${defaultOwner}/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`;
     const sourceRepoUrl = asString(
       await text({
-        message: `Source repo ${repoIndex + 1} URL`,
+        message: repoIndex === 0 ? 'Module source repo URL' : `Additional source repo ${repoIndex + 1} URL`,
         placeholder: `https://github.com/owner/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`,
         defaultValue: suggestedRepo,
         validate: (value) => (value.trim() ? undefined : 'Enter the source repository URL.'),
       }),
       suggestedRepo ?? '',
     );
-    const defaultPath = inferRepoPath(sourceRepoUrl);
-    const sourcePath = asString(
-      await text({
-        message: `Source repo ${repoIndex + 1} local folder`,
-        defaultValue: defaultPath,
-      }),
-      defaultPath,
-    );
-    const sourceAddons = asString(
-      await text({
-        message: `Source repo ${repoIndex + 1} addons`,
-        defaultValue: sourcePath,
-      }),
-      sourcePath,
-    );
+    const sourcePath = inferRepoPath(sourceRepoUrl);
 
     sourceRepos.push({
       url: sourceRepoUrl,
       path: sourcePath,
-      addons: csv(sourceAddons),
+      addons: [sourcePath],
     });
 
     const shouldAddAnother = await select({

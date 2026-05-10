@@ -109,4 +109,38 @@ describe('git integration', () => {
       'private/moo_olympiad_pro:',
     );
   });
+
+  it('clones the dev repo into the product_dev target when target is missing', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wpmoo-git-clone-dev-'));
+    const devRemote = join(root, 'moo_test_dev.git');
+    const sourceRemote = join(root, 'moo_test.git');
+    const target = join(root, 'moo_test_dev');
+
+    await git(root, ['init', '--bare', devRemote]);
+    await git(root, ['init', '--bare', sourceRemote]);
+
+    await scaffold({
+      product: 'moo_test',
+      odooVersion: '19.0',
+      devRepo: 'moo_test_dev',
+      devRepoUrl: devRemote,
+      sourceRepos: [
+        {
+          url: sourceRemote,
+          path: 'moo_test',
+          addons: ['moo_test'],
+        },
+      ],
+      target,
+      dryRun: false,
+      initEmptyRepos: true,
+      stage: true,
+    });
+
+    await expect(stat(join(target, '.git'))).resolves.toBeTruthy();
+    await expect(stat(join(target, 'odoo/custom/src/private/moo_test'))).resolves.toBeTruthy();
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
+      '  - moo_test',
+    );
+  });
 });

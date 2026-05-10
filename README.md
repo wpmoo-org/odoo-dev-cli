@@ -7,6 +7,16 @@ environment files, adds source repositories as Git submodules, generates Doodba
 `addons.yaml` and `repos.yaml`, then stages the result with `git add .`. It
 does not commit.
 
+For a product named `odoo_sample_module`, create these repositories first:
+
+```text
+odoo_sample_module_dev  # private development environment repo
+odoo_sample_module      # module source repo
+```
+
+The CLI writes into `./odoo_sample_module_dev`. If that directory does not exist
+locally, it clones the dev repo URL you provide.
+
 ## Usage
 
 Interactive wizard:
@@ -19,11 +29,10 @@ Non-interactive:
 
 ```bash
 npx @wpmoo/create-odoo-dev \
-  --product moo_socialmedia_monitor \
+  --product odoo_sample_module \
   --odoo-version 19.0 \
-  --dev-repo-url https://github.com/cangir/moo_socialmedia_monitor_dev.git \
-  --source-repo-url https://github.com/wpmoo-org/moo_socialmedia_monitor.git \
-  --target /Users/cng/projects/moo_socialmedia_monitor_dev \
+  --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
+  --source-repo-url https://github.com/example-org/odoo_sample_module.git \
   --init-empty-repos
 ```
 
@@ -31,23 +40,22 @@ Multiple source repositories:
 
 ```bash
 npx @wpmoo/create-odoo-dev \
-  --product moo_olympiad \
-  --dev-repo-url https://github.com/cangir/moo_olympiad_dev.git \
-  --source-repo-url https://github.com/wpmoo-org/moo_olympiad.git \
-  --source-addons moo_olympiad,moo_olympiad_portal \
-  --source-repo-url git@github.com:wpmoo-org/moo_olympiad_pro.git \
-  --source-path moo_olympiad_pro \
-  --source-addons moo_olympiad_payment,moo_olympiad_reports
+  --product odoo_sample_module \
+  --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
+  --source-repo-url https://github.com/example-org/odoo_sample_module.git \
+  --source-addons odoo_sample_module,odoo_sample_module_portal \
+  --source-repo-url git@github.com:example-org/odoo_sample_module_reports.git \
+  --source-path odoo_sample_module_reports \
+  --source-addons odoo_sample_module_reports
 ```
 
 Dry run:
 
 ```bash
 npx @wpmoo/create-odoo-dev \
-  --product moo_socialmedia_monitor \
-  --dev-repo-url https://github.com/cangir/moo_socialmedia_monitor_dev.git \
-  --source-repo-url https://github.com/wpmoo-org/moo_socialmedia_monitor.git \
-  --target /tmp/moo_socialmedia_monitor_dev \
+  --product odoo_sample_module \
+  --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
+  --source-repo-url https://github.com/example-org/odoo_sample_module.git \
   --dry-run
 ```
 
@@ -57,12 +65,13 @@ Each source repo defaults to a single addon with the same name as its local
 submodule folder. For example:
 
 ```text
-private/moo_socialmedia_monitor:
-  - moo_socialmedia_monitor
+private/odoo_sample_module:
+  - odoo_sample_module
 ```
 
-If the project has portal, demo, payment, reports, or other addons, pass them
-explicitly with `--source-addons` or edit the wizard prompt.
+If the project has portal, demo, payment, reports, or other addons, add them
+later in Doodba's `odoo/custom/src/addons.yaml`, or pass `--source-addons` in
+non-interactive advanced usage.
 
 ## Notes
 

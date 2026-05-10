@@ -79,6 +79,15 @@ export async function addSubmodule(
   await git.run(target, ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-b', branch, repoUrl, path]);
 }
 
+export async function cloneRepository(
+  git: GitRunner,
+  cwd: string,
+  repoUrl: string,
+  target: string,
+): Promise<void> {
+  await git.run(cwd, ['clone', repoUrl, target]);
+}
+
 export async function syncSubmodules(git: GitRunner, target: string): Promise<void> {
   await git.run(target, ['submodule', 'sync', '--recursive']);
 }
