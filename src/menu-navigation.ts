@@ -26,8 +26,8 @@ export function menuIntroTitle(title: string, action: PromptCancelAction): strin
   return action === 'back' ? `${title} · Back (Esc)` : title;
 }
 
-export function menuActionLabel(label: string, action: PromptCancelAction): string {
-  return action === 'back' ? `${label} (Esc: Back to previous menu)` : label;
+export function menuPromptMessage(message: string, action: PromptCancelAction): string {
+  return action === 'back' ? `${message} · Esc to go back` : message;
 }
 
 export function promptCancelOutcome(

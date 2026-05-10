@@ -50,8 +50,8 @@ import {
   handleUnavailableMenuChoice,
   installPromptCancelKeyTracker,
   isMenuBackSignal,
-  menuActionLabel,
   menuIntroTitle,
+  menuPromptMessage,
   type PromptCancelAction,
 } from './menu-navigation.js';
 
@@ -161,11 +161,11 @@ async function selectEnvironmentActionFromMenu(): Promise<EnvironmentMenuAction>
   const action = await select({
     message: 'What do you want to do?',
     options: [
-      { value: 'add-repo', label: menuActionLabel('Add source repo', 'back') },
-      { value: 'remove-repo', label: menuActionLabel('Remove source repo', 'back') },
-      { value: 'add-module', label: menuActionLabel('Add module to source repo', 'back') },
-      { value: 'remove-module', label: menuActionLabel('Remove module from source repo', 'back') },
-      { value: 'reset', label: menuActionLabel('Safe reset environment', 'back') },
+      { value: 'add-repo', label: 'Add source repo' },
+      { value: 'remove-repo', label: 'Remove source repo' },
+      { value: 'add-module', label: 'Add module to source repo' },
+      { value: 'remove-module', label: 'Remove module from source repo' },
+      { value: 'reset', label: 'Safe reset environment' },
       { value: 'exit', label: 'Exit' },
     ],
     initialValue: 'add-module',
@@ -195,7 +195,7 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   const selectedGitHubOwner = await selectDefaultGitHubOwner(cancelAction);
 
   const selectedVersion = await select({
-    message: 'Odoo version',
+    message: menuPromptMessage('Odoo version', cancelAction),
     options: supportedOdooVersions.map((version) => ({ value: version, label: version })),
     initialValue: supportedOdooVersions[0],
   });
@@ -317,7 +317,7 @@ async function addRepoOptionsFromPrompts(
   );
 
   const initEmpty = await select({
-    message: 'Initialize repository if it exists but has no commits?',
+    message: menuPromptMessage('Initialize repository if it exists but has no commits?', cancelAction),
     options: [
       { value: true, label: 'Yes, create the selected Odoo branch' },
       { value: false, label: 'No, fail with instructions' },
@@ -346,7 +346,7 @@ async function selectSourceRepo(target: string, cancelAction: PromptCancelAction
   }
 
   const repoPath = await select({
-    message: 'Source repo',
+    message: menuPromptMessage('Source repo', cancelAction),
     options: repos.map((repo) => ({ value: repo, label: repo })),
     initialValue: repos[0],
   });
@@ -390,7 +390,7 @@ async function addModuleOptionsFromPrompts(
   const repoPath = await selectSourceRepo(target, cancelAction);
   const moduleName = asString(
     await text({
-      message: 'Module name',
+      message: menuPromptMessage('Module name', cancelAction),
       placeholder: suggestedModuleName(repoPath),
       validate: (value) => (value.trim() ? undefined : 'Enter the module technical name.'),
     }),
@@ -449,7 +449,7 @@ async function removeRepoOptionsFromPrompts(
   }
 
   const repoPath = await select({
-    message: 'Repo to remove',
+    message: menuPromptMessage('Repo to remove', cancelAction),
     options: repos.map((repo) => ({ value: repo, label: repo })),
     initialValue: repos[0],
   });
@@ -497,14 +497,14 @@ async function removeModuleOptionsFromPrompts(
   }
 
   const moduleName = await select({
-    message: 'Module to remove',
+    message: menuPromptMessage('Module to remove', cancelAction),
     options: modules.map((module) => ({ value: module, label: module })),
     initialValue: modules[0],
   });
   handleCancel(moduleName, cancelAction);
 
   const deleteFiles = await confirm({
-    message: 'Delete module files too? (y/N)',
+    message: menuPromptMessage('Delete module files too? (y/N)', cancelAction),
     active: 'Y',
     inactive: 'n',
     initialValue: false,

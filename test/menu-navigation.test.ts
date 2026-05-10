@@ -5,8 +5,8 @@ import {
   handlePromptCancel,
   handleUnavailableMenuChoice,
   isMenuBackSignal,
-  menuActionLabel,
   menuIntroTitle,
+  menuPromptMessage,
   MenuBackSignal,
   promptCancelOutcome,
   recordPromptCancelKey,
@@ -34,11 +34,9 @@ describe('menu navigation', () => {
     expect(menuIntroTitle('Remove module', 'exit')).toBe('Remove module');
   });
 
-  it('adds the back hint to menu action labels', () => {
-    expect(menuActionLabel('Remove module from source repo', 'back')).toBe(
-      'Remove module from source repo (Esc: Back to previous menu)',
-    );
-    expect(menuActionLabel('Exit', 'exit')).toBe('Exit');
+  it('adds the back hint to submenu prompt messages', () => {
+    expect(menuPromptMessage('Source repo', 'back')).toBe('Source repo · Esc to go back');
+    expect(menuPromptMessage('What do you want to do?', 'exit')).toBe('What do you want to do?');
   });
 
   it('returns to the menu from empty submenu states', () => {

@@ -1,6 +1,6 @@
 import { confirm, isCancel, text, type ConfirmOptions, type TextOptions } from '@clack/prompts';
 
-import { handlePromptCancel, type PromptCancelAction } from './menu-navigation.js';
+import { handlePromptCancel, menuPromptMessage, type PromptCancelAction } from './menu-navigation.js';
 
 export type RepositoryUrlPromptApi = {
   confirm(options: ConfirmOptions): Promise<boolean | symbol>;
@@ -27,7 +27,7 @@ export async function promptRepositoryUrl({
 }): Promise<string> {
   if (suggestedUrl) {
     const useSuggested = await prompt.confirm({
-      message: `Use ${label}? (Y/n)\n${suggestedUrl}`,
+      message: `${menuPromptMessage(`Use ${label}? (Y/n)`, cancelAction)}\n${suggestedUrl}`,
       active: 'Y',
       inactive: 'n',
       initialValue: true,
@@ -41,7 +41,7 @@ export async function promptRepositoryUrl({
   }
 
   const value = await prompt.text({
-    message: label,
+    message: menuPromptMessage(label, cancelAction),
     placeholder,
     validate: (input) => (input.trim() ? undefined : `Enter the ${label.toLowerCase()}.`),
   });

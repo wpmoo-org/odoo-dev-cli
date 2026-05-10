@@ -66,4 +66,34 @@ describe('repository URL prompts', () => {
       },
     });
   });
+
+  it('adds the back hint to repository URL prompt messages when returning to a menu is available', async () => {
+    const api = promptApi(false, 'https://github.com/wpmoo-org/odoo_sample_module.git');
+    const suggestedUrl = 'https://github.com/cangir/odoo_sample_module.git';
+
+    await expect(
+      promptRepositoryUrl({
+        label: 'Source repo URL',
+        suggestedUrl,
+        placeholder: 'https://github.com/owner/odoo_sample_module.git',
+        prompt: api,
+        cancelAction: 'back',
+      }),
+    ).resolves.toBe('https://github.com/wpmoo-org/odoo_sample_module.git');
+
+    expect(api.calls).toMatchObject([
+      {
+        type: 'confirm',
+        options: {
+          message: `Use Source repo URL? (Y/n) · Esc to go back\n${suggestedUrl}`,
+        },
+      },
+      {
+        type: 'text',
+        options: {
+          message: 'Source repo URL · Esc to go back',
+        },
+      },
+    ]);
+  });
 });
