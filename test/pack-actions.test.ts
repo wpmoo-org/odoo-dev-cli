@@ -265,4 +265,60 @@ describe('development pack actions', () => {
     ]);
     expect(prompted).toBe(false);
   });
+
+  it('can install Homebrew Python and retry when Agentic Stack is running under unsupported Python', async () => {
+    const calls: Array<{ cwd: string; command: string; args: string[] }> = [];
+    const runner: PackCommandRunner = {
+      async run(cwd, command, args) {
+        calls.push({ cwd, command, args });
+        if (command === 'agentic-stack' && calls.filter((call) => call.command === 'agentic-stack').length === 1) {
+          throw new Error(
+            "Command failed with exit code 1: agentic-stack codex --yes\nTypeError: unsupported operand type(s) for |: 'types.GenericAlias' and 'NoneType'",
+          );
+        }
+        return { stdout: '', stderr: '' };
+      },
+    };
+
+    await expect(
+      applyDevelopmentPacks(
+        options({
+          ...emptyDevelopmentPacks(),
+          agenticStack: true,
+        }),
+        runner,
+        {
+          promptInstallAgenticStackPython: async () => true,
+        },
+      ),
+    ).resolves.toEqual([
+      {
+        pack: 'agentic-stack',
+        status: 'installed',
+        message: 'Agentic Stack Python runtime fixed with Homebrew and Codex adapter installed.',
+      },
+    ]);
+    expect(calls).toEqual([
+      {
+        cwd: '/tmp/odoo_sample_module_dev',
+        command: 'agentic-stack',
+        args: ['codex', '--yes'],
+      },
+      {
+        cwd: '/tmp/odoo_sample_module_dev',
+        command: 'brew',
+        args: ['--version'],
+      },
+      {
+        cwd: '/tmp/odoo_sample_module_dev',
+        command: 'brew',
+        args: ['install', 'python'],
+      },
+      {
+        cwd: '/tmp/odoo_sample_module_dev',
+        command: 'agentic-stack',
+        args: ['codex', '--yes'],
+      },
+    ]);
+  });
 });

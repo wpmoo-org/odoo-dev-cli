@@ -91,6 +91,17 @@ async function confirmAgenticStackHomebrewInstall(): Promise<boolean> {
   return Boolean(shouldInstall);
 }
 
+async function confirmAgenticStackPythonInstall(): Promise<boolean> {
+  const shouldInstall = await confirm({
+    message: 'Agentic Stack needs Python 3.10+. Install Homebrew Python and retry?',
+    active: 'Yes',
+    inactive: 'No',
+    initialValue: true,
+  });
+  handleCancel(shouldInstall, 'exit');
+  return Boolean(shouldInstall);
+}
+
 function githubAccountLabel(account: GitHubAccount): string {
   return account.type === 'user' ? `${account.login} (personal)` : `${account.login} (organization)`;
 }
@@ -680,6 +691,7 @@ async function main(): Promise<void> {
       const result = await scaffold(resolvedOptions, undefined, {
         packApplyOptions: {
           promptInstallAgenticStack: confirmAgenticStackHomebrewInstall,
+          promptInstallAgenticStackPython: confirmAgenticStackPythonInstall,
         },
       });
       reportPackResults(result.packResults);
@@ -823,6 +835,7 @@ async function main(): Promise<void> {
       ? {
           packApplyOptions: {
             promptInstallAgenticStack: confirmAgenticStackHomebrewInstall,
+            promptInstallAgenticStackPython: confirmAgenticStackPythonInstall,
           },
         }
       : {},
