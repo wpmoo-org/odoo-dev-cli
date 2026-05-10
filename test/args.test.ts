@@ -9,13 +9,13 @@ describe('args', () => {
   it('defaults target directory to product_dev under the current directory', () => {
     const options = optionsFromArgs([
       '--product',
-      'moo_test',
+      'odoo_sample_module',
       '--source-repo-url',
-      'https://github.com/wpmoo-org/moo_test.git',
+      'https://github.com/example-org/odoo_sample_module.git',
     ]);
 
-    expect(options?.target).toMatch(/moo_test_dev$/);
-    expect(options?.devRepoUrl).toBe('https://github.com/wpmoo-org/moo_test_dev.git');
+    expect(options?.target).toMatch(/odoo_sample_module_dev$/);
+    expect(options?.devRepoUrl).toBe('https://github.com/example-org/odoo_sample_module_dev.git');
   });
 
   it('offers Odoo 19 as the default selectable version', () => {
@@ -26,23 +26,23 @@ describe('args', () => {
   it('parses url-first source repositories without requiring a pro repo', () => {
     const options = optionsFromArgs([
       '--product',
-      'moo_olympiad',
+      'odoo_sample_module',
       '--odoo-version',
       '19.0',
       '--dev-repo-url',
-      'https://github.com/cangir/moo_olympiad_dev.git',
+      'https://github.com/example-org/odoo_sample_module_dev.git',
       '--source-repo-url',
-      'https://github.com/wpmoo-org/moo_olympiad.git',
+      'https://github.com/example-org/odoo_sample_module.git',
       '--source-addons',
-      'moo_olympiad,moo_olympiad_portal',
+      'odoo_sample_module,odoo_sample_module_portal',
     ]);
 
-    expect(options?.devRepoUrl).toBe('https://github.com/cangir/moo_olympiad_dev.git');
+    expect(options?.devRepoUrl).toBe('https://github.com/example-org/odoo_sample_module_dev.git');
     expect(options?.sourceRepos).toEqual([
       {
-        url: 'https://github.com/wpmoo-org/moo_olympiad.git',
-        path: 'moo_olympiad',
-        addons: ['moo_olympiad', 'moo_olympiad_portal'],
+        url: 'https://github.com/example-org/odoo_sample_module.git',
+        path: 'odoo_sample_module',
+        addons: ['odoo_sample_module', 'odoo_sample_module_portal'],
       },
     ]);
   });
@@ -50,18 +50,18 @@ describe('args', () => {
   it('defaults source addons to the repo path when addons are not provided', () => {
     const options = optionsFromArgs([
       '--product',
-      'moo_socialmedia_monitor',
+      'odoo_sample_module',
       '--dev-repo-url',
-      'https://github.com/cangir/moo_socialmedia_monitor_dev.git',
+      'https://github.com/example-org/odoo_sample_module_dev.git',
       '--source-repo-url',
-      'https://github.com/wpmoo-org/moo_socialmedia_monitor.git',
+      'https://github.com/example-org/odoo_sample_module.git',
     ]);
 
     expect(options?.sourceRepos).toEqual([
       {
-        url: 'https://github.com/wpmoo-org/moo_socialmedia_monitor.git',
-        path: 'moo_socialmedia_monitor',
-        addons: ['moo_socialmedia_monitor'],
+        url: 'https://github.com/example-org/odoo_sample_module.git',
+        path: 'odoo_sample_module',
+        addons: ['odoo_sample_module'],
       },
     ]);
   });
@@ -69,71 +69,73 @@ describe('args', () => {
   it('parses repeated source repo flags with optional path overrides', () => {
     const options = optionsFromArgs([
       '--product',
-      'moo_olympiad',
+      'odoo_sample_module',
       '--source-repo-url',
-      'https://github.com/wpmoo-org/moo_olympiad.git',
+      'https://github.com/example-org/odoo_sample_module.git',
       '--source-addons',
-      'moo_olympiad',
+      'odoo_sample_module',
       '--source-repo-url',
-      'git@github.com:wpmoo-org/moo_olympiad_pro.git',
+      'git@github.com:example-org/odoo_sample_module_reports.git',
       '--source-path',
-      'paid',
+      'reports',
       '--source-addons',
-      'moo_olympiad_payment,moo_olympiad_reports',
+      'odoo_sample_module_reports',
     ]);
 
     expect(options?.sourceRepos).toEqual([
       {
-        url: 'https://github.com/wpmoo-org/moo_olympiad.git',
-        path: 'moo_olympiad',
-        addons: ['moo_olympiad'],
+        url: 'https://github.com/example-org/odoo_sample_module.git',
+        path: 'odoo_sample_module',
+        addons: ['odoo_sample_module'],
       },
       {
-        url: 'git@github.com:wpmoo-org/moo_olympiad_pro.git',
-        path: 'paid',
-        addons: ['moo_olympiad_payment', 'moo_olympiad_reports'],
+        url: 'git@github.com:example-org/odoo_sample_module_reports.git',
+        path: 'reports',
+        addons: ['odoo_sample_module_reports'],
       },
     ]);
   });
 
   it('infers source paths from common repo URL forms', () => {
-    expect(inferRepoPath('https://github.com/wpmoo-org/moo_olympiad.git')).toBe('moo_olympiad');
-    expect(inferRepoPath('git@github.com:wpmoo-org/moo_olympiad_pro.git')).toBe('moo_olympiad_pro');
-    expect(inferRepoPath('/tmp/remotes/moo_olympiad_private.git')).toBe('moo_olympiad_private');
+    expect(inferRepoPath('https://github.com/example-org/odoo_sample_module.git')).toBe('odoo_sample_module');
+    expect(inferRepoPath('git@github.com:example-org/odoo_sample_module_reports.git')).toBe(
+      'odoo_sample_module_reports',
+    );
+    expect(inferRepoPath('/tmp/remotes/odoo_sample_module_private.git')).toBe('odoo_sample_module_private');
   });
 
   it('keeps legacy community/pro flags as a compatibility fallback', () => {
     const options = optionsFromArgs([
       '--product',
-      'moo_olympiad',
+      'odoo_sample_module',
       '--org',
-      'wpmoo-org',
+      'example-org',
       '--community-repo',
-      'moo_olympiad',
+      'odoo_sample_module',
       '--pro-repo',
-      'moo_olympiad_pro',
+      'odoo_sample_module_reports',
       '--community-addons',
-      'moo_olympiad',
+      'odoo_sample_module',
       '--pro-addons',
-      'moo_olympiad_payment',
+      'odoo_sample_module_reports',
     ]);
 
     expect(options?.sourceRepos).toEqual([
       {
-        url: 'https://github.com/wpmoo-org/moo_olympiad.git',
-        path: 'moo_olympiad',
-        addons: ['moo_olympiad'],
+        url: 'https://github.com/example-org/odoo_sample_module.git',
+        path: 'odoo_sample_module',
+        addons: ['odoo_sample_module'],
       },
       {
-        url: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
-        path: 'moo_olympiad_pro',
-        addons: ['moo_olympiad_payment'],
+        url: 'https://github.com/example-org/odoo_sample_module_reports.git',
+        path: 'odoo_sample_module_reports',
+        addons: ['odoo_sample_module_reports'],
       },
     ]);
   });
 
   it('does not invent legacy portal demo or pro repos from product alone', () => {
-    expect(() => optionsFromArgs(['--product', 'moo_socialmedia_monitor'])).toThrow(
+    expect(() => optionsFromArgs(['--product', 'odoo_sample_module'])).toThrow(
       '--source-repo-url',
     );
   });
@@ -147,9 +149,9 @@ describe('args', () => {
   it('parses false boolean values explicitly', () => {
     const options = optionsFromArgs([
       '--product',
-      'moo_olympiad',
+      'odoo_sample_module',
       '--source-repo-url',
-      'https://github.com/wpmoo-org/moo_olympiad.git',
+      'https://github.com/example-org/odoo_sample_module.git',
       '--init-empty-repos=false',
       '--stage=false',
     ]);
@@ -161,15 +163,15 @@ describe('args', () => {
   it('parses comma-separated addon lists', () => {
     const options = optionsFromArgs([
       '--product',
-      'moo_olympiad',
+      'odoo_sample_module',
       '--source-repo-url',
-      'https://github.com/wpmoo-org/moo_olympiad.git',
+      'https://github.com/example-org/odoo_sample_module.git',
       '--community-addons',
-      'moo_olympiad,moo_olympiad_portal',
+      'odoo_sample_module,odoo_sample_module_portal',
       '--pro-addons',
-      'moo_olympiad_payment',
+      'odoo_sample_module_reports',
     ]);
 
-    expect(options?.sourceRepos[0]?.addons).toEqual(['moo_olympiad']);
+    expect(options?.sourceRepos[0]?.addons).toEqual(['odoo_sample_module']);
   });
 });

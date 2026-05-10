@@ -37,8 +37,8 @@ export async function initializeEmptyRemote(
 
   try {
     await git.run(tempRoot, ['clone', repoUrl, cloneDir]);
-    await git.run(cloneDir, ['config', 'user.name', 'WPMoo Bot']);
-    await git.run(cloneDir, ['config', 'user.email', 'dev@wpmoo.org']);
+    await git.run(cloneDir, ['config', 'user.name', 'Create Odoo Dev Bot']);
+    await git.run(cloneDir, ['config', 'user.email', 'dev@example.com']);
     await git.run(cloneDir, ['commit', '--allow-empty', '-m', 'Initial commit']);
     await git.run(cloneDir, ['push', 'origin', `HEAD:${branch}`]);
   } finally {

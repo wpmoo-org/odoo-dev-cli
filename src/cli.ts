@@ -162,7 +162,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  outro(`Created WPMoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
+  outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
 }
 
 main().catch((error: unknown) => {

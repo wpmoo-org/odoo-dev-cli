@@ -11,27 +11,27 @@ describe('scaffold', () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-dry-run-'));
 
     const result = await scaffold({
-      product: 'moo_olympiad',
-      org: 'wpmoo-org',
+      product: 'odoo_sample_module',
+      org: 'example-org',
       odooVersion: '19.0',
-      devRepo: 'moo_olympiad_dev',
-      devRepoUrl: 'https://github.com/cangir/moo_olympiad_dev.git',
-      communityRepo: 'moo_olympiad',
-      proRepo: 'moo_olympiad_pro',
-      communityRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad.git',
-      proRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
-      communityAddons: ['moo_olympiad', 'moo_olympiad_portal'],
-      proAddons: ['moo_olympiad_payment'],
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+      communityRepo: 'odoo_sample_module',
+      proRepo: 'odoo_sample_module_reports',
+      communityRepoUrl: 'https://github.com/example-org/odoo_sample_module.git',
+      proRepoUrl: 'https://github.com/example-org/odoo_sample_module_reports.git',
+      communityAddons: ['odoo_sample_module', 'odoo_sample_module_portal'],
+      proAddons: ['odoo_sample_module_reports'],
       sourceRepos: [
         {
-          url: 'https://github.com/wpmoo-org/moo_olympiad.git',
-          path: 'moo_olympiad',
-          addons: ['moo_olympiad', 'moo_olympiad_portal'],
+          url: 'https://github.com/example-org/odoo_sample_module.git',
+          path: 'odoo_sample_module',
+          addons: ['odoo_sample_module', 'odoo_sample_module_portal'],
         },
         {
-          url: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
-          path: 'moo_olympiad_pro',
-          addons: ['moo_olympiad_payment'],
+          url: 'https://github.com/example-org/odoo_sample_module_reports.git',
+          path: 'odoo_sample_module_reports',
+          addons: ['odoo_sample_module_reports'],
         },
       ],
       target,
@@ -44,26 +44,26 @@ describe('scaffold', () => {
     await expect(stat(join(target, '.gitignore'))).rejects.toThrow();
   });
 
-  it('writes WPMoo overlay files when dry-run is disabled', async () => {
+  it('writes overlay files when dry-run is disabled', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-scaffold-'));
 
     await scaffold({
-      product: 'moo_olympiad',
-      org: 'wpmoo-org',
+      product: 'odoo_sample_module',
+      org: 'example-org',
       odooVersion: '19.0',
-      devRepo: 'moo_olympiad_dev',
-      devRepoUrl: 'https://github.com/cangir/moo_olympiad_dev.git',
-      communityRepo: 'moo_olympiad',
-      proRepo: 'moo_olympiad_pro',
-      communityRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad.git',
-      proRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
-      communityAddons: ['moo_olympiad', 'moo_olympiad_portal'],
-      proAddons: ['moo_olympiad_payment'],
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+      communityRepo: 'odoo_sample_module',
+      proRepo: 'odoo_sample_module_reports',
+      communityRepoUrl: 'https://github.com/example-org/odoo_sample_module.git',
+      proRepoUrl: 'https://github.com/example-org/odoo_sample_module_reports.git',
+      communityAddons: ['odoo_sample_module', 'odoo_sample_module_portal'],
+      proAddons: ['odoo_sample_module_reports'],
       sourceRepos: [
         {
-          url: 'https://github.com/wpmoo-org/moo_olympiad.git',
-          path: 'moo_olympiad',
-          addons: ['moo_olympiad', 'moo_olympiad_portal'],
+          url: 'https://github.com/example-org/odoo_sample_module.git',
+          path: 'odoo_sample_module',
+          addons: ['odoo_sample_module', 'odoo_sample_module_portal'],
         },
       ],
       target,
@@ -74,10 +74,10 @@ describe('scaffold', () => {
     });
 
     await expect(readFile(join(target, 'README.md'), 'utf8')).resolves.toContain(
-      'Moo Olympiad Development Environment',
+      'Odoo Sample Module Development Environment',
     );
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
-      'private/moo_olympiad:',
+      'private/odoo_sample_module:',
     );
   });
 });

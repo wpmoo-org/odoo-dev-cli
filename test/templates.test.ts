@@ -10,54 +10,54 @@ import {
 
 describe('template rendering', () => {
   const options = {
-    product: 'moo_olympiad',
-    org: 'wpmoo-org',
+    product: 'odoo_sample_module',
+    org: 'example-org',
     odooVersion: '19.0',
-    devRepo: 'moo_olympiad_dev',
-    devRepoUrl: 'https://github.com/cangir/moo_olympiad_dev.git',
-    communityRepo: 'moo_olympiad',
-    proRepo: 'moo_olympiad_pro',
-    communityRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad.git',
-    proRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
-    communityAddons: ['moo_olympiad', 'moo_olympiad_portal'],
-    proAddons: ['moo_olympiad_payment', 'moo_olympiad_analytics'],
+    devRepo: 'odoo_sample_module_dev',
+    devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+    communityRepo: 'odoo_sample_module',
+    proRepo: 'odoo_sample_module_reports',
+    communityRepoUrl: 'https://github.com/example-org/odoo_sample_module.git',
+    proRepoUrl: 'https://github.com/example-org/odoo_sample_module_reports.git',
+    communityAddons: ['odoo_sample_module', 'odoo_sample_module_portal'],
+    proAddons: ['odoo_sample_module_reports'],
     sourceRepos: [
       {
-        url: 'https://github.com/wpmoo-org/moo_olympiad.git',
-        path: 'moo_olympiad',
-        addons: ['moo_olympiad', 'moo_olympiad_portal'],
+        url: 'https://github.com/example-org/odoo_sample_module.git',
+        path: 'odoo_sample_module',
+        addons: ['odoo_sample_module', 'odoo_sample_module_portal'],
       },
       {
-        url: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
-        path: 'moo_olympiad_pro',
-        addons: ['moo_olympiad_payment', 'moo_olympiad_analytics'],
+        url: 'https://github.com/example-org/odoo_sample_module_reports.git',
+        path: 'odoo_sample_module_reports',
+        addons: ['odoo_sample_module_reports'],
       },
     ],
   };
 
   it('renders addons.yaml from source repos', () => {
-    expect(renderAddonsYaml(options)).toContain('private/moo_olympiad:');
-    expect(renderAddonsYaml(options)).toContain('  - moo_olympiad_portal');
-    expect(renderAddonsYaml(options)).toContain('private/moo_olympiad_pro:');
-    expect(renderAddonsYaml(options)).toContain('  - moo_olympiad_analytics');
+    expect(renderAddonsYaml(options)).toContain('private/odoo_sample_module:');
+    expect(renderAddonsYaml(options)).toContain('  - odoo_sample_module_portal');
+    expect(renderAddonsYaml(options)).toContain('private/odoo_sample_module_reports:');
+    expect(renderAddonsYaml(options)).toContain('  - odoo_sample_module_reports');
   });
 
   it('keeps product submodules out of repos.yaml', () => {
     const yaml = renderReposYaml(options);
 
     expect(yaml).toContain('https://github.com/OCA/OCB.git');
-    expect(yaml).toContain('private/moo_olympiad');
-    expect(yaml).toContain('private/moo_olympiad_pro');
-    expect(yaml).not.toContain('git@github.com:wpmoo-org/moo_olympiad.git');
-    expect(yaml).not.toContain('https://github.com/wpmoo-org/moo_olympiad.git');
+    expect(yaml).toContain('private/odoo_sample_module');
+    expect(yaml).toContain('private/odoo_sample_module_reports');
+    expect(yaml).not.toContain('git@github.com:example-org/odoo_sample_module.git');
+    expect(yaml).not.toContain('https://github.com/example-org/odoo_sample_module.git');
   });
 
   it('renders README with source repo submodule paths and dev clone URL', () => {
     const readme = renderReadme(options);
 
-    expect(readme).toContain('Moo Olympiad Development Environment');
-    expect(readme).toContain('git clone --recurse-submodules https://github.com/cangir/moo_olympiad_dev.git');
-    expect(readme).toContain('odoo/custom/src/private/moo_olympiad_pro');
+    expect(readme).toContain('Odoo Sample Module Development Environment');
+    expect(readme).toContain('git clone --recurse-submodules https://github.com/example-org/odoo_sample_module_dev.git');
+    expect(readme).toContain('odoo/custom/src/private/odoo_sample_module_reports');
   });
 
   it('renders README without pro assumptions for one source repo', () => {
@@ -66,7 +66,7 @@ describe('template rendering', () => {
       sourceRepos: [options.sourceRepos[0]],
     });
 
-    expect(readme).toContain('odoo/custom/src/private/moo_olympiad');
+    expect(readme).toContain('odoo/custom/src/private/odoo_sample_module');
     expect(readme).not.toContain('Pro repository');
     expect(readme).not.toContain('private paid/pro modules');
   });

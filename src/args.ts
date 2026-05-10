@@ -158,7 +158,7 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
     throw new Error('Missing --source-repo-url. Provide at least one source repository URL.');
   }
 
-  const org = stringValue(values, 'org') ?? inferGitHubOwner(parsedSourceRepos[0]?.url ?? '') ?? 'wpmoo-org';
+  const org = stringValue(values, 'org') ?? inferGitHubOwner(parsedSourceRepos[0]?.url ?? '') ?? 'example-org';
   const odooVersion = stringValue(values, 'odooVersion') ?? supportedOdooVersions[0];
   const devRepoUrl = stringValue(values, 'devRepoUrl') ?? `https://github.com/${org}/${product}_dev.git`;
   const devRepo = stringValue(values, 'devRepo') ?? inferRepoPath(devRepoUrl);
