@@ -1,5 +1,9 @@
 # @wpmoo/odoo-dev
 
+<p align="center">
+  <img src="docs/assets/wpmoo-banner.png" alt="WPMoo Workflow Platform - Micro Object Oriented" width="920">
+</p>
+
 Create Doodba-ready Odoo development environment overlays.
 
 The CLI creates development environment files, adds source repositories as Git

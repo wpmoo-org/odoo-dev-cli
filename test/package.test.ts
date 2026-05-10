@@ -7,11 +7,13 @@ describe('package metadata', () => {
     const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
       name: string;
       version: string;
+      files: string[];
       bin: Record<string, string>;
     };
 
     expect(packageJson.name).toBe('@wpmoo/odoo-dev');
-    expect(packageJson.version).toBe('0.8.12');
+    expect(packageJson.version).toBe('0.8.13');
+    expect(packageJson.files).toContain('docs/assets');
     expect(packageJson.bin).toMatchObject({
       'odoo-dev': 'dist/cli.js',
       wpmoo: 'dist/cli.js',
