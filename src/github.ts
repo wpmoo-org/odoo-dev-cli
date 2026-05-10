@@ -7,6 +7,11 @@ export type GitHubRepo = {
   name: string;
 };
 
+export type GitHubAccount = {
+  login: string;
+  type: 'user' | 'organization';
+};
+
 export type GitHubRepositoryStatus =
   | { status: 'accessible'; slug: string }
   | { status: 'inaccessible'; slug: string }
@@ -43,6 +48,10 @@ export function githubSlug(repoUrl: string): string | undefined {
   return repo ? `${repo.owner}/${repo.name}` : undefined;
 }
 
+export function githubRepositoryUrl(owner: string, repo: string): string {
+  return `https://github.com/${owner}/${repo}.git`;
+}
+
 export async function isGitHubCliAvailable(runner: GitHubRunner = realGitHub): Promise<boolean> {
   try {
     await runner.run(['--version']);
@@ -50,6 +59,42 @@ export async function isGitHubCliAvailable(runner: GitHubRunner = realGitHub): P
   } catch {
     return false;
   }
+}
+
+export async function getAuthenticatedGitHubLogin(runner: GitHubRunner = realGitHub): Promise<string> {
+  const result = await runner.run(['api', 'user', '--jq', '.login']);
+  const login = result.stdout.trim();
+  if (!login) {
+    throw new Error('GitHub CLI is not authenticated');
+  }
+  return login;
+}
+
+export async function isGitHubAuthenticated(runner: GitHubRunner = realGitHub): Promise<boolean> {
+  try {
+    await getAuthenticatedGitHubLogin(runner);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function listGitHubOrganizations(runner: GitHubRunner = realGitHub): Promise<string[]> {
+  const result = await runner.run(['api', 'user/orgs', '--jq', '.[].login']);
+  return result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+export async function getGitHubAccounts(runner: GitHubRunner = realGitHub): Promise<GitHubAccount[]> {
+  const user = await getAuthenticatedGitHubLogin(runner);
+  const organizations = await listGitHubOrganizations(runner);
+
+  return [
+    { login: user, type: 'user' },
+    ...organizations.map((login) => ({ login, type: 'organization' as const })),
+  ];
 }
 
 export async function getGitHubRepositoryStatus(

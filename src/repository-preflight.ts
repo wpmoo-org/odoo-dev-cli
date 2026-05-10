@@ -3,6 +3,7 @@ import {
   createGitHubRepository,
   getGitHubRepositoryStatus,
   githubSlug,
+  isGitHubAuthenticated,
   isGitHubCliAvailable,
   realGitHub,
 } from './github.js';
@@ -60,7 +61,7 @@ export async function createGitHubRepositories(
 }
 
 export async function repositoryPreflightAvailable(runner: GitHubRunner = realGitHub): Promise<boolean> {
-  return isGitHubCliAvailable(runner);
+  return (await isGitHubCliAvailable(runner)) && (await isGitHubAuthenticated(runner));
 }
 
 export function manualCreateCommands(repositories: MissingRepository[]): string[] {

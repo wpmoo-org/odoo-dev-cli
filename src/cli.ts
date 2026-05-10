@@ -16,7 +16,13 @@ import {
 import { scaffold } from './scaffold.js';
 import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
-import type { RepositoryVisibility } from './github.js';
+import {
+  getGitHubAccounts,
+  githubRepositoryUrl,
+  realGitHub,
+  type GitHubAccount,
+  type RepositoryVisibility,
+} from './github.js';
 
 function asString(value: unknown, fallback: string): string {
   if (isCancel(value)) {
@@ -37,6 +43,37 @@ function requiredString(value: unknown, label: string): string {
   throw new Error(`${label} is required`);
 }
 
+function githubAccountLabel(account: GitHubAccount): string {
+  return account.type === 'user' ? `${account.login} (personal)` : `${account.login} (organization)`;
+}
+
+async function selectDefaultGitHubOwner(): Promise<string | undefined> {
+  try {
+    const accounts = await getGitHubAccounts(realGitHub);
+    if (accounts.length === 0) {
+      return undefined;
+    }
+
+    if (accounts.length === 1) {
+      return accounts[0].login;
+    }
+
+    const selectedOwner = await select({
+      message: 'GitHub account/organization',
+      options: accounts.map((account) => ({
+        value: account.login,
+        label: githubAccountLabel(account),
+      })),
+      initialValue: accounts[0].login,
+    });
+    if (isCancel(selectedOwner)) process.exit(1);
+
+    return String(selectedOwner);
+  } catch {
+    return undefined;
+  }
+}
+
 async function optionsFromPrompts(): Promise<ScaffoldOptions> {
   console.log(renderBanner());
   intro('Create Odoo dev environment');
@@ -52,6 +89,7 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
 
   const target = defaultTargetForProduct(product);
   note(renderRepositorySetupNote(product), 'Repository setup');
+  const selectedGitHubOwner = await selectDefaultGitHubOwner();
 
   const selectedVersion = await select({
     message: 'Odoo version',
@@ -62,18 +100,21 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
   const odooVersion = String(selectedVersion);
 
   const detectedDevRepoUrl = await getOriginUrl(realGit, target);
+  const defaultDevRepoUrl = selectedGitHubOwner
+    ? githubRepositoryUrl(selectedGitHubOwner, `${product}_dev`)
+    : undefined;
   const devRepoUrl = normalizeRepositoryUrl(
     requiredString(
       await text({
         message: 'Dev environment repo URL',
-        placeholder: `https://github.com/your-account/${product}_dev.git`,
-        defaultValue: detectedDevRepoUrl,
+        placeholder: defaultDevRepoUrl ?? `https://github.com/your-account/${product}_dev.git`,
+        defaultValue: detectedDevRepoUrl ?? defaultDevRepoUrl,
         validate: (value) => (value.trim() ? undefined : 'Enter the dev repository URL.'),
       }),
       'Dev environment repo URL',
     ),
   );
-  const defaultOwner = inferGitHubOwner(devRepoUrl);
+  const defaultOwner = inferGitHubOwner(devRepoUrl) ?? selectedGitHubOwner;
 
   const sourceRepos: SourceRepo[] = [];
   let addAnother = true;
@@ -83,7 +124,7 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
     const suggestedRepo =
       defaultOwner === undefined
         ? undefined
-        : `https://github.com/${defaultOwner}/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`;
+        : githubRepositoryUrl(defaultOwner, repoIndex === 0 ? product : `${product}_${repoIndex + 1}`);
     const sourceRepoUrl = normalizeRepositoryUrl(
       asString(
         await text({

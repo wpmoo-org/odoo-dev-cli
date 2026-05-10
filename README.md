@@ -16,9 +16,11 @@ odoo_sample_module      # module source repo
 The CLI writes into `./odoo_sample_module_dev`. If that directory does not exist
 locally, it clones the dev repo URL you provide.
 
-When GitHub CLI is installed and authenticated, the interactive wizard checks
-whether the dev and module repositories are accessible. If they are not
-accessible, it can create them for you after confirmation.
+When GitHub CLI is installed and authenticated, the interactive wizard detects
+your GitHub username and organizations. If multiple accounts are available, it
+asks where the repos should live and uses that owner for the default repo URLs.
+The wizard also checks whether the dev and module repositories are accessible.
+If they are not accessible, it can create them for you after confirmation.
 
 ```bash
 brew install gh
