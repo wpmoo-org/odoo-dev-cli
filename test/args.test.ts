@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isVersionRequested, optionsFromArgs } from '../src/args.js';
+import { commandFromArgs, isVersionRequested, optionsFromArgs } from '../src/args.js';
 import { renderHelp } from '../src/help.js';
 import { supportedOdooVersions } from '../src/odoo-versions.js';
 import { inferRepoPath } from '../src/repo-url.js';
@@ -165,6 +165,26 @@ describe('args', () => {
     expect(renderHelp()).toContain('--dev-repo-url');
     expect(renderHelp()).toContain('npx @wpmoo/odoo-dev');
     expect(renderHelp()).not.toContain('  odoo-dev ');
+  });
+
+  it('routes explicit subcommands and legacy create args', () => {
+    expect(commandFromArgs([])).toEqual({ command: 'menu', argv: [] });
+    expect(commandFromArgs(['create', '--product', 'odoo_sample_module'])).toEqual({
+      command: 'create',
+      argv: ['--product', 'odoo_sample_module'],
+    });
+    expect(commandFromArgs(['add-repo', '--repo-url', 'https://github.com/example-org/reports.git'])).toEqual({
+      command: 'add-repo',
+      argv: ['--repo-url', 'https://github.com/example-org/reports.git'],
+    });
+    expect(commandFromArgs(['remove-repo', '--repo', 'reports'])).toEqual({
+      command: 'remove-repo',
+      argv: ['--repo', 'reports'],
+    });
+    expect(commandFromArgs(['--product', 'odoo_sample_module'])).toEqual({
+      command: 'create',
+      argv: ['--product', 'odoo_sample_module'],
+    });
   });
 
   it('detects version requests', () => {

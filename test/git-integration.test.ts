@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
+import { addModuleRepo, removeModuleRepo } from '../src/repo-actions.js';
 import { scaffold } from '../src/scaffold.js';
 
 async function git(cwd: string, args: string[]) {
@@ -196,5 +197,94 @@ describe('git integration', () => {
     });
 
     await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module'))).resolves.toBeTruthy();
+  });
+
+  it('adds and removes a module repo after initial scaffold', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wpmoo-git-add-remove-'));
+    const baseRemote = join(root, 'odoo_sample_module.git');
+    const reportsRemote = join(root, 'odoo_sample_module_reports.git');
+    const target = join(root, 'odoo_sample_module_dev');
+
+    await git(root, ['init', '--bare', baseRemote]);
+    await git(root, ['init', '--bare', reportsRemote]);
+    await git(root, ['init', target]);
+    await git(target, ['config', 'user.name', 'Test User']);
+    await git(target, ['config', 'user.email', 'test@example.com']);
+    await git(target, ['commit', '--allow-empty', '-m', 'Initial dev repo']);
+
+    await scaffold({
+      product: 'odoo_sample_module',
+      odooVersion: '19.0',
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: target,
+      sourceRepos: [
+        {
+          url: baseRemote,
+          path: 'odoo_sample_module',
+          addons: ['odoo_sample_module'],
+        },
+      ],
+      target,
+      dryRun: false,
+      initEmptyRepos: true,
+      stage: true,
+    });
+    await git(target, ['commit', '-m', 'Initial scaffold']);
+
+    await addModuleRepo({
+      target,
+      repoUrl: reportsRemote,
+      odooVersion: '19.0',
+      initEmptyRepos: true,
+      stage: true,
+    });
+
+    await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module_reports'))).resolves.toBeTruthy();
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
+      'private/odoo_sample_module_reports:\n  - odoo_sample_module_reports',
+    );
+
+    await git(target, ['commit', '-m', 'Add reports repo']);
+
+    await removeModuleRepo({
+      target,
+      repoPath: 'odoo_sample_module_reports',
+      stage: true,
+    });
+
+    await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module_reports'))).rejects.toThrow();
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.not.toContain(
+      'private/odoo_sample_module_reports:',
+    );
+  });
+
+  it('refuses to remove a dirty module submodule', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wpmoo-git-dirty-remove-'));
+    const reportsRemote = join(root, 'odoo_sample_module_reports.git');
+    const target = join(root, 'odoo_sample_module_dev');
+
+    await git(root, ['init', '--bare', reportsRemote]);
+    await git(root, ['init', target]);
+    await git(target, ['config', 'user.name', 'Test User']);
+    await git(target, ['config', 'user.email', 'test@example.com']);
+    await git(target, ['commit', '--allow-empty', '-m', 'Initial dev repo']);
+
+    await addModuleRepo({
+      target,
+      repoUrl: reportsRemote,
+      odooVersion: '19.0',
+      initEmptyRepos: true,
+      stage: true,
+    });
+    await git(target, ['commit', '-m', 'Add reports repo']);
+    await writeFile(join(target, 'odoo/custom/src/private/odoo_sample_module_reports/dirty.txt'), 'dirty\n', 'utf8');
+
+    await expect(
+      removeModuleRepo({
+        target,
+        repoPath: 'odoo_sample_module_reports',
+        stage: true,
+      }),
+    ).rejects.toThrow('uncommitted changes');
   });
 });

@@ -103,6 +103,21 @@ export async function ensureSubmodule(
   await addSubmodule(git, target, repoUrl, branch, path);
 }
 
+export async function hasUncommittedChanges(git: GitRunner, cwd: string): Promise<boolean> {
+  const result = await git.run(cwd, ['status', '--porcelain']);
+  return result.stdout.trim().length > 0;
+}
+
+export async function removeSubmodule(git: GitRunner, target: string, path: string): Promise<void> {
+  try {
+    await git.run(target, ['submodule', 'deinit', '-f', path]);
+  } catch {
+    // `git rm` below is the authoritative removal; deinit can fail for partially initialized submodules.
+  }
+
+  await git.run(target, ['rm', '-f', path]);
+}
+
 export async function cloneRepository(
   git: GitRunner,
   cwd: string,

@@ -40,10 +40,18 @@ Interactive wizard:
 npx @wpmoo/odoo-dev
 ```
 
+The wizard first asks what you want to do:
+
+```text
+Create an Odoo development environment
+Add a module repo as submodule
+Remove a repo
+```
+
 Non-interactive:
 
 ```bash
-npx @wpmoo/odoo-dev \
+npx @wpmoo/odoo-dev create \
   --product odoo_sample_module \
   --odoo-version 19.0 \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
@@ -55,7 +63,7 @@ npx @wpmoo/odoo-dev \
 Multiple source repositories:
 
 ```bash
-npx @wpmoo/odoo-dev \
+npx @wpmoo/odoo-dev create \
   --product odoo_sample_module \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
@@ -68,11 +76,26 @@ npx @wpmoo/odoo-dev \
 Dry run:
 
 ```bash
-npx @wpmoo/odoo-dev \
+npx @wpmoo/odoo-dev create \
   --product odoo_sample_module \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
   --dry-run
+```
+
+Add a module repository later from inside the dev environment:
+
+```bash
+npx @wpmoo/odoo-dev add-repo \
+  --repo-url https://github.com/example-org/odoo_sample_module_reports.git \
+  --odoo-version 19.0 \
+  --init-empty-repos
+```
+
+Remove a module repository from the dev environment:
+
+```bash
+npx @wpmoo/odoo-dev remove-repo --repo odoo_sample_module_reports
 ```
 
 ## Defaults

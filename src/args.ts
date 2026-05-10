@@ -10,6 +10,32 @@ type ParsedArgs = {
   values: Record<string, string | boolean>;
 };
 
+export type CliCommand = 'menu' | 'create' | 'add-repo' | 'remove-repo';
+
+export type CommandRoute = {
+  command: CliCommand;
+  argv: string[];
+};
+
+const commandNames = new Set<CliCommand>(['create', 'add-repo', 'remove-repo']);
+
+export function commandFromArgs(argv: string[]): CommandRoute {
+  if (argv.length === 0) {
+    return { command: 'menu', argv: [] };
+  }
+
+  const [first, ...rest] = argv;
+  if (commandNames.has(first as CliCommand)) {
+    return { command: first as CliCommand, argv: rest };
+  }
+
+  if (first.startsWith('--') || first === '-h' || first === '-v') {
+    return { command: 'create', argv };
+  }
+
+  throw new Error(`Unknown command: ${first}`);
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
   const values: Record<string, string | boolean> = {};
 

@@ -1,0 +1,22 @@
+import { readFileSync } from 'node:fs';
+
+import { describe, expect, it } from 'vitest';
+
+describe('package metadata', () => {
+  it('exposes direct npx and compatibility bin commands', () => {
+    const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      name: string;
+      version: string;
+      bin: Record<string, string>;
+    };
+
+    expect(packageJson.name).toBe('@wpmoo/odoo-dev');
+    expect(packageJson.version).toBe('0.6.0');
+    expect(packageJson.bin).toMatchObject({
+      'odoo-dev': 'dist/cli.js',
+      wpmoo: 'dist/cli.js',
+      'wpmoo-odoo-dev': 'dist/cli.js',
+      'create-odoo-dev': 'dist/cli.js',
+    });
+  });
+});

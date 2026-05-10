@@ -1,9 +1,10 @@
 {
   "name": "@wpmoo/odoo-dev",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Create Doodba-ready Odoo development environments.",
   "type": "module",
   "bin": {
+    "odoo-dev": "dist/cli.js",
     "wpmoo": "dist/cli.js",
     "wpmoo-odoo-dev": "dist/cli.js",
     "create-odoo-dev": "dist/cli.js"
