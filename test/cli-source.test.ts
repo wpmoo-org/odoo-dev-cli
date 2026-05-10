@@ -25,4 +25,14 @@ describe('CLI environment maintenance prompts', () => {
     expect(source).not.toContain('`${product}_pro`');
     expect(source).not.toContain('_payment');
   });
+
+  it('previews and confirms safe reset from the environment menu', () => {
+    const source = readFileSync(new URL('../src/cli.ts', import.meta.url), 'utf8');
+
+    expect(source).toContain('renderSafeResetPreview(options.target, options.stage)');
+    expect(source).toContain("message: menuPromptMessage('Continue with safe reset?', 'back')");
+    expect(source).toContain("active: 'Yes'");
+    expect(source).toContain("inactive: 'No'");
+    expect(source).toContain('initialValue: false');
+  });
 });

@@ -27,7 +27,7 @@ import { renderRepositorySetupNote } from './prompt-copy.js';
 import { promptRepositoryUrl } from './prompt-repositories.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import { addModuleRepo, listModuleRepos, removeModuleRepo, type AddModuleRepoOptions, type RemoveModuleRepoOptions } from './repo-actions.js';
-import { safeResetEnvironment, type SafeResetOptions } from './safe-reset.js';
+import { renderSafeResetPreview, safeResetEnvironment, type SafeResetOptions } from './safe-reset.js';
 import {
   checkGitHubRepositories,
   createGitHubRepositories,
@@ -54,6 +54,7 @@ import {
   handleUnavailableMenuChoice,
   installPromptCancelKeyTracker,
   isMenuBackSignal,
+  MenuBackSignal,
   menuIntroTitle,
   menuPromptMessage,
   type PromptCancelAction,
@@ -495,6 +496,20 @@ function resetOptionsFromArgs(argv: string[]): SafeResetOptions {
   };
 }
 
+async function confirmSafeResetFromMenu(options: SafeResetOptions): Promise<void> {
+  note(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview');
+  const confirmed = await confirm({
+    message: menuPromptMessage('Continue with safe reset?', 'back'),
+    active: 'Yes',
+    inactive: 'No',
+    initialValue: false,
+  });
+  handleCancel(confirmed, 'back');
+  if (!confirmed) {
+    throw new MenuBackSignal();
+  }
+}
+
 async function removeRepoOptionsFromPrompts(
   argv: string[],
   showIntro = true,
@@ -742,7 +757,9 @@ async function main(): Promise<void> {
           return;
         }
 
-        await safeResetEnvironment({ target: process.cwd(), stage: true });
+        const options = { target: process.cwd(), stage: true };
+        await confirmSafeResetFromMenu(options);
+        await safeResetEnvironment(options);
         outro(`Safe reset refreshed generated environment files in ${process.cwd()}.`);
         return;
       } catch (error) {

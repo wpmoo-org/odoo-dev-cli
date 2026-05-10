@@ -12,6 +12,35 @@ export type SafeResetOptions = {
   stage: boolean;
 };
 
+export function renderSafeResetPreview(target: string, stage: boolean): string {
+  return [
+    `Safe reset will refresh generated WPMoo/Doodba environment files in ${target}.`,
+    '',
+    'Will update:',
+    '- .wpmoo/odoo-dev.json',
+    '- moo',
+    '- .gitignore',
+    '- README.md',
+    '- AGENTS.md',
+    '- docs/appstore-release.md',
+    '- odoo/custom/src/repos.yaml',
+    '- odoo/custom/dependencies/apt.txt',
+    '- odoo/custom/dependencies/pip.txt',
+    '- odoo/custom/dependencies/npm.txt',
+    '- odoo/custom/conf.d/README.md',
+    '- odoo/custom/entrypoint.d/README.md',
+    '- odoo/custom/build.d/README.md',
+    '',
+    'Will not touch:',
+    '- odoo/custom/src/addons.yaml',
+    '- source repo folders under odoo/custom/src/private',
+    '- module source code',
+    '- Git history, remotes, or branches',
+    '',
+    stage ? 'Generated changes will be staged with git add .' : 'Generated changes will not be staged.',
+  ].join('\n');
+}
+
 function titleFromTarget(target: string): string {
   return basename(target).replace(/_dev$/, '') || 'odoo_sample_module';
 }

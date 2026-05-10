@@ -4,9 +4,40 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { safeResetEnvironment } from '../src/safe-reset.js';
+import { renderSafeResetPreview, safeResetEnvironment } from '../src/safe-reset.js';
 
 describe('safe reset', () => {
+  it('explains what safe reset will and will not touch', () => {
+    expect(renderSafeResetPreview('/tmp/odoo_sample_module_dev', true)).toBe(
+      [
+        'Safe reset will refresh generated WPMoo/Doodba environment files in /tmp/odoo_sample_module_dev.',
+        '',
+        'Will update:',
+        '- .wpmoo/odoo-dev.json',
+        '- moo',
+        '- .gitignore',
+        '- README.md',
+        '- AGENTS.md',
+        '- docs/appstore-release.md',
+        '- odoo/custom/src/repos.yaml',
+        '- odoo/custom/dependencies/apt.txt',
+        '- odoo/custom/dependencies/pip.txt',
+        '- odoo/custom/dependencies/npm.txt',
+        '- odoo/custom/conf.d/README.md',
+        '- odoo/custom/entrypoint.d/README.md',
+        '- odoo/custom/build.d/README.md',
+        '',
+        'Will not touch:',
+        '- odoo/custom/src/addons.yaml',
+        '- source repo folders under odoo/custom/src/private',
+        '- module source code',
+        '- Git history, remotes, or branches',
+        '',
+        'Generated changes will be staged with git add .',
+      ].join('\n'),
+    );
+  });
+
   it('refreshes generated overlay files without deleting module code', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-'));
     const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module');
