@@ -1,7 +1,7 @@
 export function renderHelp(): string {
   return `@wpmoo/create-odoo-dev
 
-Create a WPMoo Doodba-ready Odoo development environment overlay.
+Create a Doodba-ready Odoo development environment overlay.
 
 Usage:
   npx @wpmoo/create-odoo-dev

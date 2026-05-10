@@ -29,6 +29,25 @@ describe('args', () => {
     ]);
   });
 
+  it('defaults source addons to the repo path when addons are not provided', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'moo_socialmedia_monitor',
+      '--dev-repo-url',
+      'https://github.com/cangir/moo_socialmedia_monitor_dev.git',
+      '--source-repo-url',
+      'https://github.com/wpmoo-org/moo_socialmedia_monitor.git',
+    ]);
+
+    expect(options?.sourceRepos).toEqual([
+      {
+        url: 'https://github.com/wpmoo-org/moo_socialmedia_monitor.git',
+        path: 'moo_socialmedia_monitor',
+        addons: ['moo_socialmedia_monitor'],
+      },
+    ]);
+  });
+
   it('parses repeated source repo flags with optional path overrides', () => {
     const options = optionsFromArgs([
       '--product',
@@ -95,6 +114,12 @@ describe('args', () => {
     ]);
   });
 
+  it('does not invent legacy portal demo or pro repos from product alone', () => {
+    expect(() => optionsFromArgs(['--product', 'moo_socialmedia_monitor'])).toThrow(
+      '--source-repo-url',
+    );
+  });
+
   it('renders help for url-first usage', () => {
     expect(renderHelp()).toContain('--source-repo-url');
     expect(renderHelp()).toContain('--dev-repo-url');
@@ -105,6 +130,8 @@ describe('args', () => {
     const options = optionsFromArgs([
       '--product',
       'moo_olympiad',
+      '--source-repo-url',
+      'https://github.com/wpmoo-org/moo_olympiad.git',
       '--init-empty-repos=false',
       '--stage=false',
     ]);
@@ -117,13 +144,14 @@ describe('args', () => {
     const options = optionsFromArgs([
       '--product',
       'moo_olympiad',
+      '--source-repo-url',
+      'https://github.com/wpmoo-org/moo_olympiad.git',
       '--community-addons',
       'moo_olympiad,moo_olympiad_portal',
       '--pro-addons',
       'moo_olympiad_payment',
     ]);
 
-    expect(options?.communityAddons).toEqual(['moo_olympiad', 'moo_olympiad_portal']);
-    expect(options?.proAddons).toEqual(['moo_olympiad_payment']);
+    expect(options?.sourceRepos[0]?.addons).toEqual(['moo_olympiad']);
   });
 });

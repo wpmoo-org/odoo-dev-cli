@@ -2,7 +2,7 @@
 
 Create Doodba-ready Odoo development environment overlays.
 
-The CLI expects source repositories to already exist. It creates the WPMoo
+The CLI expects source repositories to already exist. It creates development
 environment files, adds source repositories as Git submodules, generates Doodba
 `addons.yaml` and `repos.yaml`, then stages the result with `git add .`. It
 does not commit.
@@ -19,12 +19,11 @@ Non-interactive:
 
 ```bash
 npx @wpmoo/create-odoo-dev \
-  --product moo_olympiad \
+  --product moo_socialmedia_monitor \
   --odoo-version 19.0 \
-  --dev-repo-url https://github.com/cangir/moo_olympiad_dev.git \
-  --source-repo-url https://github.com/wpmoo-org/moo_olympiad.git \
-  --source-addons moo_olympiad,moo_olympiad_portal,moo_olympiad_demo \
-  --target /Users/cng/wpmoo-org/moo_olympiad_dev \
+  --dev-repo-url https://github.com/cangir/moo_socialmedia_monitor_dev.git \
+  --source-repo-url https://github.com/wpmoo-org/moo_socialmedia_monitor.git \
+  --target /Users/cng/projects/moo_socialmedia_monitor_dev \
   --init-empty-repos
 ```
 
@@ -45,31 +44,25 @@ Dry run:
 
 ```bash
 npx @wpmoo/create-odoo-dev \
-  --product moo_olympiad \
-  --source-repo-url https://github.com/wpmoo-org/moo_olympiad.git \
-  --source-addons moo_olympiad \
-  --target /tmp/moo_olympiad_dev \
+  --product moo_socialmedia_monitor \
+  --dev-repo-url https://github.com/cangir/moo_socialmedia_monitor_dev.git \
+  --source-repo-url https://github.com/wpmoo-org/moo_socialmedia_monitor.git \
+  --target /tmp/moo_socialmedia_monitor_dev \
   --dry-run
 ```
 
 ## Defaults
 
-For `--product moo_olympiad`, default community addons are:
+Each source repo defaults to a single addon with the same name as its local
+submodule folder. For example:
 
 ```text
-moo_olympiad
-moo_olympiad_portal
-moo_olympiad_demo
+private/moo_socialmedia_monitor:
+  - moo_socialmedia_monitor
 ```
 
-Default pro addons are:
-
-```text
-moo_olympiad_payment
-moo_olympiad_reports
-moo_olympiad_analytics
-moo_olympiad_pro
-```
+If the project has portal, demo, payment, reports, or other addons, pass them
+explicitly with `--source-addons` or edit the wizard prompt.
 
 ## Notes
 

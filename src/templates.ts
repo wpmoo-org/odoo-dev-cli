@@ -1,11 +1,11 @@
 import type { CreateOptions } from './types.js';
 
 export function defaultCommunityAddons(product: string): string[] {
-  return [product, `${product}_portal`, `${product}_demo`];
+  return [product];
 }
 
 export function defaultProAddons(product: string): string[] {
-  return [`${product}_payment`, `${product}_reports`, `${product}_analytics`, `${product}_pro`];
+  return [`${product}_pro`];
 }
 
 function titleizeProduct(product: string): string {
@@ -58,15 +58,14 @@ ${repo.addons.map((addon) => `├── ${addon}/`).join('\n')}
 export function renderBanner(): string {
   return String.raw`
 
-        ░██       ░██ ░█████████  ░███     ░███                       
-        ░██       ░██ ░██     ░██ ░████   ░████                       
-        ░██  ░██  ░██ ░██     ░██ ░██░██ ░██░██  ░███████   ░███████  
-        ░██ ░████ ░██ ░█████████  ░██ ░████ ░██ ░██    ░██ ░██    ░██ 
-        ░██░██ ░██░██ ░██         ░██  ░██  ░██ ░██    ░██ ░██    ░██ 
-        ░████   ░████ ░██         ░██       ░██ ░██    ░██ ░██    ░██ 
-        ░███     ░███ ░██         ░██       ░██  ░███████   ░███████  
+░██       ░██ ░█████████  ░███     ░███
+░██       ░██ ░██     ░██ ░████   ░████
+░██  ░██  ░██ ░██     ░██ ░██░██ ░██░██  ░███████   ░███████
+░██ ░████ ░██ ░█████████  ░██ ░████ ░██ ░██    ░██ ░██    ░██
+░██░██ ░██░██ ░██         ░██  ░██  ░██ ░██    ░██ ░██    ░██
+░████   ░████ ░██         ░██       ░██ ░██    ░██ ░██    ░██
+░███     ░███ ░██         ░██       ░██  ░███████   ░███████
 
-        Create Odoo dev environment
 `;
 }
 
@@ -116,7 +115,7 @@ odoo/custom/src/*/.git-aggregate-cache/
 }
 
 export function renderAddonsYaml(options: CreateOptions): string {
-  return `# Addons activated from WPMoo source submodules.
+  return `# Addons activated from source submodules.
 #
 # Source repos are managed as Git submodules under odoo/custom/src/private.
 # Do not duplicate these same repos in repos.yaml.
@@ -128,7 +127,7 @@ ${options.sourceRepos.map((repo) => `private/${repo.path}:\n${yamlList(repo.addo
 export function renderReposYaml(options: CreateOptions): string {
   return `# Doodba git-aggregator repositories.
 #
-# WPMoo product source repositories are intentionally not listed here because
+# Project source repositories are intentionally not listed here because
 # they are pinned as Git submodules:
 #
 ${options.sourceRepos.map((repo) => `# - private/${repo.path}`).join('\n')}
@@ -199,7 +198,7 @@ ${sourceRepoDocs(options)}
 
 ## Doodba Notes
 
-The WPMoo product repositories are managed as Git submodules. Do not also add
+The product source repositories are managed as Git submodules. Do not also add
 them to \`odoo/custom/src/repos.yaml\`, otherwise the same source will be managed
 by two different mechanisms.
 
@@ -213,7 +212,7 @@ copier copy https://github.com/Tecnativa/doodba-copier-template .
 \`\`\`
 
 Run this only after reviewing conflicts because this repository already contains
-WPMoo-specific source and documentation files.
+project-specific source and documentation files.
 
 ## Common Commands
 

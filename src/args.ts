@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 
 import { defaultCommunityAddons, defaultProAddons } from './templates.js';
-import { inferRepoPath } from './repo-url.js';
+import { inferGitHubOwner, inferRepoPath } from './repo-url.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
 
 type ParsedArgs = {
@@ -103,14 +103,12 @@ function parseSourceRepos(argv: string[]): SourceRepo[] {
   }
 
   return repos.map((repo) => {
-    if (!repo.addons?.length) {
-      throw new Error(`Missing --source-addons for ${repo.url}`);
-    }
+    const path = repo.path?.trim() || inferRepoPath(repo.url);
 
     return {
       url: repo.url,
-      path: repo.path?.trim() || inferRepoPath(repo.url),
-      addons: repo.addons,
+      path,
+      addons: repo.addons?.length ? repo.addons : [path],
     };
   });
 }
@@ -139,7 +137,22 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
     return undefined;
   }
 
-  const org = stringValue(values, 'org') ?? 'wpmoo-org';
+  const parsedSourceRepos = parseSourceRepos(argv);
+  const hasLegacySourceConfig = [
+    'org',
+    'communityRepo',
+    'communityRepoUrl',
+    'communityAddons',
+    'proRepo',
+    'proRepoUrl',
+    'proAddons',
+  ].some((key) => values[key] !== undefined);
+
+  if (parsedSourceRepos.length === 0 && !hasLegacySourceConfig) {
+    throw new Error('Missing --source-repo-url. Provide at least one source repository URL.');
+  }
+
+  const org = stringValue(values, 'org') ?? inferGitHubOwner(parsedSourceRepos[0]?.url ?? '') ?? 'wpmoo-org';
   const odooVersion = stringValue(values, 'odooVersion') ?? '19.0';
   const devRepoUrl = stringValue(values, 'devRepoUrl') ?? `https://github.com/${org}/${product}_dev.git`;
   const devRepo = stringValue(values, 'devRepo') ?? inferRepoPath(devRepoUrl);
@@ -151,7 +164,8 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
   const proRepoUrl = stringValue(values, 'proRepoUrl') ?? `https://github.com/${org}/${proRepo}.git`;
   const communityAddons = listValue(stringValue(values, 'communityAddons'), defaultCommunityAddons(product));
   const proAddons = listValue(stringValue(values, 'proAddons'), defaultProAddons(product));
-  const parsedSourceRepos = parseSourceRepos(argv);
+  const hasExplicitProRepo =
+    values.proRepo !== undefined || values.proRepoUrl !== undefined || values.proAddons !== undefined;
   const sourceRepos =
     parsedSourceRepos.length > 0
       ? parsedSourceRepos
@@ -161,11 +175,15 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
             path: communityRepo,
             addons: communityAddons,
           },
-          {
-            url: proRepoUrl,
-            path: proRepo,
-            addons: proAddons,
-          },
+          ...(hasExplicitProRepo
+            ? [
+                {
+                  url: proRepoUrl,
+                  path: proRepo,
+                  addons: proAddons,
+                },
+              ]
+            : []),
         ].filter((repo) => repo.url && repo.path && repo.addons.length);
 
   return {

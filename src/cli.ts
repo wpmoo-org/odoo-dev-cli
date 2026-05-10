@@ -4,9 +4,9 @@ import { intro, isCancel, outro, select, text } from '@clack/prompts';
 import { isHelpRequested, optionsFromArgs } from './args.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
-import { inferRepoPath } from './repo-url.js';
+import { inferGitHubOwner, inferRepoPath } from './repo-url.js';
 import { scaffold } from './scaffold.js';
-import { defaultCommunityAddons, defaultProAddons, renderBanner } from './templates.js';
+import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
 
 function asString(value: unknown, fallback: string): string {
@@ -23,9 +23,21 @@ function csv(value: string): string[] {
     .filter(Boolean);
 }
 
+function requiredString(value: unknown, label: string): string {
+  if (isCancel(value)) {
+    process.exit(1);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+
+  throw new Error(`${label} is required`);
+}
+
 async function optionsFromPrompts(): Promise<ScaffoldOptions> {
   console.log(renderBanner());
-  intro('Create WPMoo Odoo dev environment');
+  intro('Create Odoo dev environment');
 
   const product = asString(
     await text({
@@ -51,28 +63,34 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
   );
 
   const detectedDevRepoUrl = await getOriginUrl(realGit, target);
-  const devRepoUrl = asString(
+  const devRepoUrl = requiredString(
     await text({
       message: 'Dev environment repo URL',
-      defaultValue: detectedDevRepoUrl ?? `https://github.com/wpmoo-org/${product}_dev.git`,
+      placeholder: `https://github.com/your-account/${product}_dev.git`,
+      defaultValue: detectedDevRepoUrl,
+      validate: (value) => (value.trim() ? undefined : 'Enter the dev repository URL.'),
     }),
-    detectedDevRepoUrl ?? `https://github.com/wpmoo-org/${product}_dev.git`,
+    'Dev environment repo URL',
   );
+  const defaultOwner = inferGitHubOwner(devRepoUrl);
 
   const sourceRepos: SourceRepo[] = [];
   let addAnother = true;
 
   while (addAnother) {
     const repoIndex = sourceRepos.length;
+    const suggestedRepo =
+      defaultOwner === undefined
+        ? undefined
+        : `https://github.com/${defaultOwner}/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`;
     const sourceRepoUrl = asString(
       await text({
         message: `Source repo ${repoIndex + 1} URL`,
-        defaultValue:
-          repoIndex === 0
-            ? `https://github.com/wpmoo-org/${product}.git`
-            : `https://github.com/wpmoo-org/${product}_pro.git`,
+        placeholder: `https://github.com/owner/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`,
+        defaultValue: suggestedRepo,
+        validate: (value) => (value.trim() ? undefined : 'Enter the source repository URL.'),
       }),
-      repoIndex === 0 ? `https://github.com/wpmoo-org/${product}.git` : `https://github.com/wpmoo-org/${product}_pro.git`,
+      suggestedRepo ?? '',
     );
     const defaultPath = inferRepoPath(sourceRepoUrl);
     const sourcePath = asString(
@@ -82,14 +100,12 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
       }),
       defaultPath,
     );
-    const defaultAddons =
-      repoIndex === 0 ? defaultCommunityAddons(product).join(',') : defaultProAddons(product).join(',');
     const sourceAddons = asString(
       await text({
         message: `Source repo ${repoIndex + 1} addons`,
-        defaultValue: defaultAddons,
+        defaultValue: sourcePath,
       }),
-      defaultAddons,
+      sourcePath,
     );
 
     sourceRepos.push({

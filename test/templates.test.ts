@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  defaultCommunityAddons,
-  defaultProAddons,
   renderBanner,
   renderAddonsYaml,
   renderGitignore,
@@ -21,18 +19,18 @@ describe('template rendering', () => {
     proRepo: 'moo_olympiad_pro',
     communityRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad.git',
     proRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
-    communityAddons: defaultCommunityAddons('moo_olympiad'),
-    proAddons: defaultProAddons('moo_olympiad'),
+    communityAddons: ['moo_olympiad', 'moo_olympiad_portal'],
+    proAddons: ['moo_olympiad_payment', 'moo_olympiad_analytics'],
     sourceRepos: [
       {
         url: 'https://github.com/wpmoo-org/moo_olympiad.git',
         path: 'moo_olympiad',
-        addons: defaultCommunityAddons('moo_olympiad'),
+        addons: ['moo_olympiad', 'moo_olympiad_portal'],
       },
       {
         url: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
         path: 'moo_olympiad_pro',
-        addons: defaultProAddons('moo_olympiad'),
+        addons: ['moo_olympiad_payment', 'moo_olympiad_analytics'],
       },
     ],
   };
@@ -73,10 +71,10 @@ describe('template rendering', () => {
     expect(readme).not.toContain('private paid/pro modules');
   });
 
-  it('renders a large ASCII WPMoo.org banner', () => {
+  it('renders a large CLI banner', () => {
     const banner = renderBanner();
 
-    expect(banner).toContain('WPMoo.org');
+    expect(banner.trim()).not.toBe('');
     expect(banner.split('\n').length).toBeGreaterThan(4);
   });
 
