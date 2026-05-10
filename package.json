@@ -1,6 +1,6 @@
 {
   "name": "@wpmoo/odoo-dev",
-  "version": "0.8.24",
+  "version": "0.8.25",
   "description": "Create Doodba-ready Odoo development environments.",
   "type": "module",
   "repository": {

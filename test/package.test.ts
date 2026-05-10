@@ -14,7 +14,7 @@ describe('package metadata', () => {
     };
 
     expect(packageJson.name).toBe('@wpmoo/odoo-dev');
-    expect(packageJson.version).toBe('0.8.24');
+    expect(packageJson.version).toBe('0.8.25');
     expect(packageJson.readmeFilename).toBe('README.md');
     expect(packageJson.repository).toMatchObject({
       type: 'git',
