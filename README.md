@@ -95,11 +95,26 @@ npx @wpmoo/odoo-dev create \
 Add a source repository later from inside the dev environment:
 
 ```bash
+npx @wpmoo/odoo-dev
+```
+
+Choose `Add source repo`, then enter only the repository name, such as
+`odoo_sample_module_reports`. The CLI uses the environment's GitHub owner and
+Odoo version, checks whether the repository exists, and can create it with GitHub
+CLI when needed.
+
+Non-interactive URL form:
+
+```bash
 npx @wpmoo/odoo-dev add-repo \
   --repo-url https://github.com/example-org/odoo_sample_module_reports.git \
   --odoo-version 19.0 \
   --init-empty-repos
 ```
+
+When run inside a generated environment, maintenance actions use the environment
+Odoo version from `.wpmoo/odoo-dev.json`. Pass `--odoo-version` only when you
+need an explicit override.
 
 Remove a source repository from the dev environment:
 

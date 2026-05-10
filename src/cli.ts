@@ -11,7 +11,8 @@ import {
   parseArgs,
   stripInternalFlags,
 } from './args.js';
-import { detectDevelopmentEnvironment, environmentOdooVersion } from './environment.js';
+import { detectDevelopmentEnvironment } from './environment.js';
+import { commandOdooVersion } from './environment-version.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import {
@@ -40,11 +41,14 @@ import { checkForUpdate, installLatestPackage, isUpdateCheckSkipped, restartCli 
 import { packageName, packageVersion, renderVersion, renderVersionTag } from './version.js';
 import {
   getGitHubAccounts,
+  getGitHubRepositoryStatus,
   githubRepositoryUrl,
   realGitHub,
+  createGitHubRepository,
   type GitHubAccount,
   type RepositoryVisibility,
 } from './github.js';
+import { environmentGitHubOwner, environmentProduct } from './environment-context.js';
 import {
   handlePromptCancel,
   handleUnavailableMenuChoice,
@@ -74,31 +78,37 @@ function githubAccountLabel(account: GitHubAccount): string {
   return account.type === 'user' ? `${account.login} (personal)` : `${account.login} (organization)`;
 }
 
-async function selectDefaultGitHubOwner(cancelAction: PromptCancelAction = 'exit'): Promise<string | undefined> {
+async function selectDefaultGitHubOwner(
+  cancelAction: PromptCancelAction = 'exit',
+  preferredOwner?: string,
+): Promise<string | undefined> {
   try {
     const accounts = await getGitHubAccounts(realGitHub);
     if (accounts.length === 0) {
-      return undefined;
+      return preferredOwner;
     }
 
     if (accounts.length === 1) {
       return accounts[0].login;
     }
 
+    const initialValue = accounts.some((account) => account.login === preferredOwner)
+      ? preferredOwner
+      : accounts[0].login;
     const selectedOwner = await select({
       message: 'GitHub account/organization',
       options: accounts.map((account) => ({
         value: account.login,
         label: githubAccountLabel(account),
       })),
-      initialValue: accounts[0].login,
+      initialValue,
     });
     handleCancel(selectedOwner, cancelAction);
 
     return String(selectedOwner);
   } catch (error) {
     if (isMenuBackSignal(error)) throw error;
-    return undefined;
+    return preferredOwner;
   }
 }
 
@@ -117,6 +127,13 @@ function booleanOption(values: Record<string, string | boolean>, key: string, fa
   if (['false', '0', 'no', 'n'].includes(normalized)) return false;
 
   throw new Error(`Invalid boolean value for --${key}: ${value}`);
+}
+
+function validateRepoName(value: string): string | undefined {
+  const normalized = value.trim();
+  if (!normalized) return 'Enter a repository name.';
+  if (normalized.includes('/') || normalized.includes(':')) return 'Enter only the repository name, not a URL.';
+  return undefined;
 }
 
 async function showStartup(argv: string[], skipUpdateCheck: boolean): Promise<void> {
@@ -278,18 +295,19 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   };
 }
 
-function addRepoOptionsFromArgs(argv: string[]): AddModuleRepoOptions | undefined {
+async function addRepoOptionsFromArgs(argv: string[]): Promise<AddModuleRepoOptions | undefined> {
   const { values } = parseArgs(argv);
   const repoUrl = stringOption(values, 'repoUrl') ?? stringOption(values, 'sourceRepoUrl');
   if (!repoUrl) {
     return undefined;
   }
 
+  const target = resolve(stringOption(values, 'target') ?? process.cwd());
   return {
-    target: resolve(stringOption(values, 'target') ?? process.cwd()),
+    target,
     repoUrl: normalizeRepositoryUrl(repoUrl),
     repoPath: stringOption(values, 'repo') ?? stringOption(values, 'sourcePath'),
-    odooVersion: stringOption(values, 'odooVersion') ?? supportedOdooVersions[0],
+    odooVersion: await commandOdooVersion(target, stringOption(values, 'odooVersion')),
     initEmptyRepos: booleanOption(values, 'initEmptyRepos', false),
     stage: booleanOption(values, 'stage', true),
   };
@@ -301,20 +319,33 @@ async function addRepoOptionsFromPrompts(
 ): Promise<AddModuleRepoOptions> {
   showSubmenuIntro('Add source repo as submodule', showIntro, cancelAction);
 
-  const selectedVersion = await select({
-    message: 'Odoo version',
-    options: supportedOdooVersions.map((version) => ({ value: version, label: version })),
-    initialValue: supportedOdooVersions[0],
-  });
-  handleCancel(selectedVersion, cancelAction);
-
-  const repoUrl = normalizeRepositoryUrl(
-    await promptRepositoryUrl({
-      label: 'Source repo URL',
-      placeholder: 'https://github.com/example-org/odoo_sample_module.git',
+  const target = process.cwd();
+  const odooVersion = await commandOdooVersion(target);
+  const preferredOwner = await environmentGitHubOwner(target);
+  const product = await environmentProduct(target);
+  const selectedOwner = await selectDefaultGitHubOwner(cancelAction, preferredOwner);
+  const owner =
+    selectedOwner ??
+    asString(
+      await text({
+        message: menuPromptMessage('GitHub owner/organization', cancelAction),
+        placeholder: 'wpmoo-org',
+        validate: (value) => (value.trim() ? undefined : 'Enter a GitHub owner or organization.'),
+      }),
+      'wpmoo-org',
       cancelAction,
+    );
+  const repoName = asString(
+    await text({
+      message: menuPromptMessage('Source repo name', cancelAction),
+      placeholder: product ? `${product}_pro` : 'odoo_sample_module_pro',
+      validate: validateRepoName,
     }),
+    product ? `${product}_pro` : 'odoo_sample_module_pro',
+    cancelAction,
   );
+
+  const repoUrl = githubRepositoryUrl(owner, repoName);
 
   const initEmpty = await select({
     message: menuPromptMessage('Initialize repository if it exists but has no commits?', cancelAction),
@@ -327,12 +358,60 @@ async function addRepoOptionsFromPrompts(
   handleCancel(initEmpty, cancelAction);
 
   return {
-    target: process.cwd(),
+    target,
     repoUrl,
-    odooVersion: String(selectedVersion),
+    odooVersion,
     initEmptyRepos: Boolean(initEmpty),
     stage: true,
   };
+}
+
+async function ensureAddRepoGitHubRepository(
+  options: AddModuleRepoOptions,
+  cancelAction: PromptCancelAction = 'exit',
+): Promise<void> {
+  if (!(await repositoryPreflightAvailable())) {
+    note(
+      [
+        'GitHub CLI (`gh`) is not available or not authenticated.',
+        'The source repo will be used as-is. If it does not exist, create it first or authenticate gh.',
+      ].join('\n'),
+      'Repository check skipped',
+    );
+    return;
+  }
+
+  const status = await getGitHubRepositoryStatus(realGitHub, options.repoUrl);
+  if (status.status !== 'inaccessible') {
+    return;
+  }
+
+  note(`Source repo is not accessible: ${status.slug}`, 'Repository check');
+  const shouldCreate = await select({
+    message: 'Create this source repository with GitHub CLI?',
+    options: [
+      { value: true, label: 'Yes, create it' },
+      { value: false, label: 'No, I will create/check access myself' },
+    ],
+    initialValue: true,
+  });
+  handleCancel(shouldCreate, cancelAction);
+
+  if (!shouldCreate) {
+    throw new Error(`Source repository is not accessible: ${status.slug}`);
+  }
+
+  const visibility = await select({
+    message: 'Visibility for new repository',
+    options: [
+      { value: 'private', label: 'Private' },
+      { value: 'public', label: 'Public' },
+    ],
+    initialValue: 'private',
+  });
+  handleCancel(visibility, cancelAction);
+
+  await createGitHubRepository(realGitHub, options.repoUrl, visibility as RepositoryVisibility);
 }
 
 async function selectSourceRepo(target: string, cancelAction: PromptCancelAction = 'exit'): Promise<string> {
@@ -363,7 +442,7 @@ function suggestedModuleName(repoPath: string): string {
   return `${repoPath}_base`;
 }
 
-function addModuleOptionsFromArgs(argv: string[]): AddModuleOptions | undefined {
+async function addModuleOptionsFromArgs(argv: string[]): Promise<AddModuleOptions | undefined> {
   const { values } = parseArgs(argv);
   const repoPath = stringOption(values, 'repo') ?? stringOption(values, 'sourcePath');
   const moduleName = stringOption(values, 'module') ?? stringOption(values, 'moduleName');
@@ -371,11 +450,12 @@ function addModuleOptionsFromArgs(argv: string[]): AddModuleOptions | undefined 
     return undefined;
   }
 
+  const target = resolve(stringOption(values, 'target') ?? process.cwd());
   return {
-    target: resolve(stringOption(values, 'target') ?? process.cwd()),
+    target,
     repoPath,
     moduleName,
-    odooVersion: stringOption(values, 'odooVersion') ?? supportedOdooVersions[0],
+    odooVersion: await commandOdooVersion(target, stringOption(values, 'odooVersion')),
     stage: booleanOption(values, 'stage', true),
   };
 }
@@ -402,7 +482,7 @@ async function addModuleOptionsFromPrompts(
     target,
     repoPath,
     moduleName,
-    odooVersion: await environmentOdooVersion(target),
+    odooVersion: await commandOdooVersion(target),
     stage: true,
   };
 }
@@ -650,6 +730,7 @@ async function main(): Promise<void> {
 
         if (action === 'add-repo') {
           const options = await addRepoOptionsFromPrompts(false, 'back');
+          await ensureAddRepoGitHubRepository(options, 'back');
           await addModuleRepo(options);
           outro(`Added source repo under ${options.target}/odoo/custom/src/private.`);
           return;
@@ -689,7 +770,7 @@ async function main(): Promise<void> {
   }
 
   if (route.command === 'add-repo') {
-    const options = addRepoOptionsFromArgs(route.argv);
+    const options = await addRepoOptionsFromArgs(route.argv);
     if (options) {
       console.log(renderBanner());
       await addModuleRepo(options);
@@ -699,6 +780,7 @@ async function main(): Promise<void> {
 
     await showStartup(argv, skipUpdateCheck);
     const promptedOptions = await addRepoOptionsFromPrompts();
+    await ensureAddRepoGitHubRepository(promptedOptions);
     await addModuleRepo(promptedOptions);
     outro(`Added source repo under ${promptedOptions.target}/odoo/custom/src/private.`);
     return;
@@ -721,7 +803,7 @@ async function main(): Promise<void> {
   }
 
   if (route.command === 'add-module') {
-    const options = addModuleOptionsFromArgs(route.argv);
+    const options = await addModuleOptionsFromArgs(route.argv);
     if (options) {
       console.log(renderBanner());
       await addModuleToSourceRepo(options);

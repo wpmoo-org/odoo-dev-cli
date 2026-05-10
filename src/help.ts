@@ -21,6 +21,7 @@ Options:
   --repo <name>                Source repo folder name for repo/module actions.
   --module <name>              Odoo module technical name for module actions.
   --delete-files               Also delete module files in remove-module. Default: false.
+  --odoo-version <branch>      Override the environment Odoo branch for add-repo/add-module.
   --source-repo-url <url>      Source repo URL. Repeat for multiple repos.
   --source-path <path>         Advanced: local folder for the preceding source repo.
   --source-addons <list>       Advanced: comma-separated addons for the preceding source repo.
