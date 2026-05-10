@@ -1,5 +1,7 @@
 import { confirm, isCancel, text, type ConfirmOptions, type TextOptions } from '@clack/prompts';
 
+import { handlePromptCancel, type PromptCancelAction } from './menu-navigation.js';
+
 export type RepositoryUrlPromptApi = {
   confirm(options: ConfirmOptions): Promise<boolean | symbol>;
   text(options: TextOptions): Promise<string | symbol>;
@@ -15,11 +17,13 @@ export async function promptRepositoryUrl({
   suggestedUrl,
   placeholder,
   prompt = defaultPrompt,
+  cancelAction = 'exit',
 }: {
   label: string;
   suggestedUrl?: string;
   placeholder: string;
   prompt?: RepositoryUrlPromptApi;
+  cancelAction?: PromptCancelAction;
 }): Promise<string> {
   if (suggestedUrl) {
     const useSuggested = await prompt.confirm({
@@ -29,7 +33,7 @@ export async function promptRepositoryUrl({
       initialValue: true,
     });
     if (isCancel(useSuggested)) {
-      throw new Error(`${label} prompt cancelled`);
+      handlePromptCancel(true, cancelAction);
     }
     if (useSuggested) {
       return suggestedUrl;
@@ -42,7 +46,7 @@ export async function promptRepositoryUrl({
     validate: (input) => (input.trim() ? undefined : `Enter the ${label.toLowerCase()}.`),
   });
   if (isCancel(value)) {
-    throw new Error(`${label} prompt cancelled`);
+    handlePromptCancel(true, cancelAction);
   }
   if (typeof value === 'string' && value.trim()) {
     return value.trim();
