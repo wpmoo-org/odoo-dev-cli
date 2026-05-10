@@ -1,8 +1,17 @@
 {
   "name": "@wpmoo/odoo-dev",
-  "version": "0.8.20",
+  "version": "0.8.21",
   "description": "Create Doodba-ready Odoo development environments.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wpmoo-org/odoo-dev-cli.git"
+  },
+  "homepage": "https://github.com/wpmoo-org/odoo-dev-cli#readme",
+  "bugs": {
+    "url": "https://github.com/wpmoo-org/odoo-dev-cli/issues"
+  },
+  "readmeFilename": "README.md",
   "bin": {
     "odoo-dev": "dist/cli.js",
     "wpmoo": "dist/cli.js",

@@ -1,8 +1,6 @@
 # @wpmoo/odoo-dev
 
-<p align="center">
-  <img src="https://cdn.jsdelivr.net/npm/@wpmoo/odoo-dev/docs/assets/wpmoo-banner.png" alt="WPMoo Workflow Platform - Micro Object Oriented" width="920">
-</p>
+![WPMoo Workflow Platform - Micro Object Oriented](https://cdn.jsdelivr.net/npm/@wpmoo/odoo-dev/docs/assets/wpmoo-banner.png)
 
 Create Doodba-ready Odoo development environment overlays.
 

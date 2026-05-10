@@ -14,4 +14,13 @@ describe('CLI environment maintenance prompts', () => {
 
     expect(source).not.toContain('Initialize repository if it exists but has no commits?');
   });
+
+  it('uses generic Odoo sample placeholders for maintenance actions', () => {
+    const source = readFileSync(new URL('../src/cli.ts', import.meta.url), 'utf8');
+
+    expect(source).toContain("placeholder: 'odoo_sample_module_repo'");
+    expect(source).toContain("return 'odoo_sample_module';");
+    expect(source).not.toContain('`${product}_pro`');
+    expect(source).not.toContain('_payment');
+  });
 });

@@ -7,12 +7,19 @@ describe('package metadata', () => {
     const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
       name: string;
       version: string;
+      readmeFilename: string;
+      repository: { type: string; url: string };
       files: string[];
       bin: Record<string, string>;
     };
 
     expect(packageJson.name).toBe('@wpmoo/odoo-dev');
-    expect(packageJson.version).toBe('0.8.20');
+    expect(packageJson.version).toBe('0.8.21');
+    expect(packageJson.readmeFilename).toBe('README.md');
+    expect(packageJson.repository).toMatchObject({
+      type: 'git',
+      url: 'git+https://github.com/wpmoo-org/odoo-dev-cli.git',
+    });
     expect(packageJson.files).toContain('docs/assets');
     expect(packageJson.bin).toMatchObject({
       'odoo-dev': 'dist/cli.js',

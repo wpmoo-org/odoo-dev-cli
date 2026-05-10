@@ -48,7 +48,7 @@ import {
   type GitHubAccount,
   type RepositoryVisibility,
 } from './github.js';
-import { environmentGitHubOwner, environmentProduct } from './environment-context.js';
+import { environmentGitHubOwner } from './environment-context.js';
 import {
   handlePromptCancel,
   handleUnavailableMenuChoice,
@@ -322,7 +322,6 @@ async function addRepoOptionsFromPrompts(
   const target = process.cwd();
   const odooVersion = await commandOdooVersion(target);
   const preferredOwner = await environmentGitHubOwner(target);
-  const product = await environmentProduct(target);
   const selectedOwner = await selectDefaultGitHubOwner(cancelAction, preferredOwner);
   const owner =
     selectedOwner ??
@@ -338,10 +337,10 @@ async function addRepoOptionsFromPrompts(
   const repoName = asString(
     await text({
       message: menuPromptMessage('Source repo name', cancelAction),
-      placeholder: product ? `${product}_pro` : 'odoo_sample_module_pro',
+      placeholder: 'odoo_sample_module_repo',
       validate: validateRepoName,
     }),
-    product ? `${product}_pro` : 'odoo_sample_module_pro',
+    'odoo_sample_module_repo',
     cancelAction,
   );
 
@@ -425,11 +424,7 @@ async function selectSourceRepo(target: string, cancelAction: PromptCancelAction
 }
 
 function suggestedModuleName(repoPath: string): string {
-  if (repoPath.endsWith('_pro')) {
-    return `${repoPath.slice(0, -4)}_payment`;
-  }
-
-  return `${repoPath}_base`;
+  return 'odoo_sample_module';
 }
 
 async function addModuleOptionsFromArgs(argv: string[]): Promise<AddModuleOptions | undefined> {
