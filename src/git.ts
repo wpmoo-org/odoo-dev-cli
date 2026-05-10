@@ -87,3 +87,11 @@ export async function stageAll(git: GitRunner, target: string): Promise<void> {
   await git.run(target, ['add', '.']);
 }
 
+export async function getOriginUrl(git: GitRunner, target: string): Promise<string | undefined> {
+  try {
+    const result = await git.run(target, ['remote', 'get-url', 'origin']);
+    return result.stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}

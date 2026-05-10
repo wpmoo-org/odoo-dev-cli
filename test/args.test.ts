@@ -1,8 +1,106 @@
 import { describe, expect, it } from 'vitest';
 
 import { optionsFromArgs } from '../src/args.js';
+import { renderHelp } from '../src/help.js';
+import { inferRepoPath } from '../src/repo-url.js';
 
 describe('args', () => {
+  it('parses url-first source repositories without requiring a pro repo', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'moo_olympiad',
+      '--odoo-version',
+      '19.0',
+      '--dev-repo-url',
+      'https://github.com/cangir/moo_olympiad_dev.git',
+      '--source-repo-url',
+      'https://github.com/wpmoo-org/moo_olympiad.git',
+      '--source-addons',
+      'moo_olympiad,moo_olympiad_portal',
+    ]);
+
+    expect(options?.devRepoUrl).toBe('https://github.com/cangir/moo_olympiad_dev.git');
+    expect(options?.sourceRepos).toEqual([
+      {
+        url: 'https://github.com/wpmoo-org/moo_olympiad.git',
+        path: 'moo_olympiad',
+        addons: ['moo_olympiad', 'moo_olympiad_portal'],
+      },
+    ]);
+  });
+
+  it('parses repeated source repo flags with optional path overrides', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'moo_olympiad',
+      '--source-repo-url',
+      'https://github.com/wpmoo-org/moo_olympiad.git',
+      '--source-addons',
+      'moo_olympiad',
+      '--source-repo-url',
+      'git@github.com:wpmoo-org/moo_olympiad_pro.git',
+      '--source-path',
+      'paid',
+      '--source-addons',
+      'moo_olympiad_payment,moo_olympiad_reports',
+    ]);
+
+    expect(options?.sourceRepos).toEqual([
+      {
+        url: 'https://github.com/wpmoo-org/moo_olympiad.git',
+        path: 'moo_olympiad',
+        addons: ['moo_olympiad'],
+      },
+      {
+        url: 'git@github.com:wpmoo-org/moo_olympiad_pro.git',
+        path: 'paid',
+        addons: ['moo_olympiad_payment', 'moo_olympiad_reports'],
+      },
+    ]);
+  });
+
+  it('infers source paths from common repo URL forms', () => {
+    expect(inferRepoPath('https://github.com/wpmoo-org/moo_olympiad.git')).toBe('moo_olympiad');
+    expect(inferRepoPath('git@github.com:wpmoo-org/moo_olympiad_pro.git')).toBe('moo_olympiad_pro');
+    expect(inferRepoPath('/tmp/remotes/moo_olympiad_private.git')).toBe('moo_olympiad_private');
+  });
+
+  it('keeps legacy community/pro flags as a compatibility fallback', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'moo_olympiad',
+      '--org',
+      'wpmoo-org',
+      '--community-repo',
+      'moo_olympiad',
+      '--pro-repo',
+      'moo_olympiad_pro',
+      '--community-addons',
+      'moo_olympiad',
+      '--pro-addons',
+      'moo_olympiad_payment',
+    ]);
+
+    expect(options?.sourceRepos).toEqual([
+      {
+        url: 'https://github.com/wpmoo-org/moo_olympiad.git',
+        path: 'moo_olympiad',
+        addons: ['moo_olympiad'],
+      },
+      {
+        url: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
+        path: 'moo_olympiad_pro',
+        addons: ['moo_olympiad_payment'],
+      },
+    ]);
+  });
+
+  it('renders help for url-first usage', () => {
+    expect(renderHelp()).toContain('--source-repo-url');
+    expect(renderHelp()).toContain('--dev-repo-url');
+    expect(renderHelp()).toContain('npx @wpmoo/create-odoo-dev');
+  });
+
   it('parses false boolean values explicitly', () => {
     const options = optionsFromArgs([
       '--product',
@@ -29,4 +127,3 @@ describe('args', () => {
     expect(options?.proAddons).toEqual(['moo_olympiad_payment']);
   });
 });
-

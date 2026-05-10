@@ -73,10 +73,10 @@ export async function scaffold(
   git: GitRunner = realGit,
 ): Promise<ScaffoldResult> {
   const files = generatedFiles(options);
-  const plannedCommands = [
-    `git submodule add -b ${options.odooVersion} ${options.communityRepoUrl} odoo/custom/src/private/${options.communityRepo}`,
-    `git submodule add -b ${options.odooVersion} ${options.proRepoUrl} odoo/custom/src/private/${options.proRepo}`,
-  ];
+  const plannedCommands = options.sourceRepos.map(
+    (repo) =>
+      `git submodule add -b ${options.odooVersion} ${repo.url} odoo/custom/src/private/${repo.path}`,
+  );
 
   if (options.stage) {
     plannedCommands.push('git add .');
@@ -92,35 +92,13 @@ export async function scaffold(
   await writeGeneratedFiles(options.target, files);
 
   if (!options.skipSubmodules) {
-    await ensureRemoteHasBranch(
-      git,
-      options.target,
-      options.communityRepoUrl,
-      options.odooVersion,
-      options.initEmptyRepos,
-    );
-    await ensureRemoteHasBranch(
-      git,
-      options.target,
-      options.proRepoUrl,
-      options.odooVersion,
-      options.initEmptyRepos,
-    );
+    for (const repo of options.sourceRepos) {
+      await ensureRemoteHasBranch(git, options.target, repo.url, options.odooVersion, options.initEmptyRepos);
+    }
     await mkdir(join(options.target, 'odoo/custom/src/private'), { recursive: true });
-    await addSubmodule(
-      git,
-      options.target,
-      options.communityRepoUrl,
-      options.odooVersion,
-      `odoo/custom/src/private/${options.communityRepo}`,
-    );
-    await addSubmodule(
-      git,
-      options.target,
-      options.proRepoUrl,
-      options.odooVersion,
-      `odoo/custom/src/private/${options.proRepo}`,
-    );
+    for (const repo of options.sourceRepos) {
+      await addSubmodule(git, options.target, repo.url, options.odooVersion, `odoo/custom/src/private/${repo.path}`);
+    }
     await syncSubmodules(git, options.target);
   }
 
@@ -133,4 +111,3 @@ export async function scaffold(
     plannedCommands,
   };
 }
-

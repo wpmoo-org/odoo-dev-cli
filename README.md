@@ -2,10 +2,10 @@
 
 Create Doodba-ready Odoo development environment overlays.
 
-The CLI expects GitHub repositories to already exist. It creates the WPMoo
-environment files, adds community/pro source repositories as Git submodules,
-generates Doodba `addons.yaml` and `repos.yaml`, then stages the result with
-`git add .`. It does not commit.
+The CLI expects source repositories to already exist. It creates the WPMoo
+environment files, adds source repositories as Git submodules, generates Doodba
+`addons.yaml` and `repos.yaml`, then stages the result with `git add .`. It
+does not commit.
 
 ## Usage
 
@@ -20,13 +20,25 @@ Non-interactive:
 ```bash
 npx @wpmoo/create-odoo-dev \
   --product moo_olympiad \
-  --org wpmoo-org \
   --odoo-version 19.0 \
-  --dev-repo moo_olympiad_dev \
-  --community-repo moo_olympiad \
-  --pro-repo moo_olympiad_pro \
+  --dev-repo-url https://github.com/cangir/moo_olympiad_dev.git \
+  --source-repo-url https://github.com/wpmoo-org/moo_olympiad.git \
+  --source-addons moo_olympiad,moo_olympiad_portal,moo_olympiad_demo \
   --target /Users/cng/wpmoo-org/moo_olympiad_dev \
   --init-empty-repos
+```
+
+Multiple source repositories:
+
+```bash
+npx @wpmoo/create-odoo-dev \
+  --product moo_olympiad \
+  --dev-repo-url https://github.com/cangir/moo_olympiad_dev.git \
+  --source-repo-url https://github.com/wpmoo-org/moo_olympiad.git \
+  --source-addons moo_olympiad,moo_olympiad_portal \
+  --source-repo-url git@github.com:wpmoo-org/moo_olympiad_pro.git \
+  --source-path moo_olympiad_pro \
+  --source-addons moo_olympiad_payment,moo_olympiad_reports
 ```
 
 Dry run:
@@ -34,6 +46,8 @@ Dry run:
 ```bash
 npx @wpmoo/create-odoo-dev \
   --product moo_olympiad \
+  --source-repo-url https://github.com/wpmoo-org/moo_olympiad.git \
+  --source-addons moo_olympiad \
   --target /tmp/moo_olympiad_dev \
   --dry-run
 ```
@@ -65,4 +79,5 @@ moo_olympiad_pro
 - Product source repositories are intentionally not listed in `repos.yaml`.
 - Empty source repos can be initialized with an empty commit and the selected
   Odoo branch when `--init-empty-repos` is provided.
-
+- Legacy `--org`, `--community-repo`, and `--pro-repo` flags are still accepted
+  when no `--source-repo-url` flags are provided.

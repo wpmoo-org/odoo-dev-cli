@@ -20,6 +20,56 @@ function yamlList(items: string[]): string {
   return items.map((item) => `  - ${item}`).join('\n');
 }
 
+function allAddons(options: CreateOptions): string[] {
+  return options.sourceRepos.flatMap((repo) => repo.addons);
+}
+
+function repoTree(options: CreateOptions): string {
+  return options.sourceRepos.map((repo) => `│       │   │   ├── ${repo.path}/`).join('\n');
+}
+
+function sourceRepoDocs(options: CreateOptions): string {
+  return options.sourceRepos
+    .map(
+      (repo) => `### ${repo.path}
+
+URL:
+
+\`\`\`text
+${repo.url}
+\`\`\`
+
+Submodule path:
+
+\`\`\`text
+odoo/custom/src/private/${repo.path}
+\`\`\`
+
+Expected addon layout:
+
+\`\`\`text
+${repo.path}/
+${repo.addons.map((addon) => `├── ${addon}/`).join('\n')}
+\`\`\``,
+    )
+    .join('\n\n');
+}
+
+export function renderBanner(): string {
+  return String.raw`
+
+        ░██       ░██ ░█████████  ░███     ░███                       
+        ░██       ░██ ░██     ░██ ░████   ░████                       
+        ░██  ░██  ░██ ░██     ░██ ░██░██ ░██░██  ░███████   ░███████  
+        ░██ ░████ ░██ ░█████████  ░██ ░████ ░██ ░██    ░██ ░██    ░██ 
+        ░██░██ ░██░██ ░██         ░██  ░██  ░██ ░██    ░██ ░██    ░██ 
+        ░████   ░████ ░██         ░██       ░██ ░██    ░██ ░██    ░██ 
+        ░███     ░███ ░██         ░██       ░██  ░███████   ░███████  
+
+        Create Odoo dev environment
+`;
+}
+
 export function renderGitignore(): string {
   return `# macOS/editor noise
 .DS_Store
@@ -71,11 +121,7 @@ export function renderAddonsYaml(options: CreateOptions): string {
 # Source repos are managed as Git submodules under odoo/custom/src/private.
 # Do not duplicate these same repos in repos.yaml.
 
-private/${options.communityRepo}:
-${yamlList(options.communityAddons)}
-
-private/${options.proRepo}:
-${yamlList(options.proAddons)}
+${options.sourceRepos.map((repo) => `private/${repo.path}:\n${yamlList(repo.addons)}`).join('\n\n')}
 `;
 }
 
@@ -85,8 +131,7 @@ export function renderReposYaml(options: CreateOptions): string {
 # WPMoo product source repositories are intentionally not listed here because
 # they are pinned as Git submodules:
 #
-# - private/${options.communityRepo}
-# - private/${options.proRepo}
+${options.sourceRepos.map((repo) => `# - private/${repo.path}`).join('\n')}
 #
 # Keep this file for upstream/OCA repositories that Doodba should aggregate.
 
@@ -104,16 +149,14 @@ odoo:
 
 export function renderReadme(options: CreateOptions): string {
   const title = titleizeProduct(options.product);
+  const modules = allAddons(options).join(',');
 
   return `# ${title} Development Environment
 
 Private Doodba development environment for the ${title} product.
 
 This repository owns the development environment only. Product source code lives
-in submodules:
-
-- \`odoo/custom/src/private/${options.communityRepo}\` - public community modules
-- \`odoo/custom/src/private/${options.proRepo}\` - private paid/pro modules
+in source repository submodules under \`odoo/custom/src/private\`.
 
 ## Repository Layout
 
@@ -123,8 +166,7 @@ ${options.devRepo}/
 │   └── custom/
 │       ├── src/
 │       │   ├── private/
-│       │   │   ├── ${options.communityRepo}/
-│       │   │   └── ${options.proRepo}/
+${repoTree(options)}
 │       │   ├── repos.yaml
 │       │   └── addons.yaml
 │       ├── dependencies/
@@ -141,7 +183,7 @@ ${options.devRepo}/
 Clone with submodules:
 
 \`\`\`bash
-git clone --recurse-submodules https://github.com/${options.org}/${options.devRepo}.git
+git clone --recurse-submodules ${options.devRepoUrl}
 cd ${options.devRepo}
 \`\`\`
 
@@ -153,31 +195,7 @@ git submodule update --init --recursive
 
 ## Source Repositories
 
-Community repository:
-
-\`\`\`text
-${options.org}/${options.communityRepo}
-\`\`\`
-
-Expected addon layout:
-
-\`\`\`text
-${options.communityRepo}/
-${options.communityAddons.map((addon) => `├── ${addon}/`).join('\n')}
-\`\`\`
-
-Pro repository:
-
-\`\`\`text
-${options.org}/${options.proRepo}
-\`\`\`
-
-Expected addon layout:
-
-\`\`\`text
-${options.proRepo}/
-${options.proAddons.map((addon) => `├── ${addon}/`).join('\n')}
-\`\`\`
+${sourceRepoDocs(options)}
 
 ## Doodba Notes
 
@@ -212,7 +230,7 @@ invoke start
 Run tests for all planned product addons:
 
 \`\`\`bash
-modules=${[...options.communityAddons, ...options.proAddons].join(',')}
+modules=${modules}
 docker compose run --rm odoo addons update --test --with $modules
 \`\`\`
 
@@ -230,6 +248,13 @@ submodule references.
 }
 
 export function renderAgents(options: CreateOptions): string {
+  const repoList = options.sourceRepos
+    .map((repo) => `- \`${repo.path}\`: \`${repo.url}\``)
+    .join('\n');
+  const addonList = options.sourceRepos
+    .map((repo) => `\`${repo.path}\` addons:\n${repo.addons.map((addon) => `- \`${addon}\``).join('\n')}`)
+    .join('\n\n');
+
   return `# AGENTS.md
 
 ## Project
@@ -239,32 +264,24 @@ Private Doodba development environment for the ${titleizeProduct(options.product
 ## Repository Roles
 
 - \`${options.devRepo}\`: environment/config only, private.
-- \`${options.communityRepo}\`: community/public addon suite.
-- \`${options.proRepo}\`: private paid addon suite.
+${repoList}
 
 ## Source Layout
 
 Product repositories are Git submodules:
 
 \`\`\`text
-odoo/custom/src/private/${options.communityRepo}
-odoo/custom/src/private/${options.proRepo}
+${options.sourceRepos.map((repo) => `odoo/custom/src/private/${repo.path}`).join('\n')}
 \`\`\`
 
 Do not duplicate these repositories in \`repos.yaml\`.
 
 ## Addon Boundaries
 
-Community addons belong in \`${options.communityRepo}\`:
+${addonList}
 
-${options.communityAddons.map((addon) => `- \`${addon}\``).join('\n')}
-
-Pro addons belong in \`${options.proRepo}\`:
-
-${options.proAddons.map((addon) => `- \`${addon}\``).join('\n')}
-
-Community addons must not depend on pro addons. Pro addons may depend on
-community addons.
+Public/community addons must not depend on private paid addons. Private paid
+addons may depend on public/community addons.
 
 ## Odoo 19 Rules
 
@@ -280,8 +297,7 @@ community addons.
 After Doodba scaffold generation, use Doodba addon commands:
 
 \`\`\`bash
-docker compose run --rm odoo addons update --test --with ${options.communityAddons.join(',')}
-docker compose run --rm odoo addons update --test --with ${options.proAddons.join(',')}
+docker compose run --rm odoo addons update --test --with ${allAddons(options).join(',')}
 \`\`\`
 
 Only report completion after the relevant update/test command exits cleanly.
@@ -291,8 +307,8 @@ Only report completion after the relevant update/test command exits cleanly.
 export function renderAppstoreRelease(options: CreateOptions): string {
   return `# Odoo Apps Release Notes
 
-Paid addons can live together in \`${options.org}/${options.proRepo}\` during
-development. Each paid addon still needs its own App Store metadata.
+Paid addons can live together in a private source repository during development.
+Each paid addon still needs its own App Store metadata.
 
 Per addon checklist:
 
@@ -307,7 +323,7 @@ Per addon checklist:
 
 Recommended release flow:
 
-1. Develop in \`${options.proRepo}\`.
+1. Develop in the relevant private source repository.
 2. Update the addon manifest version.
 3. Run update/test commands in this dev environment.
 4. Tag the source commit.
@@ -316,8 +332,8 @@ Recommended release flow:
 
 If App Store scan coupling becomes a problem, create separate private publish
 mirror repositories for each paid addon. Keep development in
-\`${options.proRepo}\`; mirrors should be generated artifacts, not hand-edited
-source repositories.
+\`odoo/custom/src/private\`; mirrors should be generated artifacts, not
+hand-edited source repositories.
 `;
 }
 
@@ -327,4 +343,3 @@ export function renderPlaceholder(title: string, body: string): string {
 ${body}
 `;
 }
-

@@ -15,12 +15,25 @@ describe('scaffold', () => {
       org: 'wpmoo-org',
       odooVersion: '19.0',
       devRepo: 'moo_olympiad_dev',
+      devRepoUrl: 'https://github.com/cangir/moo_olympiad_dev.git',
       communityRepo: 'moo_olympiad',
       proRepo: 'moo_olympiad_pro',
       communityRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad.git',
       proRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
       communityAddons: ['moo_olympiad', 'moo_olympiad_portal'],
       proAddons: ['moo_olympiad_payment'],
+      sourceRepos: [
+        {
+          url: 'https://github.com/wpmoo-org/moo_olympiad.git',
+          path: 'moo_olympiad',
+          addons: ['moo_olympiad', 'moo_olympiad_portal'],
+        },
+        {
+          url: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
+          path: 'moo_olympiad_pro',
+          addons: ['moo_olympiad_payment'],
+        },
+      ],
       target,
       dryRun: true,
       initEmptyRepos: false,
@@ -39,12 +52,20 @@ describe('scaffold', () => {
       org: 'wpmoo-org',
       odooVersion: '19.0',
       devRepo: 'moo_olympiad_dev',
+      devRepoUrl: 'https://github.com/cangir/moo_olympiad_dev.git',
       communityRepo: 'moo_olympiad',
       proRepo: 'moo_olympiad_pro',
       communityRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad.git',
       proRepoUrl: 'https://github.com/wpmoo-org/moo_olympiad_pro.git',
       communityAddons: ['moo_olympiad', 'moo_olympiad_portal'],
       proAddons: ['moo_olympiad_payment'],
+      sourceRepos: [
+        {
+          url: 'https://github.com/wpmoo-org/moo_olympiad.git',
+          path: 'moo_olympiad',
+          addons: ['moo_olympiad', 'moo_olympiad_portal'],
+        },
+      ],
       target,
       dryRun: false,
       initEmptyRepos: false,
@@ -56,8 +77,7 @@ describe('scaffold', () => {
       'Moo Olympiad Development Environment',
     );
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
-      'private/moo_olympiad_pro:',
+      'private/moo_olympiad:',
     );
   });
 });
-
