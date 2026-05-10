@@ -1,0 +1,31 @@
+{
+  "name": "@wpmoo/create-odoo-dev",
+  "version": "0.1.0",
+  "description": "Create Doodba-ready Odoo development environments.",
+  "type": "module",
+  "bin": {
+    "create-odoo-dev": "dist/cli.js",
+    "wpmoo-create-odoo-dev": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "execa": "^9.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  },
+  "license": "MIT"
+}
