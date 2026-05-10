@@ -13,6 +13,6 @@ describe('version', () => {
 
     expect(packageVersion()).toBe(packageJson.version);
     expect(renderVersion()).toBe(`${packageJson.name} ${packageJson.version}`);
-    expect(renderVersionTag()).toBe(`\u001B[33m v.${packageJson.version}\u001B[0m`);
+    expect(renderVersionTag()).toBe(`\u001B[33mv.${packageJson.version}\u001B[0m`);
   });
 });

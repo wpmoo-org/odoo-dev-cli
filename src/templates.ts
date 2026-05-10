@@ -96,7 +96,6 @@ export function renderBanner(): string {
 ░███     ░███ ░██         ░██       ░██  ░███████   ░███████
 
 ░░░░░░ WPMoo - Workflow Platform Micro Object Oriented ░░░░░░
-
 `;
 
   return `${ANSI_BOLD}${applyBannerGradient(banner)}${ANSI_RESET}`;

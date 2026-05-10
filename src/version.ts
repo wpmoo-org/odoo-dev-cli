@@ -19,5 +19,5 @@ export function renderVersion(): string {
 }
 
 export function renderVersionTag(): string {
-  return `\u001B[33m v.${packageVersion()}\u001B[0m`;
+  return `\u001B[33mv.${packageVersion()}\u001B[0m`;
 }
