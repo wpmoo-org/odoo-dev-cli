@@ -48,6 +48,7 @@ import {
 import {
   handlePromptCancel,
   handleUnavailableMenuChoice,
+  installPromptCancelKeyTracker,
   isMenuBackSignal,
   menuIntroTitle,
   type PromptCancelAction,
@@ -614,6 +615,7 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
 }
 
 async function main(): Promise<void> {
+  installPromptCancelKeyTracker();
   const rawArgv = process.argv.slice(2);
   const skipUpdateCheck = isUpdateCheckSkipped(rawArgv);
   const argv = stripInternalFlags(rawArgv);
