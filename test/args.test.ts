@@ -163,7 +163,8 @@ describe('args', () => {
   it('renders help for url-first usage', () => {
     expect(renderHelp()).toContain('--source-repo-url');
     expect(renderHelp()).toContain('--dev-repo-url');
-    expect(renderHelp()).toContain('npx @wpmoo/create-odoo-dev');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo-dev');
+    expect(renderHelp()).not.toContain('  odoo-dev ');
   });
 
   it('detects version requests', () => {

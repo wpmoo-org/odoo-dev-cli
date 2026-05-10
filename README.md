@@ -1,4 +1,4 @@
-# @wpmoo/create-odoo-dev
+# @wpmoo/odoo-dev
 
 Create Doodba-ready Odoo development environment overlays.
 
@@ -37,13 +37,13 @@ is entered, the CLI normalizes it to the cloneable form.
 Interactive wizard:
 
 ```bash
-npx @wpmoo/create-odoo-dev
+npx @wpmoo/odoo-dev
 ```
 
 Non-interactive:
 
 ```bash
-npx @wpmoo/create-odoo-dev \
+npx @wpmoo/odoo-dev \
   --product odoo_sample_module \
   --odoo-version 19.0 \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
@@ -55,7 +55,7 @@ npx @wpmoo/create-odoo-dev \
 Multiple source repositories:
 
 ```bash
-npx @wpmoo/create-odoo-dev \
+npx @wpmoo/odoo-dev \
   --product odoo_sample_module \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
@@ -68,7 +68,7 @@ npx @wpmoo/create-odoo-dev \
 Dry run:
 
 ```bash
-npx @wpmoo/create-odoo-dev \
+npx @wpmoo/odoo-dev \
   --product odoo_sample_module \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \

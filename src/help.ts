@@ -1,11 +1,11 @@
 export function renderHelp(): string {
-  return `@wpmoo/create-odoo-dev
+  return `@wpmoo/odoo-dev
 
 Create a Doodba-ready Odoo development environment overlay.
 
 Usage:
-  npx @wpmoo/create-odoo-dev
-  npx @wpmoo/create-odoo-dev --product <slug> --dev-repo-url <url> --source-repo-url <url>
+  npx @wpmoo/odoo-dev
+  npx @wpmoo/odoo-dev --product <slug> --dev-repo-url <url> --source-repo-url <url>
 
 Options:
   --product <slug>             Product slug, for example my_odoo_module.
@@ -24,7 +24,7 @@ Options:
   --help, -h                   Show this help.
 
 Example:
-  npx @wpmoo/create-odoo-dev \\
+  npx @wpmoo/odoo-dev \\
     --product odoo_sample_module \\
     --odoo-version 19.0 \\
     --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \\
