@@ -41,6 +41,7 @@ describe('scaffold', () => {
     });
 
     expect(result.plannedFiles).toContain('.gitignore');
+    expect(result.plannedFiles).toContain('moo');
     await expect(stat(join(target, '.gitignore'))).rejects.toThrow();
   });
 
@@ -79,5 +80,9 @@ describe('scaffold', () => {
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
       'private/odoo_sample_module:',
     );
+    await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain(
+      'exec npx --yes @wpmoo/odoo-dev@latest "$@"',
+    );
+    expect((await stat(join(target, 'moo'))).mode & 0o111).not.toBe(0);
   });
 });

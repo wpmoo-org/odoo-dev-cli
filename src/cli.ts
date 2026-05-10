@@ -47,7 +47,9 @@ import {
 } from './github.js';
 import {
   handlePromptCancel,
+  handleUnavailableMenuChoice,
   isMenuBackSignal,
+  menuIntroTitle,
   type PromptCancelAction,
 } from './menu-navigation.js';
 
@@ -290,7 +292,7 @@ async function addRepoOptionsFromPrompts(
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<AddModuleRepoOptions> {
   if (showIntro) {
-    intro('Add source repo as submodule');
+    intro(menuIntroTitle('Add source repo as submodule', cancelAction));
   }
 
   const selectedVersion = await select({
@@ -330,6 +332,10 @@ async function addRepoOptionsFromPrompts(
 async function selectSourceRepo(target: string, cancelAction: PromptCancelAction = 'exit'): Promise<string> {
   const repos = await listModuleRepos(target);
   if (repos.length === 0) {
+    if (cancelAction === 'back') {
+      note(`No source repos found under ${target}/odoo/custom/src/private.`, 'Nothing to select');
+      handleUnavailableMenuChoice(cancelAction);
+    }
     throw new Error(`No source repos found under ${target}/odoo/custom/src/private`);
   }
 
@@ -373,7 +379,7 @@ async function addModuleOptionsFromPrompts(
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<AddModuleOptions> {
   if (showIntro) {
-    intro('Add module to source repo');
+    intro(menuIntroTitle('Add module to source repo', cancelAction));
   }
 
   const target = process.cwd();
@@ -426,13 +432,17 @@ async function removeRepoOptionsFromPrompts(
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<RemoveModuleRepoOptions> {
   if (showIntro) {
-    intro('Remove a repo');
+    intro(menuIntroTitle('Remove a repo', cancelAction));
   }
 
   const { values } = parseArgs(argv);
   const target = resolve(stringOption(values, 'target') ?? process.cwd());
   const repos = await listModuleRepos(target);
   if (repos.length === 0) {
+    if (cancelAction === 'back') {
+      note(`No module submodules found under ${target}/odoo/custom/src/private.`, 'Nothing to remove');
+      handleUnavailableMenuChoice(cancelAction);
+    }
     throw new Error(`No module submodules found under ${target}/odoo/custom/src/private`);
   }
 
@@ -472,13 +482,17 @@ async function removeModuleOptionsFromPrompts(
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<RemoveModuleOptions> {
   if (showIntro) {
-    intro('Remove module from source repo');
+    intro(menuIntroTitle('Remove module from source repo', cancelAction));
   }
 
   const target = process.cwd();
   const repoPath = await selectSourceRepo(target, cancelAction);
   const modules = await listModulesInSourceRepo(target, repoPath);
   if (modules.length === 0) {
+    if (cancelAction === 'back') {
+      note(`No Odoo modules found under ${target}/odoo/custom/src/private/${repoPath}.`, 'Nothing to remove');
+      handleUnavailableMenuChoice(cancelAction);
+    }
     throw new Error(`No Odoo modules found under ${target}/odoo/custom/src/private/${repoPath}`);
   }
 

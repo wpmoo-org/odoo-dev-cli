@@ -95,7 +95,7 @@ export function renderBanner(): string {
 ░████   ░████ ░██         ░██       ░██ ░██    ░██ ░██    ░██
 ░███     ░███ ░██         ░██       ░██  ░███████   ░███████
 
-░░░░░░ WPMoo - Workflow Platform Micro Object Oriented ░░░░░░
+░░░░░░░░░ Workflow Platform - Micro Object Oriented ░░░░░░░░░
 `;
 
   return `${ANSI_BOLD}${applyBannerGradient(banner)}${ANSI_RESET}`;
@@ -143,6 +143,17 @@ odoo/custom/src/*/.git-aggregate-cache/
 *.zip
 *.tar
 *.tar.gz
+`;
+}
+
+export function renderMooDelegationScript(): string {
+  return `#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir"
+
+exec npx --yes @wpmoo/odoo-dev@latest "$@"
 `;
 }
 
@@ -223,6 +234,19 @@ If already cloned:
 \`\`\`bash
 git submodule update --init --recursive
 \`\`\`
+
+## WPMoo CLI Shortcut
+
+This environment includes a local \`moo\` delegation script. From the repository
+root:
+
+\`\`\`bash
+./moo
+./moo add-module
+\`\`\`
+
+If this repository root is on your \`PATH\`, you can run \`moo ...\` from
+anywhere and the script will delegate back to this environment.
 
 ## Source Repositories
 

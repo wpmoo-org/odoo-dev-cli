@@ -1,4 +1,4 @@
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { renderEnvironmentMetadata } from './environment.js';
@@ -16,6 +16,7 @@ import {
   renderAgents,
   renderAppstoreRelease,
   renderGitignore,
+  renderMooDelegationScript,
   renderPlaceholder,
   renderReadme,
   renderReposYaml,
@@ -25,11 +26,13 @@ import type { ScaffoldOptions, ScaffoldResult } from './types.js';
 type GeneratedFile = {
   path: string;
   content: string;
+  mode?: number;
 };
 
 export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
   return [
     { path: '.wpmoo/odoo-dev.json', content: renderEnvironmentMetadata(options) },
+    { path: 'moo', content: renderMooDelegationScript(), mode: 0o755 },
     { path: '.gitignore', content: renderGitignore() },
     { path: 'README.md', content: renderReadme(options) },
     { path: 'AGENTS.md', content: renderAgents(options) },
@@ -68,6 +71,9 @@ async function writeGeneratedFiles(target: string, files: GeneratedFile[]): Prom
     const destination = join(target, file.path);
     await mkdir(join(destination, '..'), { recursive: true });
     await writeFile(destination, file.content, 'utf8');
+    if (file.mode !== undefined) {
+      await chmod(destination, file.mode);
+    }
   }
 }
 

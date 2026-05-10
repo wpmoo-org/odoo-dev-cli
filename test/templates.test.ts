@@ -4,6 +4,7 @@ import {
   renderBanner,
   renderAddonsYaml,
   renderGitignore,
+  renderMooDelegationScript,
   renderReadme,
   renderReposYaml,
 } from '../src/templates.js';
@@ -58,6 +59,16 @@ describe('template rendering', () => {
     expect(readme).toContain('Odoo Sample Module Development Environment');
     expect(readme).toContain('git clone --recurse-submodules https://github.com/example-org/odoo_sample_module_dev.git');
     expect(readme).toContain('odoo/custom/src/private/odoo_sample_module_reports');
+    expect(readme).toContain('./moo add-module');
+  });
+
+  it('renders an executable bash delegation for the local moo shortcut', () => {
+    const script = renderMooDelegationScript();
+
+    expect(script).toContain('#!/usr/bin/env bash');
+    expect(script).toContain('set -euo pipefail');
+    expect(script).toContain('cd "$script_dir"');
+    expect(script).toContain('exec npx --yes @wpmoo/odoo-dev@latest "$@"');
   });
 
   it('renders README without pro assumptions for one source repo', () => {
