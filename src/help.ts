@@ -20,6 +20,7 @@ Options:
   --init-empty-repos           Initialize empty source repos with the selected branch.
   --dry-run                    Print planned files and commands without writing.
   --stage=false                Do not run git add .
+  --version, -v                Show the package version.
   --help, -h                   Show this help.
 
 Example:

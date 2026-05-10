@@ -78,6 +78,13 @@ describe('template rendering', () => {
     expect(banner.split('\n').length).toBeGreaterThan(4);
   });
 
+  it('renders the CLI banner with Odoo-inspired ANSI color', () => {
+    const banner = renderBanner();
+
+    expect(banner).toContain('\u001B[1m\u001B[38;2;113;75;103m');
+    expect(banner).toContain('\u001B[0m');
+  });
+
   it('renders gitignore for Doodba and local files', () => {
     const gitignore = renderGitignore();
 

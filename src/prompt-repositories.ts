@@ -23,9 +23,9 @@ export async function promptRepositoryUrl({
 }): Promise<string> {
   if (suggestedUrl) {
     const useSuggested = await prompt.confirm({
-      message: `Use ${label}?\n${suggestedUrl}`,
-      active: 'Yes',
-      inactive: 'No',
+      message: `Use ${label}? (Y/n)\n${suggestedUrl}`,
+      active: 'Y',
+      inactive: 'n',
       initialValue: true,
     });
     if (isCancel(useSuggested)) {

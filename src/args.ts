@@ -233,3 +233,7 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
 export function isHelpRequested(argv: string[]): boolean {
   return argv.includes('--help') || argv.includes('-h');
 }
+
+export function isVersionRequested(argv: string[]): boolean {
+  return argv.includes('--version') || argv.includes('-v');
+}

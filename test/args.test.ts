@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { optionsFromArgs } from '../src/args.js';
+import { isVersionRequested, optionsFromArgs } from '../src/args.js';
 import { renderHelp } from '../src/help.js';
 import { supportedOdooVersions } from '../src/odoo-versions.js';
 import { inferRepoPath } from '../src/repo-url.js';
@@ -164,6 +164,12 @@ describe('args', () => {
     expect(renderHelp()).toContain('--source-repo-url');
     expect(renderHelp()).toContain('--dev-repo-url');
     expect(renderHelp()).toContain('npx @wpmoo/create-odoo-dev');
+  });
+
+  it('detects version requests', () => {
+    expect(isVersionRequested(['--version'])).toBe(true);
+    expect(isVersionRequested(['-v'])).toBe(true);
+    expect(isVersionRequested(['--product', 'odoo_sample_module'])).toBe(false);
   });
 
   it('parses false boolean values explicitly', () => {

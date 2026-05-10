@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { intro, isCancel, note, outro, select, text } from '@clack/prompts';
 
-import { defaultTargetForProduct, isHelpRequested, optionsFromArgs } from './args.js';
+import { defaultTargetForProduct, isHelpRequested, isVersionRequested, optionsFromArgs } from './args.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import { supportedOdooVersions } from './odoo-versions.js';
@@ -17,6 +17,7 @@ import {
 import { scaffold } from './scaffold.js';
 import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
+import { renderVersion } from './version.js';
 import {
   getGitHubAccounts,
   githubRepositoryUrl,
@@ -251,6 +252,10 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   if (isHelpRequested(argv)) {
     console.log(renderHelp());
+    return;
+  }
+  if (isVersionRequested(argv)) {
+    console.log(renderVersion());
     return;
   }
 

@@ -36,9 +36,9 @@ describe('repository URL prompts', () => {
       {
         type: 'confirm',
         options: {
-          message: `Use Dev environment repo URL?\n${suggestedUrl}`,
-          active: 'Yes',
-          inactive: 'No',
+          message: `Use Dev environment repo URL? (Y/n)\n${suggestedUrl}`,
+          active: 'Y',
+          inactive: 'n',
           initialValue: true,
         },
       },

@@ -55,8 +55,11 @@ ${repo.addons.map((addon) => `├── ${addon}/`).join('\n')}
     .join('\n\n');
 }
 
+const ODOO_PURPLE = '\u001B[1m\u001B[38;2;113;75;103m';
+const ANSI_RESET = '\u001B[0m';
+
 export function renderBanner(): string {
-  return String.raw`
+  const banner = String.raw`
 
 ░██       ░██ ░█████████  ░███     ░███
 ░██       ░██ ░██     ░██ ░████   ░████
@@ -65,8 +68,11 @@ export function renderBanner(): string {
 ░██░██ ░██░██ ░██         ░██  ░██  ░██ ░██    ░██ ░██    ░██
 ░████   ░████ ░██         ░██       ░██ ░██    ░██ ░██    ░██
 ░███     ░███ ░██         ░██       ░██  ░███████   ░███████
+░░░░░░ WPMoo - Workflow Platform Micro Object Oriented ░░░░░░
 
 `;
+
+  return `${ODOO_PURPLE}${banner}${ANSI_RESET}`;
 }
 
 export function renderGitignore(): string {
