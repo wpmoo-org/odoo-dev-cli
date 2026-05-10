@@ -18,6 +18,13 @@ export function renderVersion(): string {
   return `${packageJson.name} ${packageJson.version}`;
 }
 
-export function renderVersionTag(): string {
-  return `\u001B[33mv.${packageVersion()}\u001B[0m`;
+export function packageName(): string {
+  return readPackageJson().name;
+}
+
+export function renderVersionTag(latestVersion?: string): string {
+  const current = packageVersion();
+  const updateSuffix = latestVersion ? ` -> v.${latestVersion} available` : '';
+
+  return `\u001B[33mv.${current}${updateSuffix}\u001B[0m`;
 }

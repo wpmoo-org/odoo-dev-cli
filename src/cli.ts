@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { intro, isCancel, note, outro, select, text } from '@clack/prompts';
+import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
 
 import { defaultTargetForProduct, isHelpRequested, isVersionRequested, optionsFromArgs } from './args.js';
 import { getOriginUrl, realGit } from './git.js';
@@ -17,7 +17,8 @@ import {
 import { scaffold } from './scaffold.js';
 import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
-import { renderVersion, renderVersionTag } from './version.js';
+import { checkForUpdate, installLatestPackage, restartCli } from './update-check.js';
+import { packageName, packageVersion, renderVersion, renderVersionTag } from './version.js';
 import {
   getGitHubAccounts,
   githubRepositoryUrl,
@@ -66,7 +67,22 @@ async function selectDefaultGitHubOwner(): Promise<string | undefined> {
 
 async function optionsFromPrompts(): Promise<ScaffoldOptions> {
   console.log(renderBanner());
-  console.log(renderVersionTag());
+  const updateCheck = await checkForUpdate(packageName(), packageVersion());
+  console.log(renderVersionTag(updateCheck.status === 'update-available' ? updateCheck.latestVersion : undefined));
+  if (updateCheck.status === 'update-available') {
+    const shouldUpdate = await confirm({
+      message: `Update to v.${updateCheck.latestVersion}? (Y/n)`,
+      active: 'Y',
+      inactive: 'n',
+      initialValue: true,
+    });
+    if (isCancel(shouldUpdate)) process.exit(1);
+    if (shouldUpdate) {
+      await installLatestPackage(packageName());
+      const code = await restartCli(packageName(), process.argv.slice(2));
+      process.exit(code ?? 0);
+    }
+  }
   console.log();
   intro('Create Odoo dev environment');
 
