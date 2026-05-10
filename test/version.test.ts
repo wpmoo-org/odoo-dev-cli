@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { packageVersion, renderVersion } from '../src/version.js';
+import { packageVersion, renderVersion, renderVersionTag } from '../src/version.js';
 
 describe('version', () => {
   it('renders the package name and current package version', () => {
@@ -13,5 +13,6 @@ describe('version', () => {
 
     expect(packageVersion()).toBe(packageJson.version);
     expect(renderVersion()).toBe(`${packageJson.name} ${packageJson.version}`);
+    expect(renderVersionTag()).toBe(`\u001B[33m v.${packageJson.version}\u001B[0m`);
   });
 });

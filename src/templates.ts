@@ -55,8 +55,34 @@ ${repo.addons.map((addon) => `├── ${addon}/`).join('\n')}
     .join('\n\n');
 }
 
-const ODOO_PURPLE = '\u001B[1m\u001B[38;2;192;78;133m';
+const BANNER_GRADIENT_START = [31, 151, 231] as const;
+const BANNER_GRADIENT_END = [209, 95, 127] as const;
+const ANSI_BOLD = '\u001B[1m';
 const ANSI_RESET = '\u001B[0m';
+
+function gradientColor(column: number, width: number): string {
+  const ratio = width <= 1 ? 0 : column / (width - 1);
+  const [startR, startG, startB] = BANNER_GRADIENT_START;
+  const [endR, endG, endB] = BANNER_GRADIENT_END;
+  const r = Math.round(startR + (endR - startR) * ratio);
+  const g = Math.round(startG + (endG - startG) * ratio);
+  const b = Math.round(startB + (endB - startB) * ratio);
+
+  return `\u001B[38;2;${r};${g};${b}m`;
+}
+
+function applyBannerGradient(banner: string): string {
+  const lines = banner.split('\n');
+  const width = Math.max(...lines.map((line) => line.length));
+
+  return lines
+    .map((line) =>
+      Array.from(line)
+        .map((character, column) => `${gradientColor(column, width)}${character}`)
+        .join(''),
+    )
+    .join('\n');
+}
 
 export function renderBanner(): string {
   const banner = String.raw`
@@ -73,7 +99,7 @@ export function renderBanner(): string {
 
 `;
 
-  return `${ODOO_PURPLE}${banner}${ANSI_RESET}`;
+  return `${ANSI_BOLD}${applyBannerGradient(banner)}${ANSI_RESET}`;
 }
 
 export function renderGitignore(): string {

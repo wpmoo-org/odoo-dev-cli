@@ -78,10 +78,13 @@ describe('template rendering', () => {
     expect(banner.split('\n').length).toBeGreaterThan(4);
   });
 
-  it('renders the CLI banner with Odoo-inspired ANSI color', () => {
+  it('renders the CLI banner with the requested blue-to-pink gradient', () => {
     const banner = renderBanner();
 
-    expect(banner).toContain('\u001B[1m\u001B[38;2;192;78;133m');
+    expect(banner).toContain('\u001B[1m');
+    expect(banner).toContain('\u001B[38;2;31;151;231m');
+    expect(banner).toContain('\u001B[38;2;209;95;127m');
+    expect(banner).not.toContain('\u001B[38;2;192;78;133m');
     expect(banner).toContain('\u001B[0m');
   });
 

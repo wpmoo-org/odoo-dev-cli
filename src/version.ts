@@ -17,3 +17,7 @@ export function renderVersion(): string {
   const packageJson = readPackageJson();
   return `${packageJson.name} ${packageJson.version}`;
 }
+
+export function renderVersionTag(): string {
+  return `\u001B[33m v.${packageVersion()}\u001B[0m`;
+}

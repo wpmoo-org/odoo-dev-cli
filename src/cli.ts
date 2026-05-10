@@ -17,7 +17,7 @@ import {
 import { scaffold } from './scaffold.js';
 import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
-import { renderVersion } from './version.js';
+import { renderVersion, renderVersionTag } from './version.js';
 import {
   getGitHubAccounts,
   githubRepositoryUrl,
@@ -66,6 +66,7 @@ async function selectDefaultGitHubOwner(): Promise<string | undefined> {
 
 async function optionsFromPrompts(): Promise<ScaffoldOptions> {
   console.log(renderBanner());
+  console.log(renderVersionTag());
   intro('Create Odoo dev environment');
 
   const product = asString(
