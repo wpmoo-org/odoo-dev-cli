@@ -181,6 +181,10 @@ describe('args', () => {
       command: 'remove-repo',
       argv: ['--repo', 'reports'],
     });
+    expect(commandFromArgs(['reset', '--target', '/tmp/dev'])).toEqual({
+      command: 'reset',
+      argv: ['--target', '/tmp/dev'],
+    });
     expect(commandFromArgs(['--product', 'odoo_sample_module'])).toEqual({
       command: 'create',
       argv: ['--product', 'odoo_sample_module'],

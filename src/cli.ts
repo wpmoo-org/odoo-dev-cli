@@ -3,6 +3,7 @@ import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prom
 import { resolve } from 'node:path';
 
 import { commandFromArgs, defaultTargetForProduct, isHelpRequested, isVersionRequested, optionsFromArgs, parseArgs } from './args.js';
+import { detectDevelopmentEnvironment } from './environment.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import { supportedOdooVersions } from './odoo-versions.js';
@@ -10,6 +11,7 @@ import { renderRepositorySetupNote } from './prompt-copy.js';
 import { promptRepositoryUrl } from './prompt-repositories.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import { addModuleRepo, listModuleRepos, removeModuleRepo, type AddModuleRepoOptions, type RemoveModuleRepoOptions } from './repo-actions.js';
+import { safeResetEnvironment, type SafeResetOptions } from './safe-reset.js';
 import {
   checkGitHubRepositories,
   createGitHubRepositories,
@@ -105,20 +107,20 @@ async function showStartup(): Promise<void> {
   console.log();
 }
 
-async function selectActionFromMenu(): Promise<'create' | 'add-repo' | 'remove-repo'> {
+async function selectEnvironmentActionFromMenu(): Promise<'add-repo' | 'remove-repo' | 'reset'> {
   intro('WPMoo Odoo Dev');
   const action = await select({
     message: 'What do you want to do?',
     options: [
-      { value: 'create', label: 'Create an Odoo development environment' },
       { value: 'add-repo', label: 'Add a module repo as submodule' },
       { value: 'remove-repo', label: 'Remove a repo' },
+      { value: 'reset', label: 'Safe reset environment' },
     ],
-    initialValue: 'create',
+    initialValue: 'add-repo',
   });
   if (isCancel(action)) process.exit(1);
 
-  return action as 'create' | 'add-repo' | 'remove-repo';
+  return action as 'add-repo' | 'remove-repo' | 'reset';
 }
 
 async function optionsFromPrompts(showIntro = true): Promise<ScaffoldOptions> {
@@ -290,6 +292,15 @@ function removeRepoOptionsFromArgs(argv: string[]): RemoveModuleRepoOptions | un
   };
 }
 
+function resetOptionsFromArgs(argv: string[]): SafeResetOptions {
+  const { values } = parseArgs(argv);
+
+  return {
+    target: resolve(stringOption(values, 'target') ?? process.cwd()),
+    stage: booleanOption(values, 'stage', true),
+  };
+}
+
 async function removeRepoOptionsFromPrompts(argv: string[], showIntro = true): Promise<RemoveModuleRepoOptions> {
   if (showIntro) {
     intro('Remove a repo');
@@ -423,15 +434,17 @@ async function main(): Promise<void> {
   const route = commandFromArgs(argv);
   if (route.command === 'menu') {
     await showStartup();
-    const action = await selectActionFromMenu();
+    const detection = await detectDevelopmentEnvironment(process.cwd());
 
-    if (action === 'create') {
-      const resolvedOptions = await optionsFromPrompts(false);
+    if (!detection.isEnvironment) {
+      const resolvedOptions = await optionsFromPrompts();
       await ensureGitHubRepositories(resolvedOptions, true);
       await scaffold(resolvedOptions);
       outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
       return;
     }
+
+    const action = await selectEnvironmentActionFromMenu();
 
     if (action === 'add-repo') {
       const options = await addRepoOptionsFromPrompts(false);
@@ -440,9 +453,15 @@ async function main(): Promise<void> {
       return;
     }
 
-    const options = await removeRepoOptionsFromPrompts([], false);
-    await removeModuleRepo(options);
-    outro(`Removed module repo ${options.repoPath} from ${options.target}.`);
+    if (action === 'remove-repo') {
+      const options = await removeRepoOptionsFromPrompts([], false);
+      await removeModuleRepo(options);
+      outro(`Removed module repo ${options.repoPath} from ${options.target}.`);
+      return;
+    }
+
+    await safeResetEnvironment({ target: process.cwd(), stage: true });
+    outro(`Safe reset refreshed generated environment files in ${process.cwd()}.`);
     return;
   }
 
@@ -475,6 +494,14 @@ async function main(): Promise<void> {
     const promptedOptions = await removeRepoOptionsFromPrompts(route.argv);
     await removeModuleRepo(promptedOptions);
     outro(`Removed module repo ${promptedOptions.repoPath} from ${promptedOptions.target}.`);
+    return;
+  }
+
+  if (route.command === 'reset') {
+    console.log(renderBanner());
+    const options = resetOptionsFromArgs(route.argv);
+    await safeResetEnvironment(options);
+    outro(`Safe reset refreshed generated environment files in ${options.target}.`);
     return;
   }
 

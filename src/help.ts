@@ -8,6 +8,7 @@ Usage:
   npx @wpmoo/odoo-dev create --product <slug> --dev-repo-url <url> --source-repo-url <url>
   npx @wpmoo/odoo-dev add-repo --repo-url <url>
   npx @wpmoo/odoo-dev remove-repo --repo <name>
+  npx @wpmoo/odoo-dev reset
 
 Options:
   --product <slug>             Product slug, for example my_odoo_module.

@@ -13,7 +13,7 @@ import {
 } from './git.js';
 import { inferRepoPath } from './repo-url.js';
 
-const addonsYamlHeader = `# Addons activated from source submodules.
+export const addonsYamlHeader = `# Addons activated from source submodules.
 #
 # Source repos are managed as Git submodules under odoo/custom/src/private.
 # Do not duplicate these same repos in repos.yaml.
@@ -38,7 +38,7 @@ function privateSubmodulePath(repoPath: string): string {
   return `odoo/custom/src/private/${repoPath}`;
 }
 
-async function readAddonsYaml(target: string): Promise<string> {
+export async function readAddonsYaml(target: string): Promise<string> {
   try {
     return await readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8');
   } catch {
@@ -46,7 +46,7 @@ async function readAddonsYaml(target: string): Promise<string> {
   }
 }
 
-async function writeAddonsYaml(target: string, content: string): Promise<void> {
+export async function writeAddonsYaml(target: string, content: string): Promise<void> {
   const path = join(target, 'odoo/custom/src/addons.yaml');
   await mkdir(join(path, '..'), { recursive: true });
   await writeFile(path, content, 'utf8');

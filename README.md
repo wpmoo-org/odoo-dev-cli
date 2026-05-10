@@ -40,12 +40,15 @@ Interactive wizard:
 npx @wpmoo/odoo-dev
 ```
 
-The wizard first asks what you want to do:
+The wizard is context-aware. If the current directory is not already a WPMoo
+Odoo development environment, it starts the create flow directly.
+
+Inside an existing environment, it shows maintenance actions:
 
 ```text
-Create an Odoo development environment
 Add a module repo as submodule
 Remove a repo
+Safe reset environment
 ```
 
 Non-interactive:
@@ -96,6 +99,12 @@ Remove a module repository from the dev environment:
 
 ```bash
 npx @wpmoo/odoo-dev remove-repo --repo odoo_sample_module_reports
+```
+
+Refresh generated environment files without deleting module source code:
+
+```bash
+npx @wpmoo/odoo-dev reset
 ```
 
 ## Defaults

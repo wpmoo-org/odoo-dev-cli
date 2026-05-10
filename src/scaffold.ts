@@ -1,6 +1,7 @@
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import { renderEnvironmentMetadata } from './environment.js';
 import {
   cloneRepository,
   ensureSubmodule,
@@ -28,6 +29,7 @@ type GeneratedFile = {
 
 export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
   return [
+    { path: '.wpmoo/odoo-dev.json', content: renderEnvironmentMetadata(options) },
     { path: '.gitignore', content: renderGitignore() },
     { path: 'README.md', content: renderReadme(options) },
     { path: 'AGENTS.md', content: renderAgents(options) },
