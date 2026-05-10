@@ -15,6 +15,8 @@ Options:
   --source-repo-url <url>      Source module repo URL. Repeat for multiple repos.
   --source-path <path>         Advanced: local folder for the preceding source repo.
   --source-addons <list>       Advanced: comma-separated addons for the preceding source repo.
+  --create-missing-repos       Create inaccessible GitHub repos with gh CLI.
+  --repo-visibility <value>    Visibility for created repos: private or public. Default: private.
   --init-empty-repos           Initialize empty source repos with the selected branch.
   --dry-run                    Print planned files and commands without writing.
   --stage=false                Do not run git add .

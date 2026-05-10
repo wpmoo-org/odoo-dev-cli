@@ -4,6 +4,7 @@ import { supportedOdooVersions } from './odoo-versions.js';
 import { defaultCommunityAddons, defaultProAddons } from './templates.js';
 import { inferGitHubOwner, inferRepoPath } from './repo-url.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
+import type { RepositoryVisibility } from './github.js';
 
 type ParsedArgs = {
   values: Record<string, string | boolean>;
@@ -130,6 +131,15 @@ function booleanValue(
   throw new Error(`Invalid boolean value for --${key}: ${value}`);
 }
 
+function visibilityValue(values: Record<string, string | boolean>): RepositoryVisibility {
+  const value = stringValue(values, 'repoVisibility') ?? 'private';
+  if (value === 'private' || value === 'public') {
+    return value;
+  }
+
+  throw new Error(`Invalid value for --repo-visibility: ${value}`);
+}
+
 export function defaultTargetForProduct(product: string, cwd = process.cwd()): string {
   const devRepo = `${product}_dev`;
   return basename(cwd) === devRepo ? cwd : resolve(cwd, devRepo);
@@ -210,6 +220,8 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
     dryRun: booleanValue(values, 'dryRun', false),
     initEmptyRepos: booleanValue(values, 'initEmptyRepos', false),
     stage: booleanValue(values, 'stage', true),
+    createMissingRepos: booleanValue(values, 'createMissingRepos', false),
+    repoVisibility: visibilityValue(values),
   };
 }
 

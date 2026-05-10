@@ -2,10 +2,9 @@
 
 Create Doodba-ready Odoo development environment overlays.
 
-The CLI expects source repositories to already exist. It creates development
-environment files, adds source repositories as Git submodules, generates Doodba
-`addons.yaml` and `repos.yaml`, then stages the result with `git add .`. It
-does not commit.
+The CLI creates development environment files, adds source repositories as Git
+submodules, generates Doodba `addons.yaml` and `repos.yaml`, then stages the
+result with `git add .`. It does not commit.
 
 For a product named `odoo_sample_module`, create these repositories first:
 
@@ -16,6 +15,14 @@ odoo_sample_module      # module source repo
 
 The CLI writes into `./odoo_sample_module_dev`. If that directory does not exist
 locally, it clones the dev repo URL you provide.
+
+When GitHub CLI is installed and authenticated, the interactive wizard checks
+whether the dev and module repositories are accessible. If they are not
+accessible, it can create them for you after confirmation.
+
+```bash
+gh auth login
+```
 
 ## Usage
 
@@ -33,6 +40,7 @@ npx @wpmoo/create-odoo-dev \
   --odoo-version 19.0 \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
+  --create-missing-repos \
   --init-empty-repos
 ```
 
@@ -81,5 +89,7 @@ non-interactive advanced usage.
 - Product source repositories are intentionally not listed in `repos.yaml`.
 - Empty source repos can be initialized with an empty commit and the selected
   Odoo branch when `--init-empty-repos` is provided.
+- Missing GitHub repositories can be created with GitHub CLI when
+  `--create-missing-repos` is provided, or through the interactive wizard.
 - Legacy `--org`, `--community-repo`, and `--pro-repo` flags are still accepted
   when no `--source-repo-url` flags are provided.

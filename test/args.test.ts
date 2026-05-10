@@ -160,6 +160,21 @@ describe('args', () => {
     expect(options?.stage).toBe(false);
   });
 
+  it('parses missing repository creation options', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'odoo_sample_module',
+      '--source-repo-url',
+      'https://github.com/example-org/odoo_sample_module.git',
+      '--create-missing-repos',
+      '--repo-visibility',
+      'public',
+    ]);
+
+    expect(options?.createMissingRepos).toBe(true);
+    expect(options?.repoVisibility).toBe('public');
+  });
+
   it('parses comma-separated addon lists', () => {
     const options = optionsFromArgs([
       '--product',

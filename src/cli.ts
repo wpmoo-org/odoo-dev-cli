@@ -6,9 +6,16 @@ import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import { supportedOdooVersions } from './odoo-versions.js';
 import { inferGitHubOwner, inferRepoPath } from './repo-url.js';
+import {
+  createGitHubRepositories,
+  findInaccessibleGitHubRepositories,
+  manualCreateCommands,
+  repositoryPreflightAvailable,
+} from './repository-preflight.js';
 import { scaffold } from './scaffold.js';
 import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
+import type { RepositoryVisibility } from './github.js';
 
 function asString(value: unknown, fallback: string): string {
   if (isCancel(value)) {
@@ -136,7 +143,93 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
     dryRun: false,
     initEmptyRepos: Boolean(initEmpty),
     stage: true,
+    createMissingRepos: false,
+    repoVisibility: 'private',
   };
+}
+
+async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: boolean): Promise<void> {
+  if (options.dryRun) {
+    return;
+  }
+
+  if (!interactive && !options.createMissingRepos) {
+    return;
+  }
+
+  if (!(await repositoryPreflightAvailable())) {
+    const message = [
+      'GitHub CLI (`gh`) is not available or not authenticated.',
+      'Install and authenticate it to auto-create missing GitHub repositories:',
+      '',
+      'gh auth login',
+    ].join('\n');
+
+    if (options.createMissingRepos) {
+      throw new Error(message);
+    }
+
+    if (interactive) {
+      note(message, 'Repository check skipped');
+    }
+    return;
+  }
+
+  const missing = await findInaccessibleGitHubRepositories(options);
+  if (missing.length === 0) {
+    if (interactive) {
+      note('All GitHub repositories are accessible.', 'Repository check');
+    }
+    return;
+  }
+
+  const missingList = missing
+    .map((repository) => `- ${repository.label}: ${repository.slug}`)
+    .join('\n');
+
+  if (!interactive && options.createMissingRepos) {
+    await createGitHubRepositories(missing, options.repoVisibility ?? 'private');
+    return;
+  }
+
+  note(
+    [
+      'These repositories are not accessible. They may not exist, or your GitHub account may not have access:',
+      '',
+      missingList,
+    ].join('\n'),
+    'Repository check',
+  );
+
+  const shouldCreate = await select({
+    message: 'Create these repositories with GitHub CLI?',
+    options: [
+      { value: true, label: 'Yes, create them' },
+      { value: false, label: 'No, I will create/check access myself' },
+    ],
+    initialValue: true,
+  });
+  if (isCancel(shouldCreate)) process.exit(1);
+
+  if (!shouldCreate) {
+    throw new Error(
+      ['Required repositories are not accessible. Create them first:', '', ...manualCreateCommands(missing)].join(
+        '\n',
+      ),
+    );
+  }
+
+  const visibility = await select({
+    message: 'Visibility for new repositories',
+    options: [
+      { value: 'private', label: 'Private' },
+      { value: 'public', label: 'Public' },
+    ],
+    initialValue: 'private',
+  });
+  if (isCancel(visibility)) process.exit(1);
+
+  await createGitHubRepositories(missing, visibility as RepositoryVisibility);
 }
 
 async function main(): Promise<void> {
@@ -152,6 +245,7 @@ async function main(): Promise<void> {
   }
 
   const resolvedOptions = options ?? (await optionsFromPrompts());
+  await ensureGitHubRepositories(resolvedOptions, options === undefined);
   const result = await scaffold(resolvedOptions);
 
   if (resolvedOptions.dryRun) {

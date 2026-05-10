@@ -1,3 +1,5 @@
+import type { RepositoryVisibility } from './github.js';
+
 export type SourceRepo = {
   url: string;
   path: string;
@@ -26,6 +28,8 @@ export type ScaffoldOptions = CreateOptions & {
   dryRun: boolean;
   initEmptyRepos: boolean;
   stage: boolean;
+  createMissingRepos?: boolean;
+  repoVisibility?: RepositoryVisibility;
   skipSubmodules?: boolean;
 };
 
