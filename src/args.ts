@@ -2,7 +2,7 @@ import { basename, resolve } from 'node:path';
 
 import { supportedOdooVersions } from './odoo-versions.js';
 import { defaultCommunityAddons, defaultProAddons } from './templates.js';
-import { inferGitHubOwner, inferRepoPath } from './repo-url.js';
+import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
 import type { RepositoryVisibility } from './github.js';
 
@@ -81,7 +81,7 @@ function parseSourceRepos(argv: string[]): SourceRepo[] {
 
     if (key === 'sourceRepoUrl') {
       const parsed = valueAfter(argv, index, rawKey);
-      repos.push({ url: parsed.value });
+      repos.push({ url: normalizeRepositoryUrl(parsed.value) });
       index = parsed.nextIndex;
       continue;
     }
@@ -170,15 +170,20 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
 
   const org = stringValue(values, 'org') ?? inferGitHubOwner(parsedSourceRepos[0]?.url ?? '') ?? 'example-org';
   const odooVersion = stringValue(values, 'odooVersion') ?? supportedOdooVersions[0];
-  const devRepoUrl = stringValue(values, 'devRepoUrl') ?? `https://github.com/${org}/${product}_dev.git`;
+  const devRepoUrl = normalizeRepositoryUrl(
+    stringValue(values, 'devRepoUrl') ?? `https://github.com/${org}/${product}_dev.git`,
+  );
   const devRepo = stringValue(values, 'devRepo') ?? inferRepoPath(devRepoUrl);
   const communityRepo = stringValue(values, 'communityRepo') ?? product;
   const proRepo = stringValue(values, 'proRepo') ?? `${product}_pro`;
   const targetValue = stringValue(values, 'target');
   const target = targetValue ? resolve(targetValue) : defaultTargetForProduct(product);
-  const communityRepoUrl =
-    stringValue(values, 'communityRepoUrl') ?? `https://github.com/${org}/${communityRepo}.git`;
-  const proRepoUrl = stringValue(values, 'proRepoUrl') ?? `https://github.com/${org}/${proRepo}.git`;
+  const communityRepoUrl = normalizeRepositoryUrl(
+    stringValue(values, 'communityRepoUrl') ?? `https://github.com/${org}/${communityRepo}.git`,
+  );
+  const proRepoUrl = normalizeRepositoryUrl(
+    stringValue(values, 'proRepoUrl') ?? `https://github.com/${org}/${proRepo}.git`,
+  );
   const communityAddons = listValue(stringValue(values, 'communityAddons'), defaultCommunityAddons(product));
   const proAddons = listValue(stringValue(values, 'proAddons'), defaultProAddons(product));
   const hasExplicitProRepo =

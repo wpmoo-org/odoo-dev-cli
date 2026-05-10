@@ -5,7 +5,8 @@ import { defaultTargetForProduct, isHelpRequested, optionsFromArgs } from './arg
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import { supportedOdooVersions } from './odoo-versions.js';
-import { inferGitHubOwner, inferRepoPath } from './repo-url.js';
+import { renderRepositorySetupNote } from './prompt-copy.js';
+import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import {
   createGitHubRepositories,
   findInaccessibleGitHubRepositories,
@@ -50,20 +51,7 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
   );
 
   const target = defaultTargetForProduct(product);
-  note(
-    [
-      `Create or have access to these Git repositories before continuing:`,
-      ``,
-      `- Dev environment repo: ${product}_dev`,
-      `- Module source repo: ${product}`,
-      ``,
-      `The CLI writes into ./${product}_dev and adds ${product} as a submodule under:`,
-      `odoo/custom/src/private/${product}`,
-      ``,
-      `If ./${product}_dev does not exist locally, the CLI will clone the dev repo URL you enter.`,
-    ].join('\n'),
-    'Repository setup',
-  );
+  note(renderRepositorySetupNote(product), 'Repository setup');
 
   const selectedVersion = await select({
     message: 'Odoo version',
@@ -74,14 +62,16 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
   const odooVersion = String(selectedVersion);
 
   const detectedDevRepoUrl = await getOriginUrl(realGit, target);
-  const devRepoUrl = requiredString(
-    await text({
-      message: 'Dev environment repo URL',
-      placeholder: `https://github.com/your-account/${product}_dev.git`,
-      defaultValue: detectedDevRepoUrl,
-      validate: (value) => (value.trim() ? undefined : 'Enter the dev repository URL.'),
-    }),
-    'Dev environment repo URL',
+  const devRepoUrl = normalizeRepositoryUrl(
+    requiredString(
+      await text({
+        message: 'Dev environment repo URL',
+        placeholder: `https://github.com/your-account/${product}_dev.git`,
+        defaultValue: detectedDevRepoUrl,
+        validate: (value) => (value.trim() ? undefined : 'Enter the dev repository URL.'),
+      }),
+      'Dev environment repo URL',
+    ),
   );
   const defaultOwner = inferGitHubOwner(devRepoUrl);
 
@@ -94,14 +84,16 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
       defaultOwner === undefined
         ? undefined
         : `https://github.com/${defaultOwner}/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`;
-    const sourceRepoUrl = asString(
-      await text({
-        message: repoIndex === 0 ? 'Module source repo URL' : `Additional source repo ${repoIndex + 1} URL`,
-        placeholder: `https://github.com/owner/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`,
-        defaultValue: suggestedRepo,
-        validate: (value) => (value.trim() ? undefined : 'Enter the source repository URL.'),
-      }),
-      suggestedRepo ?? '',
+    const sourceRepoUrl = normalizeRepositoryUrl(
+      asString(
+        await text({
+          message: repoIndex === 0 ? 'Module source repo URL' : `Additional source repo ${repoIndex + 1} URL`,
+          placeholder: `https://github.com/owner/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`,
+          defaultValue: suggestedRepo,
+          validate: (value) => (value.trim() ? undefined : 'Enter the source repository URL.'),
+        }),
+        suggestedRepo ?? '',
+      ),
     );
     const sourcePath = inferRepoPath(sourceRepoUrl);
 
@@ -162,6 +154,7 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
       'GitHub CLI (`gh`) is not available or not authenticated.',
       'Install and authenticate it to auto-create missing GitHub repositories:',
       '',
+      'brew install gh',
       'gh auth login',
     ].join('\n');
 

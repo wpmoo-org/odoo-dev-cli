@@ -1,7 +1,19 @@
 import { basename } from 'node:path';
 
+export function normalizeRepositoryUrl(repoUrl: string): string {
+  const trimmed = repoUrl.trim();
+  const withoutSuffix = trimmed.replace(/[?#].*$/, '').replace(/\/+$/, '').replace(/\.git$/, '');
+  const orgPageMatch = withoutSuffix.match(/^https:\/\/github\.com\/orgs\/([^/]+)\/([^/]+)$/);
+
+  if (orgPageMatch) {
+    return `https://github.com/${orgPageMatch[1]}/${orgPageMatch[2]}.git`;
+  }
+
+  return trimmed;
+}
+
 export function inferRepoPath(repoUrl: string): string {
-  const trimmed = repoUrl.trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
+  const trimmed = normalizeRepositoryUrl(repoUrl).replace(/[?#].*$/, '').replace(/\/+$/, '');
   const lastSegment = basename(trimmed);
   const withoutGit = lastSegment.replace(/\.git$/, '');
 
@@ -13,9 +25,10 @@ export function inferRepoPath(repoUrl: string): string {
 }
 
 export function inferGitHubOwner(repoUrl: string): string | undefined {
-  const httpsMatch = repoUrl.match(/^https:\/\/github\.com\/([^/]+)\//);
+  const normalized = normalizeRepositoryUrl(repoUrl);
+  const httpsMatch = normalized.match(/^https:\/\/github\.com\/([^/]+)\//);
   if (httpsMatch) return httpsMatch[1];
 
-  const sshMatch = repoUrl.match(/^git@github\.com:([^/]+)\//);
+  const sshMatch = normalized.match(/^git@github\.com:([^/]+)\//);
   return sshMatch?.[1];
 }

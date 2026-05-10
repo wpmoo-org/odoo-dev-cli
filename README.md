@@ -21,8 +21,14 @@ whether the dev and module repositories are accessible. If they are not
 accessible, it can create them for you after confirmation.
 
 ```bash
+brew install gh
 gh auth login
 ```
+
+Use cloneable repository URLs such as
+`https://github.com/example-org/odoo_sample_module.git`. If a GitHub
+organization page URL like `https://github.com/orgs/example-org/odoo_sample_module`
+is entered, the CLI normalizes it to the cloneable form.
 
 ## Usage
 

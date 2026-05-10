@@ -47,6 +47,26 @@ describe('args', () => {
     ]);
   });
 
+  it('normalizes GitHub organization page URLs into cloneable repository URLs', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'odoo_sample_module',
+      '--dev-repo-url',
+      'https://github.com/orgs/wpmoo-org/odoo_sample_module_dev',
+      '--source-repo-url',
+      'https://github.com/orgs/wpmoo-org/odoo_sample_module',
+    ]);
+
+    expect(options?.devRepoUrl).toBe('https://github.com/wpmoo-org/odoo_sample_module_dev.git');
+    expect(options?.sourceRepos).toEqual([
+      {
+        url: 'https://github.com/wpmoo-org/odoo_sample_module.git',
+        path: 'odoo_sample_module',
+        addons: ['odoo_sample_module'],
+      },
+    ]);
+  });
+
   it('defaults source addons to the repo path when addons are not provided', () => {
     const options = optionsFromArgs([
       '--product',
