@@ -5,7 +5,7 @@ import {
   handlePromptCancel,
   handleUnavailableMenuChoice,
   isMenuBackSignal,
-  menuBackHint,
+  menuActionLabel,
   menuIntroTitle,
   MenuBackSignal,
   promptCancelOutcome,
@@ -34,9 +34,11 @@ describe('menu navigation', () => {
     expect(menuIntroTitle('Remove module', 'exit')).toBe('Remove module');
   });
 
-  it('exposes a standalone back hint for menu-driven submenus', () => {
-    expect(menuBackHint('back')).toBe('Back (Esc)');
-    expect(menuBackHint('exit')).toBeUndefined();
+  it('adds the back hint to menu action labels', () => {
+    expect(menuActionLabel('Remove module from source repo', 'back')).toBe(
+      'Remove module from source repo (Esc: Back to previous menu)',
+    );
+    expect(menuActionLabel('Exit', 'exit')).toBe('Exit');
   });
 
   it('returns to the menu from empty submenu states', () => {

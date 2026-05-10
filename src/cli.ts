@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { confirm, intro, isCancel, log, note, outro, select, text } from '@clack/prompts';
+import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
 import { resolve } from 'node:path';
 
 import {
@@ -50,7 +50,7 @@ import {
   handleUnavailableMenuChoice,
   installPromptCancelKeyTracker,
   isMenuBackSignal,
-  menuBackHint,
+  menuActionLabel,
   menuIntroTitle,
   type PromptCancelAction,
 } from './menu-navigation.js';
@@ -62,12 +62,6 @@ function handleCancel(value: unknown, action: PromptCancelAction): void {
 function showSubmenuIntro(title: string, showIntro: boolean, cancelAction: PromptCancelAction): void {
   if (showIntro) {
     intro(menuIntroTitle(title, cancelAction));
-    return;
-  }
-
-  const hint = menuBackHint(cancelAction);
-  if (hint) {
-    log.info(hint);
   }
 }
 
@@ -167,11 +161,11 @@ async function selectEnvironmentActionFromMenu(): Promise<EnvironmentMenuAction>
   const action = await select({
     message: 'What do you want to do?',
     options: [
-      { value: 'add-repo', label: 'Add source repo' },
-      { value: 'remove-repo', label: 'Remove source repo' },
-      { value: 'add-module', label: 'Add module to source repo' },
-      { value: 'remove-module', label: 'Remove module from source repo' },
-      { value: 'reset', label: 'Safe reset environment' },
+      { value: 'add-repo', label: menuActionLabel('Add source repo', 'back') },
+      { value: 'remove-repo', label: menuActionLabel('Remove source repo', 'back') },
+      { value: 'add-module', label: menuActionLabel('Add module to source repo', 'back') },
+      { value: 'remove-module', label: menuActionLabel('Remove module from source repo', 'back') },
+      { value: 'reset', label: menuActionLabel('Safe reset environment', 'back') },
       { value: 'exit', label: 'Exit' },
     ],
     initialValue: 'add-module',
