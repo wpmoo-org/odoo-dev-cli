@@ -2,7 +2,15 @@
 import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
 import { resolve } from 'node:path';
 
-import { commandFromArgs, defaultTargetForProduct, isHelpRequested, isVersionRequested, optionsFromArgs, parseArgs } from './args.js';
+import {
+  commandFromArgs,
+  defaultTargetForProduct,
+  isHelpRequested,
+  isVersionRequested,
+  optionsFromArgs,
+  parseArgs,
+  stripInternalFlags,
+} from './args.js';
 import { detectDevelopmentEnvironment, environmentOdooVersion } from './environment.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
@@ -28,7 +36,7 @@ import {
 import { scaffold } from './scaffold.js';
 import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
-import { checkForUpdate, installLatestPackage, restartCli } from './update-check.js';
+import { checkForUpdate, installLatestPackage, isUpdateCheckSkipped, restartCli } from './update-check.js';
 import { packageName, packageVersion, renderVersion, renderVersionTag } from './version.js';
 import {
   getGitHubAccounts,
@@ -93,8 +101,14 @@ function booleanOption(values: Record<string, string | boolean>, key: string, fa
   throw new Error(`Invalid boolean value for --${key}: ${value}`);
 }
 
-async function showStartup(): Promise<void> {
+async function showStartup(argv: string[], skipUpdateCheck: boolean): Promise<void> {
   console.log(renderBanner());
+  if (skipUpdateCheck) {
+    console.log(renderVersionTag());
+    console.log();
+    return;
+  }
+
   const updateCheck = await checkForUpdate(packageName(), packageVersion());
   console.log(renderVersionTag(updateCheck.status === 'update-available' ? updateCheck.latestVersion : undefined));
   if (updateCheck.status === 'update-available') {
@@ -106,9 +120,17 @@ async function showStartup(): Promise<void> {
     });
     if (isCancel(shouldUpdate)) process.exit(1);
     if (shouldUpdate) {
-      await installLatestPackage(packageName());
-      const code = await restartCli(packageName(), process.argv.slice(2));
-      process.exit(code ?? 0);
+      try {
+        await installLatestPackage(packageName(), updateCheck.latestVersion);
+        const code = await restartCli(packageName(), updateCheck.latestVersion, argv);
+        if (code === 0) {
+          process.exit(0);
+        }
+        console.warn(`Update restart exited with code ${code ?? 'unknown'}; continuing with v.${packageVersion()}.`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Update failed: ${message}. Continuing with v.${packageVersion()}.`);
+      }
     }
   }
   console.log();
@@ -549,7 +571,9 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
 }
 
 async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
+  const rawArgv = process.argv.slice(2);
+  const skipUpdateCheck = isUpdateCheckSkipped(rawArgv);
+  const argv = stripInternalFlags(rawArgv);
   if (isHelpRequested(argv)) {
     console.log(renderHelp());
     return;
@@ -561,7 +585,7 @@ async function main(): Promise<void> {
 
   const route = commandFromArgs(argv);
   if (route.command === 'menu') {
-    await showStartup();
+    await showStartup(argv, skipUpdateCheck);
     const detection = await detectDevelopmentEnvironment(process.cwd());
 
     if (!detection.isEnvironment) {
@@ -616,7 +640,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    await showStartup();
+    await showStartup(argv, skipUpdateCheck);
     const promptedOptions = await addRepoOptionsFromPrompts();
     await addModuleRepo(promptedOptions);
     outro(`Added source repo under ${promptedOptions.target}/odoo/custom/src/private.`);
@@ -632,7 +656,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    await showStartup();
+    await showStartup(argv, skipUpdateCheck);
     const promptedOptions = await removeRepoOptionsFromPrompts(route.argv);
     await removeModuleRepo(promptedOptions);
     outro(`Removed source repo ${promptedOptions.repoPath} from ${promptedOptions.target}.`);
@@ -648,7 +672,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    await showStartup();
+    await showStartup(argv, skipUpdateCheck);
     const promptedOptions = await addModuleOptionsFromPrompts();
     await addModuleToSourceRepo(promptedOptions);
     outro(`Added module ${promptedOptions.moduleName} under source repo ${promptedOptions.repoPath}.`);
@@ -664,7 +688,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    await showStartup();
+    await showStartup(argv, skipUpdateCheck);
     const promptedOptions = await removeModuleOptionsFromPrompts();
     await removeModuleFromSourceRepo(promptedOptions);
     outro(`Removed module ${promptedOptions.moduleName} from addons.yaml.`);
@@ -683,7 +707,7 @@ async function main(): Promise<void> {
   if (options) {
     console.log(renderBanner());
   } else {
-    await showStartup();
+    await showStartup(argv, skipUpdateCheck);
   }
 
   const resolvedOptions = options ?? (await optionsFromPrompts());

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { commandFromArgs, isVersionRequested, optionsFromArgs } from '../src/args.js';
+import { commandFromArgs, isUpdateCheckFlag, isVersionRequested, optionsFromArgs, stripInternalFlags } from '../src/args.js';
 import { renderHelp } from '../src/help.js';
 import { supportedOdooVersions } from '../src/odoo-versions.js';
 import { inferRepoPath } from '../src/repo-url.js';
@@ -203,6 +203,15 @@ describe('args', () => {
     expect(isVersionRequested(['--version'])).toBe(true);
     expect(isVersionRequested(['-v'])).toBe(true);
     expect(isVersionRequested(['--product', 'odoo_sample_module'])).toBe(false);
+  });
+
+  it('detects and strips the internal update-check flag', () => {
+    expect(isUpdateCheckFlag('--no-update-check')).toBe(true);
+    expect(stripInternalFlags(['--no-update-check', 'create', '--product', 'odoo_sample_module'])).toEqual([
+      'create',
+      '--product',
+      'odoo_sample_module',
+    ]);
   });
 
   it('parses false boolean values explicitly', () => {

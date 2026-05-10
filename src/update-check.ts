@@ -1,14 +1,22 @@
 import { spawn } from 'node:child_process';
+import { basename } from 'node:path';
 
 import { execa } from 'execa';
 
 export type UpdateCheckResult =
   | { status: 'current'; currentVersion: string; latestVersion: string }
-  | { status: 'update-available'; currentVersion: string; latestVersion: string }
+  | { status: 'update-available'; currentVersion: string; latestVersion: string; tarball: string }
   | { status: 'unavailable'; currentVersion: string };
 
 export type NpmRunner = {
   run(args: string[]): Promise<{ stdout: string; stderr: string }>;
+};
+
+export type UpdateCheckEnvironment = Partial<Record<string, string | undefined>>;
+
+type NpmPackageInfo = {
+  version: string;
+  tarball: string;
 };
 
 export const realNpm: NpmRunner = {
@@ -17,6 +25,24 @@ export const realNpm: NpmRunner = {
     return { stdout: result.stdout, stderr: result.stderr };
   },
 };
+
+function truthyEnv(value: string | undefined): boolean {
+  return value !== undefined && ['1', 'true', 'yes', 'y'].includes(value.toLowerCase().trim());
+}
+
+function isNpxExecPath(value: string | undefined): boolean {
+  if (!value) return false;
+  const executable = basename(value).toLowerCase();
+  return executable === 'npx' || executable === 'npx.cmd' || executable === 'npx-cli.js';
+}
+
+export function isUpdateCheckSkipped(argv: string[], env: UpdateCheckEnvironment = process.env): boolean {
+  if (argv.includes('--no-update-check')) return true;
+  if (truthyEnv(env.WPMOO_SKIP_UPDATE_CHECK)) return true;
+  if (env.npm_command === 'exec') return true;
+  if (truthyEnv(env.npm_config_npx)) return true;
+  return isNpxExecPath(env.npm_execpath);
+}
 
 function numericParts(version: string): number[] {
   return version
@@ -42,22 +68,39 @@ export function compareVersions(currentVersion: string, latestVersion: string): 
   return 0;
 }
 
-function parseNpmVersion(stdout: string): string {
+function parseNpmPackageInfo(stdout: string): NpmPackageInfo {
   const trimmed = stdout.trim();
   if (!trimmed) {
-    throw new Error('npm did not return a package version');
+    throw new Error('npm did not return package metadata');
   }
 
   try {
     const parsed = JSON.parse(trimmed) as unknown;
-    if (typeof parsed === 'string' && parsed.trim()) {
-      return parsed.trim();
+    if (typeof parsed === 'object' && parsed !== null) {
+      const record = parsed as Record<string, unknown>;
+      const version = typeof record.version === 'string' ? record.version.trim() : '';
+      const dist = record.dist;
+      const nestedTarball =
+        typeof dist === 'object' && dist !== null && typeof (dist as Record<string, unknown>).tarball === 'string'
+          ? String((dist as Record<string, unknown>).tarball).trim()
+          : '';
+      const dottedTarball = typeof record['dist.tarball'] === 'string' ? record['dist.tarball'].trim() : '';
+      const tarball = nestedTarball || dottedTarball;
+
+      if (version && tarball) {
+        return { version, tarball };
+      }
     }
   } catch {
-    // npm view without --json can return a plain version string.
+    // Fall through to the validation error below.
   }
 
-  return trimmed.replace(/^"|"$/g, '');
+  throw new Error('npm did not return a package version and tarball');
+}
+
+async function viewPackageInfo(packageSpecValue: string, runner: NpmRunner): Promise<NpmPackageInfo> {
+  const result = await runner.run(['view', packageSpecValue, 'version', 'dist.tarball', '--json']);
+  return parseNpmPackageInfo(result.stdout);
 }
 
 export async function checkForUpdate(
@@ -66,33 +109,41 @@ export async function checkForUpdate(
   runner: NpmRunner = realNpm,
 ): Promise<UpdateCheckResult> {
   try {
-    const result = await runner.run(['view', packageName, 'version', '--json']);
-    const latestVersion = parseNpmVersion(result.stdout);
+    const latest = await viewPackageInfo(packageSpec(packageName, 'latest'), runner);
 
-    if (compareVersions(currentVersion, latestVersion) < 0) {
-      return { status: 'update-available', currentVersion, latestVersion };
+    if (compareVersions(currentVersion, latest.version) < 0) {
+      const exact = await viewPackageInfo(packageSpec(packageName, latest.version), runner);
+      if (exact.version !== latest.version || !exact.tarball) {
+        throw new Error(`npm metadata for ${packageSpec(packageName, latest.version)} did not validate`);
+      }
+
+      return { status: 'update-available', currentVersion, latestVersion: exact.version, tarball: exact.tarball };
     }
 
-    return { status: 'current', currentVersion, latestVersion };
+    return { status: 'current', currentVersion, latestVersion: latest.version };
   } catch {
     return { status: 'unavailable', currentVersion };
   }
 }
 
-export function packageSpec(packageName: string): string {
-  return `${packageName}@latest`;
+export function packageSpec(packageName: string, version: string): string {
+  return `${packageName}@${version}`;
 }
 
-export async function installLatestPackage(packageName: string, runner: NpmRunner = realNpm): Promise<void> {
-  await runner.run(['install', '-g', packageSpec(packageName)]);
+export async function installLatestPackage(
+  packageName: string,
+  version: string,
+  runner: NpmRunner = realNpm,
+): Promise<void> {
+  await runner.run(['install', '-g', packageSpec(packageName, version)]);
 }
 
-export function restartArgs(packageName: string, argv: string[]): string[] {
-  return ['exec', '--yes', '--package', packageSpec(packageName), '--', 'wpmoo', ...argv];
+export function restartArgs(packageName: string, version: string, argv: string[]): string[] {
+  return ['exec', '--yes', '--package', packageSpec(packageName, version), '--', 'wpmoo', ...argv];
 }
 
-export async function restartCli(packageName: string, argv: string[]): Promise<number | null> {
-  const child = spawn('npm', restartArgs(packageName, argv), { stdio: 'inherit' });
+export async function restartCli(packageName: string, version: string, argv: string[]): Promise<number | null> {
+  const child = spawn('npm', restartArgs(packageName, version, argv), { stdio: 'inherit' });
 
   return new Promise((resolve, reject) => {
     child.on('error', reject);

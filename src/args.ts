@@ -18,6 +18,15 @@ export type CommandRoute = {
 };
 
 const commandNames = new Set<CliCommand>(['create', 'add-repo', 'remove-repo', 'add-module', 'remove-module', 'reset']);
+const internalFlags = new Set(['--no-update-check']);
+
+export function isUpdateCheckFlag(arg: string): boolean {
+  return internalFlags.has(arg);
+}
+
+export function stripInternalFlags(argv: string[]): string[] {
+  return argv.filter((arg) => !isUpdateCheckFlag(arg));
+}
 
 export function commandFromArgs(argv: string[]): CommandRoute {
   if (argv.length === 0) {
