@@ -6,6 +6,7 @@ import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import { supportedOdooVersions } from './odoo-versions.js';
 import { renderRepositorySetupNote } from './prompt-copy.js';
+import { promptRepositoryUrl } from './prompt-repositories.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import {
   createGitHubRepositories,
@@ -29,18 +30,6 @@ function asString(value: unknown, fallback: string): string {
     process.exit(1);
   }
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
-}
-
-function requiredString(value: unknown, label: string): string {
-  if (isCancel(value)) {
-    process.exit(1);
-  }
-
-  if (typeof value === 'string' && value.trim()) {
-    return value.trim();
-  }
-
-  throw new Error(`${label} is required`);
 }
 
 function githubAccountLabel(account: GitHubAccount): string {
@@ -104,15 +93,11 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
     ? githubRepositoryUrl(selectedGitHubOwner, `${product}_dev`)
     : undefined;
   const devRepoUrl = normalizeRepositoryUrl(
-    requiredString(
-      await text({
-        message: 'Dev environment repo URL',
-        placeholder: defaultDevRepoUrl ?? `https://github.com/your-account/${product}_dev.git`,
-        defaultValue: detectedDevRepoUrl ?? defaultDevRepoUrl,
-        validate: (value) => (value.trim() ? undefined : 'Enter the dev repository URL.'),
-      }),
-      'Dev environment repo URL',
-    ),
+    await promptRepositoryUrl({
+      label: 'Dev environment repo URL',
+      suggestedUrl: detectedDevRepoUrl ?? defaultDevRepoUrl,
+      placeholder: `https://github.com/your-account/${product}_dev.git`,
+    }),
   );
   const defaultOwner = inferGitHubOwner(devRepoUrl) ?? selectedGitHubOwner;
 
@@ -126,15 +111,11 @@ async function optionsFromPrompts(): Promise<ScaffoldOptions> {
         ? undefined
         : githubRepositoryUrl(defaultOwner, repoIndex === 0 ? product : `${product}_${repoIndex + 1}`);
     const sourceRepoUrl = normalizeRepositoryUrl(
-      asString(
-        await text({
-          message: repoIndex === 0 ? 'Module source repo URL' : `Additional source repo ${repoIndex + 1} URL`,
-          placeholder: `https://github.com/owner/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`,
-          defaultValue: suggestedRepo,
-          validate: (value) => (value.trim() ? undefined : 'Enter the source repository URL.'),
-        }),
-        suggestedRepo ?? '',
-      ),
+      await promptRepositoryUrl({
+        label: repoIndex === 0 ? 'Module source repo URL' : `Additional source repo ${repoIndex + 1} URL`,
+        suggestedUrl: suggestedRepo,
+        placeholder: `https://github.com/owner/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`,
+      }),
     );
     const sourcePath = inferRepoPath(sourceRepoUrl);
 
