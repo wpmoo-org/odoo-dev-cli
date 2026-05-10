@@ -5,6 +5,7 @@ import {
   handlePromptCancel,
   handleUnavailableMenuChoice,
   isMenuBackSignal,
+  menuBackHint,
   menuIntroTitle,
   MenuBackSignal,
   promptCancelOutcome,
@@ -31,6 +32,11 @@ describe('menu navigation', () => {
   it('adds a concise back hint to submenu intros', () => {
     expect(menuIntroTitle('Remove module', 'back')).toBe('Remove module · Back (Esc)');
     expect(menuIntroTitle('Remove module', 'exit')).toBe('Remove module');
+  });
+
+  it('exposes a standalone back hint for menu-driven submenus', () => {
+    expect(menuBackHint('back')).toBe('Back (Esc)');
+    expect(menuBackHint('exit')).toBeUndefined();
   });
 
   it('returns to the menu from empty submenu states', () => {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
+import { confirm, intro, isCancel, log, note, outro, select, text } from '@clack/prompts';
 import { resolve } from 'node:path';
 
 import {
@@ -50,12 +50,25 @@ import {
   handleUnavailableMenuChoice,
   installPromptCancelKeyTracker,
   isMenuBackSignal,
+  menuBackHint,
   menuIntroTitle,
   type PromptCancelAction,
 } from './menu-navigation.js';
 
 function handleCancel(value: unknown, action: PromptCancelAction): void {
   handlePromptCancel(isCancel(value), action);
+}
+
+function showSubmenuIntro(title: string, showIntro: boolean, cancelAction: PromptCancelAction): void {
+  if (showIntro) {
+    intro(menuIntroTitle(title, cancelAction));
+    return;
+  }
+
+  const hint = menuBackHint(cancelAction);
+  if (hint) {
+    log.info(hint);
+  }
 }
 
 function asString(value: unknown, fallback: string, cancelAction: PromptCancelAction = 'exit'): string {
@@ -292,9 +305,7 @@ async function addRepoOptionsFromPrompts(
   showIntro = true,
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<AddModuleRepoOptions> {
-  if (showIntro) {
-    intro(menuIntroTitle('Add source repo as submodule', cancelAction));
-  }
+  showSubmenuIntro('Add source repo as submodule', showIntro, cancelAction);
 
   const selectedVersion = await select({
     message: 'Odoo version',
@@ -379,9 +390,7 @@ async function addModuleOptionsFromPrompts(
   showIntro = true,
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<AddModuleOptions> {
-  if (showIntro) {
-    intro(menuIntroTitle('Add module to source repo', cancelAction));
-  }
+  showSubmenuIntro('Add module to source repo', showIntro, cancelAction);
 
   const target = process.cwd();
   const repoPath = await selectSourceRepo(target, cancelAction);
@@ -432,9 +441,7 @@ async function removeRepoOptionsFromPrompts(
   showIntro = true,
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<RemoveModuleRepoOptions> {
-  if (showIntro) {
-    intro(menuIntroTitle('Remove a repo', cancelAction));
-  }
+  showSubmenuIntro('Remove a repo', showIntro, cancelAction);
 
   const { values } = parseArgs(argv);
   const target = resolve(stringOption(values, 'target') ?? process.cwd());
@@ -482,9 +489,7 @@ async function removeModuleOptionsFromPrompts(
   showIntro = true,
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<RemoveModuleOptions> {
-  if (showIntro) {
-    intro(menuIntroTitle('Remove module from source repo', cancelAction));
-  }
+  showSubmenuIntro('Remove module from source repo', showIntro, cancelAction);
 
   const target = process.cwd();
   const repoPath = await selectSourceRepo(target, cancelAction);

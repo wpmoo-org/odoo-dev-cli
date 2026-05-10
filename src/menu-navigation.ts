@@ -26,6 +26,10 @@ export function menuIntroTitle(title: string, action: PromptCancelAction): strin
   return action === 'back' ? `${title} · Back (Esc)` : title;
 }
 
+export function menuBackHint(action: PromptCancelAction): string | undefined {
+  return action === 'back' ? 'Back (Esc)' : undefined;
+}
+
 export function promptCancelOutcome(
   cancelled: boolean,
   action: PromptCancelAction,
