@@ -3,7 +3,7 @@ import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prom
 import { resolve } from 'node:path';
 
 import { commandFromArgs, defaultTargetForProduct, isHelpRequested, isVersionRequested, optionsFromArgs, parseArgs } from './args.js';
-import { detectDevelopmentEnvironment } from './environment.js';
+import { detectDevelopmentEnvironment, environmentOdooVersion } from './environment.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import {
@@ -343,18 +343,12 @@ async function addModuleOptionsFromPrompts(showIntro = true): Promise<AddModuleO
     }),
     suggestedModuleName(repoPath),
   );
-  const selectedVersion = await select({
-    message: 'Odoo version',
-    options: supportedOdooVersions.map((version) => ({ value: version, label: version })),
-    initialValue: supportedOdooVersions[0],
-  });
-  if (isCancel(selectedVersion)) process.exit(1);
 
   return {
     target,
     repoPath,
     moduleName,
-    odooVersion: String(selectedVersion),
+    odooVersion: await environmentOdooVersion(target),
     stage: true,
   };
 }

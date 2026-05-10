@@ -5,6 +5,7 @@ import type { ScaffoldOptions, SourceRepo } from './types.js';
 import { packageName, packageVersion } from './version.js';
 
 export const markerPath = '.wpmoo/odoo-dev.json';
+export const defaultOdooVersion = '19.0';
 
 export type EnvironmentMetadata = {
   tool: string;
@@ -69,4 +70,9 @@ export async function detectDevelopmentEnvironment(target: string): Promise<Deve
   }
 
   return { isEnvironment: false, source: 'none' };
+}
+
+export async function environmentOdooVersion(target: string): Promise<string> {
+  const metadata = await readEnvironmentMetadata(target);
+  return metadata?.odooVersion || defaultOdooVersion;
 }

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   detectDevelopmentEnvironment,
+  environmentOdooVersion,
   markerPath,
   readEnvironmentMetadata,
 } from '../src/environment.js';
@@ -70,5 +71,22 @@ describe('development environment detection', () => {
       isEnvironment: false,
       source: 'none',
     });
+  });
+
+  it('reads the Odoo version from environment metadata', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-env-version-'));
+
+    await scaffold({
+      ...scaffoldOptions(target),
+      odooVersion: '18.0',
+    });
+
+    await expect(environmentOdooVersion(target)).resolves.toBe('18.0');
+  });
+
+  it('falls back to Odoo 19 when metadata is missing', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-env-version-fallback-'));
+
+    await expect(environmentOdooVersion(target)).resolves.toBe('19.0');
   });
 });
