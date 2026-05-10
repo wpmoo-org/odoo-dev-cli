@@ -44,6 +44,12 @@ describe('development environment detection', () => {
       tool: '@wpmoo/odoo-dev',
       product: 'odoo_sample_module',
       odooVersion: '19.0',
+      packs: {
+        agenticStack: false,
+        vscodeWorkspace: false,
+        doctor: false,
+        githubActions: false,
+      },
     });
     await expect(detectDevelopmentEnvironment(target)).resolves.toEqual({
       isEnvironment: true,

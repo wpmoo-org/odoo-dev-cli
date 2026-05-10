@@ -61,6 +61,7 @@ npx @wpmoo/odoo-dev create \
   --odoo-version 19.0 \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
+  --pack agentic-stack \
   --create-missing-repos \
   --init-empty-repos
 ```
@@ -143,6 +144,31 @@ private/odoo_sample_module_pro:
 If the project has portal, demo, payment, reports, or other addons, add them
 later in Doodba's `odoo/custom/src/addons.yaml`, or pass `--source-addons` in
 non-interactive advanced usage.
+
+## Development packs
+
+The create flow can record optional development packs in
+`.wpmoo/odoo-dev.json`. The first pack phase only stores the selection; it does
+not install external tools or write pack-specific files yet.
+
+```bash
+npx @wpmoo/odoo-dev create \
+  --product odoo_sample_module \
+  --source-repo-url https://github.com/example-org/odoo_sample_module.git \
+  --pack agentic-stack,doctor
+```
+
+Use `--pack <name>` repeatedly or comma-separate values. Use `--no-packs` to
+disable optional packs explicitly.
+
+Available pack names:
+
+```text
+agentic-stack
+vscode-workspace
+doctor
+github-actions
+```
 
 ## Notes
 

@@ -24,6 +24,8 @@ Options:
   --source-repo-url <url>      Source repo URL. Repeat for multiple repos.
   --source-path <path>         Advanced: local folder for the preceding source repo.
   --source-addons <list>       Advanced: comma-separated addons for the preceding source repo.
+  --pack <name>                Optional development pack. Repeat or comma-separate values.
+  --no-packs                   Disable optional development packs.
   --create-missing-repos       Create inaccessible GitHub repos with gh CLI.
   --repo-visibility <value>    Visibility for created repos: private or public. Default: private.
   --init-empty-repos           Initialize empty source repos with the selected branch.

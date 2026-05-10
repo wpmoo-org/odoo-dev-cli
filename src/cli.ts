@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
+import { confirm, intro, isCancel, multiselect, note, outro, select, text } from '@clack/prompts';
 import { resolve } from 'node:path';
 
 import {
@@ -22,6 +22,7 @@ import {
   type RemoveModuleOptions,
 } from './module-actions.js';
 import { supportedOdooVersions } from './odoo-versions.js';
+import { developmentPackOptions, developmentPacksFromIds, emptyDevelopmentPacks, type DevelopmentPackId } from './packs.js';
 import { renderRepositorySetupNote } from './prompt-copy.js';
 import { promptRepositoryUrl } from './prompt-repositories.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
@@ -117,6 +118,24 @@ function booleanOption(values: Record<string, string | boolean>, key: string, fa
   if (['false', '0', 'no', 'n'].includes(normalized)) return false;
 
   throw new Error(`Invalid boolean value for --${key}: ${value}`);
+}
+
+async function selectDevelopmentPacks(cancelAction: PromptCancelAction = 'exit') {
+  const selectedPacks = await multiselect({
+    message: menuPromptMessage('Optional development packs', cancelAction),
+    options: developmentPackOptions.map((pack) => ({
+      value: pack.id,
+      label: pack.label,
+      hint: pack.hint,
+    })),
+    initialValues: [],
+    required: false,
+  });
+  handleCancel(selectedPacks, cancelAction);
+
+  return Array.isArray(selectedPacks)
+    ? developmentPacksFromIds(selectedPacks as DevelopmentPackId[])
+    : emptyDevelopmentPacks();
 }
 
 async function showStartup(argv: string[], skipUpdateCheck: boolean): Promise<void> {
@@ -263,6 +282,8 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   });
   handleCancel(initEmpty, cancelAction);
 
+  const packs = await selectDevelopmentPacks(cancelAction);
+
   return {
     product,
     odooVersion,
@@ -275,6 +296,7 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
     stage: true,
     createMissingRepos: false,
     repoVisibility: 'private',
+    packs,
   };
 }
 

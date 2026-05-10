@@ -243,6 +243,58 @@ describe('args', () => {
     expect(options?.repoVisibility).toBe('public');
   });
 
+  it('parses optional development packs from repeated and comma-separated flags', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'odoo_sample_module',
+      '--source-repo-url',
+      'https://github.com/example-org/odoo_sample_module.git',
+      '--pack',
+      'agentic-stack,doctor',
+      '--pack',
+      'github-actions',
+    ]);
+
+    expect(options?.packs).toEqual({
+      agenticStack: true,
+      vscodeWorkspace: false,
+      doctor: true,
+      githubActions: true,
+    });
+  });
+
+  it('lets --no-packs explicitly disable optional development packs', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'odoo_sample_module',
+      '--source-repo-url',
+      'https://github.com/example-org/odoo_sample_module.git',
+      '--pack',
+      'agentic-stack',
+      '--no-packs',
+    ]);
+
+    expect(options?.packs).toEqual({
+      agenticStack: false,
+      vscodeWorkspace: false,
+      doctor: false,
+      githubActions: false,
+    });
+  });
+
+  it('rejects unknown optional development packs', () => {
+    expect(() =>
+      optionsFromArgs([
+        '--product',
+        'odoo_sample_module',
+        '--source-repo-url',
+        'https://github.com/example-org/odoo_sample_module.git',
+        '--pack',
+        'unknown-pack',
+      ]),
+    ).toThrow('Unknown development pack: unknown-pack');
+  });
+
   it('parses comma-separated addon lists', () => {
     const options = optionsFromArgs([
       '--product',

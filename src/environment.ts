@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import type { ScaffoldOptions, SourceRepo } from './types.js';
 import { packageName, packageVersion } from './version.js';
+import { emptyDevelopmentPacks, type DevelopmentPacks } from './packs.js';
 
 export const markerPath = '.wpmoo/odoo-dev.json';
 export const defaultOdooVersion = '19.0';
@@ -15,6 +16,7 @@ export type EnvironmentMetadata = {
   devRepo: string;
   devRepoUrl: string;
   sourceRepos: SourceRepo[];
+  packs: DevelopmentPacks;
 };
 
 export type DevelopmentEnvironmentDetection = {
@@ -40,6 +42,7 @@ export function environmentMetadata(options: ScaffoldOptions): EnvironmentMetada
     devRepo: options.devRepo,
     devRepoUrl: options.devRepoUrl,
     sourceRepos: options.sourceRepos,
+    packs: options.packs ?? emptyDevelopmentPacks(),
   };
 }
 

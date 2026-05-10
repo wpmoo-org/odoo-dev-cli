@@ -1,6 +1,7 @@
 import { basename, resolve } from 'node:path';
 
 import { supportedOdooVersions } from './odoo-versions.js';
+import { developmentPacksFromIds, emptyDevelopmentPacks, parsePackIdsFromArgv } from './packs.js';
 import { defaultCommunityAddons, defaultProAddons } from './templates.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
@@ -189,6 +190,7 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
   }
 
   const parsedSourceRepos = parseSourceRepos(argv);
+  const parsedPackIds = parsePackIdsFromArgv(argv);
   const hasLegacySourceConfig = [
     'org',
     'communityRepo',
@@ -256,6 +258,7 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
     communityAddons,
     proAddons,
     sourceRepos,
+    packs: parsedPackIds === undefined ? emptyDevelopmentPacks() : developmentPacksFromIds(parsedPackIds),
     target,
     dryRun: booleanValue(values, 'dryRun', false),
     initEmptyRepos: booleanValue(values, 'initEmptyRepos', false),
