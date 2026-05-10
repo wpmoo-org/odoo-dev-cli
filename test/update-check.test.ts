@@ -5,6 +5,7 @@ import {
   compareVersions,
   isUpdateCheckSkipped,
   packageSpec,
+  restartEnvironment,
   restartArgs,
   type NpmRunner,
 } from '../src/update-check.js';
@@ -92,11 +93,18 @@ describe('update check', () => {
     ]);
   });
 
-  it('skips update checks for explicit opt outs and npm exec contexts', () => {
+  it('skips update checks only for explicit opt outs and updater restarts', () => {
     expect(isUpdateCheckSkipped(['--no-update-check'], {})).toBe(true);
     expect(isUpdateCheckSkipped([], { WPMOO_SKIP_UPDATE_CHECK: '1' })).toBe(true);
-    expect(isUpdateCheckSkipped([], { npm_command: 'exec' })).toBe(true);
-    expect(isUpdateCheckSkipped([], { npm_execpath: '/usr/local/bin/npx' })).toBe(true);
+    expect(isUpdateCheckSkipped([], { npm_command: 'exec' })).toBe(false);
+    expect(isUpdateCheckSkipped([], { npm_execpath: '/usr/local/bin/npx' })).toBe(false);
     expect(isUpdateCheckSkipped([], { npm_command: 'run-script' })).toBe(false);
+  });
+
+  it('marks auto-restarted processes to skip the nested update check', () => {
+    expect(restartEnvironment({ PATH: '/usr/bin' })).toEqual({
+      PATH: '/usr/bin',
+      WPMOO_SKIP_UPDATE_CHECK: '1',
+    });
   });
 });

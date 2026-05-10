@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { basename } from 'node:path';
 
 import { execa } from 'execa';
 
@@ -30,18 +29,10 @@ function truthyEnv(value: string | undefined): boolean {
   return value !== undefined && ['1', 'true', 'yes', 'y'].includes(value.toLowerCase().trim());
 }
 
-function isNpxExecPath(value: string | undefined): boolean {
-  if (!value) return false;
-  const executable = basename(value).toLowerCase();
-  return executable === 'npx' || executable === 'npx.cmd' || executable === 'npx-cli.js';
-}
-
 export function isUpdateCheckSkipped(argv: string[], env: UpdateCheckEnvironment = process.env): boolean {
   if (argv.includes('--no-update-check')) return true;
   if (truthyEnv(env.WPMOO_SKIP_UPDATE_CHECK)) return true;
-  if (env.npm_command === 'exec') return true;
-  if (truthyEnv(env.npm_config_npx)) return true;
-  return isNpxExecPath(env.npm_execpath);
+  return false;
 }
 
 function numericParts(version: string): number[] {
@@ -142,8 +133,15 @@ export function restartArgs(packageName: string, version: string, argv: string[]
   return ['exec', '--yes', '--package', packageSpec(packageName, version), '--', 'wpmoo', ...argv];
 }
 
+export function restartEnvironment(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return { ...env, WPMOO_SKIP_UPDATE_CHECK: '1' };
+}
+
 export async function restartCli(packageName: string, version: string, argv: string[]): Promise<number | null> {
-  const child = spawn('npm', restartArgs(packageName, version, argv), { stdio: 'inherit' });
+  const child = spawn('npm', restartArgs(packageName, version, argv), {
+    env: restartEnvironment(),
+    stdio: 'inherit',
+  });
 
   return new Promise((resolve, reject) => {
     child.on('error', reject);
