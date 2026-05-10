@@ -14,7 +14,10 @@ export type SafeResetOptions = {
 
 export function renderSafeResetPreview(target: string, stage: boolean): string {
   return [
-    `Safe reset will refresh generated WPMoo/Doodba environment files in ${target}.`,
+    'Safe reset will refresh generated WPMoo/Doodba environment files.',
+    '',
+    'Target:',
+    target,
     '',
     'Will update:',
     '- .wpmoo/odoo-dev.json',

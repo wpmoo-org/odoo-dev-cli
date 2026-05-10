@@ -10,7 +10,10 @@ describe('safe reset', () => {
   it('explains what safe reset will and will not touch', () => {
     expect(renderSafeResetPreview('/tmp/odoo_sample_module_dev', true)).toBe(
       [
-        'Safe reset will refresh generated WPMoo/Doodba environment files in /tmp/odoo_sample_module_dev.',
+        'Safe reset will refresh generated WPMoo/Doodba environment files.',
+        '',
+        'Target:',
+        '/tmp/odoo_sample_module_dev',
         '',
         'Will update:',
         '- .wpmoo/odoo-dev.json',
