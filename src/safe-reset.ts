@@ -57,14 +57,15 @@ async function inferOptions(target: string): Promise<ScaffoldOptions> {
   const addonsYaml = await readAddonsYaml(target);
   const moduleRepos = await listModuleRepos(target);
   const addonRepos = parseRepoPathsFromAddonsYaml(addonsYaml);
-  const repoPaths = metadata?.sourceRepos.map((repo) => repo.path) ?? (moduleRepos.length ? moduleRepos : addonRepos);
+  const repoPaths = [
+    ...new Set([...(metadata?.sourceRepos.map((repo) => repo.path) ?? []), ...moduleRepos, ...addonRepos]),
+  ];
   const product = metadata?.product ?? repoPaths[0] ?? titleFromTarget(target);
   const sourceRepos: SourceRepo[] = await Promise.all(
     repoPaths.map(async (repoPath) => ({
       path: repoPath,
       url: metadata?.sourceRepos.find((repo) => repo.path === repoPath)?.url ?? (await readSubmoduleUrl(target, repoPath)),
-      addons:
-        metadata?.sourceRepos.find((repo) => repo.path === repoPath)?.addons ?? parseAddonsForRepo(addonsYaml, repoPath),
+      addons: parseAddonsForRepo(addonsYaml, repoPath),
     })),
   );
 

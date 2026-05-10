@@ -30,4 +30,44 @@ describe('safe reset', () => {
       'private/odoo_sample_module:',
     );
   });
+
+  it('uses current addons.yaml module lists when metadata is stale', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-stale-metadata-'));
+
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await writeFile(
+      join(target, '.wpmoo/odoo-dev.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/odoo-dev',
+          version: '0.7.0',
+          product: 'moo_test',
+          odooVersion: '19.0',
+          devRepo: 'moo_test_dev',
+          devRepoUrl: 'https://github.com/example-org/moo_test_dev.git',
+          sourceRepos: [
+            {
+              url: 'https://github.com/example-org/moo_test.git',
+              path: 'moo_test',
+              addons: ['moo_test_base'],
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/addons.yaml'),
+      'private/moo_test:\n  - moo_test_base\n  - moo_test_another_module\n',
+    );
+
+    await safeResetEnvironment({
+      target,
+      stage: false,
+    });
+
+    await expect(readFile(join(target, 'README.md'), 'utf8')).resolves.toContain('├── moo_test_another_module/');
+  });
 });

@@ -8,7 +8,7 @@ describe('prompt copy', () => {
     const lines = copy.split('\n');
 
     expect(copy).toContain('Dev repo: odoo_sample_module_dev');
-    expect(copy).toContain('Module repo: odoo_sample_module');
+    expect(copy).toContain('Source repo: odoo_sample_module');
     expect(copy).toContain('Local folder: ./odoo_sample_module_dev');
     expect(copy).toContain('Submodule path: odoo/custom/src/private/odoo_sample_module');
     expect(lines).toHaveLength(4);

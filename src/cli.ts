@@ -6,6 +6,13 @@ import { commandFromArgs, defaultTargetForProduct, isHelpRequested, isVersionReq
 import { detectDevelopmentEnvironment } from './environment.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
+import {
+  addModuleToSourceRepo,
+  listModulesInSourceRepo,
+  removeModuleFromSourceRepo,
+  type AddModuleOptions,
+  type RemoveModuleOptions,
+} from './module-actions.js';
 import { supportedOdooVersions } from './odoo-versions.js';
 import { renderRepositorySetupNote } from './prompt-copy.js';
 import { promptRepositoryUrl } from './prompt-repositories.js';
@@ -107,20 +114,22 @@ async function showStartup(): Promise<void> {
   console.log();
 }
 
-async function selectEnvironmentActionFromMenu(): Promise<'add-repo' | 'remove-repo' | 'reset'> {
+async function selectEnvironmentActionFromMenu(): Promise<'add-repo' | 'remove-repo' | 'add-module' | 'remove-module' | 'reset'> {
   intro('WPMoo Odoo Dev');
   const action = await select({
     message: 'What do you want to do?',
     options: [
-      { value: 'add-repo', label: 'Add a module repo as submodule' },
-      { value: 'remove-repo', label: 'Remove a repo' },
+      { value: 'add-repo', label: 'Add source repo' },
+      { value: 'remove-repo', label: 'Remove source repo' },
+      { value: 'add-module', label: 'Add module to source repo' },
+      { value: 'remove-module', label: 'Remove module from source repo' },
       { value: 'reset', label: 'Safe reset environment' },
     ],
-    initialValue: 'add-repo',
+    initialValue: 'add-module',
   });
   if (isCancel(action)) process.exit(1);
 
-  return action as 'add-repo' | 'remove-repo' | 'reset';
+  return action as 'add-repo' | 'remove-repo' | 'add-module' | 'remove-module' | 'reset';
 }
 
 async function optionsFromPrompts(showIntro = true): Promise<ScaffoldOptions> {
@@ -173,7 +182,7 @@ async function optionsFromPrompts(showIntro = true): Promise<ScaffoldOptions> {
         : githubRepositoryUrl(defaultOwner, repoIndex === 0 ? product : `${product}_${repoIndex + 1}`);
     const sourceRepoUrl = normalizeRepositoryUrl(
       await promptRepositoryUrl({
-        label: repoIndex === 0 ? 'Module source repo URL' : `Additional source repo ${repoIndex + 1} URL`,
+        label: repoIndex === 0 ? 'Source repo URL' : `Additional source repo ${repoIndex + 1} URL`,
         suggestedUrl: suggestedRepo,
         placeholder: `https://github.com/owner/${repoIndex === 0 ? product : `${product}_${repoIndex + 1}`}.git`,
       }),
@@ -242,7 +251,7 @@ function addRepoOptionsFromArgs(argv: string[]): AddModuleRepoOptions | undefine
 
 async function addRepoOptionsFromPrompts(showIntro = true): Promise<AddModuleRepoOptions> {
   if (showIntro) {
-    intro('Add module repo as submodule');
+    intro('Add source repo as submodule');
   }
 
   const selectedVersion = await select({
@@ -254,7 +263,7 @@ async function addRepoOptionsFromPrompts(showIntro = true): Promise<AddModuleRep
 
   const repoUrl = normalizeRepositoryUrl(
     await promptRepositoryUrl({
-      label: 'Module source repo URL',
+      label: 'Source repo URL',
       placeholder: 'https://github.com/example-org/odoo_sample_module.git',
     }),
   );
@@ -274,6 +283,78 @@ async function addRepoOptionsFromPrompts(showIntro = true): Promise<AddModuleRep
     repoUrl,
     odooVersion: String(selectedVersion),
     initEmptyRepos: Boolean(initEmpty),
+    stage: true,
+  };
+}
+
+async function selectSourceRepo(target: string): Promise<string> {
+  const repos = await listModuleRepos(target);
+  if (repos.length === 0) {
+    throw new Error(`No source repos found under ${target}/odoo/custom/src/private`);
+  }
+
+  const repoPath = await select({
+    message: 'Source repo',
+    options: repos.map((repo) => ({ value: repo, label: repo })),
+    initialValue: repos[0],
+  });
+  if (isCancel(repoPath)) process.exit(1);
+
+  return String(repoPath);
+}
+
+function suggestedModuleName(repoPath: string): string {
+  if (repoPath.endsWith('_pro')) {
+    return `${repoPath.slice(0, -4)}_payment`;
+  }
+
+  return `${repoPath}_base`;
+}
+
+function addModuleOptionsFromArgs(argv: string[]): AddModuleOptions | undefined {
+  const { values } = parseArgs(argv);
+  const repoPath = stringOption(values, 'repo') ?? stringOption(values, 'sourcePath');
+  const moduleName = stringOption(values, 'module') ?? stringOption(values, 'moduleName');
+  if (!repoPath || !moduleName) {
+    return undefined;
+  }
+
+  return {
+    target: resolve(stringOption(values, 'target') ?? process.cwd()),
+    repoPath,
+    moduleName,
+    odooVersion: stringOption(values, 'odooVersion') ?? supportedOdooVersions[0],
+    stage: booleanOption(values, 'stage', true),
+  };
+}
+
+async function addModuleOptionsFromPrompts(showIntro = true): Promise<AddModuleOptions> {
+  if (showIntro) {
+    intro('Add module to source repo');
+  }
+
+  const target = process.cwd();
+  const repoPath = await selectSourceRepo(target);
+  const moduleName = asString(
+    await text({
+      message: 'Module name',
+      placeholder: suggestedModuleName(repoPath),
+      validate: (value) => (value.trim() ? undefined : 'Enter the module technical name.'),
+    }),
+    suggestedModuleName(repoPath),
+  );
+  const selectedVersion = await select({
+    message: 'Odoo version',
+    options: supportedOdooVersions.map((version) => ({ value: version, label: version })),
+    initialValue: supportedOdooVersions[0],
+  });
+  if (isCancel(selectedVersion)) process.exit(1);
+
+  return {
+    target,
+    repoPath,
+    moduleName,
+    odooVersion: String(selectedVersion),
     stage: true,
   };
 }
@@ -323,6 +404,59 @@ async function removeRepoOptionsFromPrompts(argv: string[], showIntro = true): P
   return {
     target,
     repoPath: String(repoPath),
+    stage: true,
+  };
+}
+
+function removeModuleOptionsFromArgs(argv: string[]): RemoveModuleOptions | undefined {
+  const { values } = parseArgs(argv);
+  const repoPath = stringOption(values, 'repo') ?? stringOption(values, 'sourcePath');
+  const moduleName = stringOption(values, 'module') ?? stringOption(values, 'moduleName');
+  if (!repoPath || !moduleName) {
+    return undefined;
+  }
+
+  return {
+    target: resolve(stringOption(values, 'target') ?? process.cwd()),
+    repoPath,
+    moduleName,
+    deleteFiles: booleanOption(values, 'deleteFiles', false),
+    stage: booleanOption(values, 'stage', true),
+  };
+}
+
+async function removeModuleOptionsFromPrompts(showIntro = true): Promise<RemoveModuleOptions> {
+  if (showIntro) {
+    intro('Remove module from source repo');
+  }
+
+  const target = process.cwd();
+  const repoPath = await selectSourceRepo(target);
+  const modules = await listModulesInSourceRepo(target, repoPath);
+  if (modules.length === 0) {
+    throw new Error(`No Odoo modules found under ${target}/odoo/custom/src/private/${repoPath}`);
+  }
+
+  const moduleName = await select({
+    message: 'Module to remove',
+    options: modules.map((module) => ({ value: module, label: module })),
+    initialValue: modules[0],
+  });
+  if (isCancel(moduleName)) process.exit(1);
+
+  const deleteFiles = await confirm({
+    message: 'Delete module files too? (y/N)',
+    active: 'Y',
+    inactive: 'n',
+    initialValue: false,
+  });
+  if (isCancel(deleteFiles)) process.exit(1);
+
+  return {
+    target,
+    repoPath,
+    moduleName: String(moduleName),
+    deleteFiles: Boolean(deleteFiles),
     stage: true,
   };
 }
@@ -449,14 +583,28 @@ async function main(): Promise<void> {
     if (action === 'add-repo') {
       const options = await addRepoOptionsFromPrompts(false);
       await addModuleRepo(options);
-      outro(`Added module repo under ${options.target}/odoo/custom/src/private.`);
+      outro(`Added source repo under ${options.target}/odoo/custom/src/private.`);
       return;
     }
 
     if (action === 'remove-repo') {
       const options = await removeRepoOptionsFromPrompts([], false);
       await removeModuleRepo(options);
-      outro(`Removed module repo ${options.repoPath} from ${options.target}.`);
+      outro(`Removed source repo ${options.repoPath} from ${options.target}.`);
+      return;
+    }
+
+    if (action === 'add-module') {
+      const options = await addModuleOptionsFromPrompts(false);
+      await addModuleToSourceRepo(options);
+      outro(`Added module ${options.moduleName} under source repo ${options.repoPath}.`);
+      return;
+    }
+
+    if (action === 'remove-module') {
+      const options = await removeModuleOptionsFromPrompts(false);
+      await removeModuleFromSourceRepo(options);
+      outro(`Removed module ${options.moduleName} from addons.yaml.`);
       return;
     }
 
@@ -470,14 +618,14 @@ async function main(): Promise<void> {
     if (options) {
       console.log(renderBanner());
       await addModuleRepo(options);
-      outro(`Added module repo under ${options.target}/odoo/custom/src/private.`);
+      outro(`Added source repo under ${options.target}/odoo/custom/src/private.`);
       return;
     }
 
     await showStartup();
     const promptedOptions = await addRepoOptionsFromPrompts();
     await addModuleRepo(promptedOptions);
-    outro(`Added module repo under ${promptedOptions.target}/odoo/custom/src/private.`);
+    outro(`Added source repo under ${promptedOptions.target}/odoo/custom/src/private.`);
     return;
   }
 
@@ -486,14 +634,46 @@ async function main(): Promise<void> {
     if (options) {
       console.log(renderBanner());
       await removeModuleRepo(options);
-      outro(`Removed module repo ${options.repoPath} from ${options.target}.`);
+      outro(`Removed source repo ${options.repoPath} from ${options.target}.`);
       return;
     }
 
     await showStartup();
     const promptedOptions = await removeRepoOptionsFromPrompts(route.argv);
     await removeModuleRepo(promptedOptions);
-    outro(`Removed module repo ${promptedOptions.repoPath} from ${promptedOptions.target}.`);
+    outro(`Removed source repo ${promptedOptions.repoPath} from ${promptedOptions.target}.`);
+    return;
+  }
+
+  if (route.command === 'add-module') {
+    const options = addModuleOptionsFromArgs(route.argv);
+    if (options) {
+      console.log(renderBanner());
+      await addModuleToSourceRepo(options);
+      outro(`Added module ${options.moduleName} under source repo ${options.repoPath}.`);
+      return;
+    }
+
+    await showStartup();
+    const promptedOptions = await addModuleOptionsFromPrompts();
+    await addModuleToSourceRepo(promptedOptions);
+    outro(`Added module ${promptedOptions.moduleName} under source repo ${promptedOptions.repoPath}.`);
+    return;
+  }
+
+  if (route.command === 'remove-module') {
+    const options = removeModuleOptionsFromArgs(route.argv);
+    if (options) {
+      console.log(renderBanner());
+      await removeModuleFromSourceRepo(options);
+      outro(`Removed module ${options.moduleName} from addons.yaml.`);
+      return;
+    }
+
+    await showStartup();
+    const promptedOptions = await removeModuleOptionsFromPrompts();
+    await removeModuleFromSourceRepo(promptedOptions);
+    outro(`Removed module ${promptedOptions.moduleName} from addons.yaml.`);
     return;
   }
 

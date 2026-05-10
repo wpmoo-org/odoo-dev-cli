@@ -40,3 +40,51 @@ export function removeSourceRepoFromAddonsYaml(content: string, repoPath: string
 
   return ensureFinalNewline(updated.trimEnd());
 }
+
+function sourceRepoBlockPattern(repoPath: string): RegExp {
+  return new RegExp(`(^private/${escapeRegExp(repoPath)}:\\n)((?:[ \\t].*(?:\\n|$))*)`, 'm');
+}
+
+function parseYamlListItems(blockBody: string): string[] {
+  return blockBody
+    .split('\n')
+    .map((line) => line.trim().match(/^-\s+(.+)$/)?.[1]?.trim())
+    .filter((item): item is string => Boolean(item));
+}
+
+export function addModuleToSourceRepoInAddonsYaml(
+  content: string,
+  repoPath: string,
+  moduleName: string,
+): string {
+  const blockPattern = sourceRepoBlockPattern(repoPath);
+  const match = content.match(blockPattern);
+  if (!match) {
+    return addSourceRepoToAddonsYaml(content, { path: repoPath, addons: [moduleName] });
+  }
+
+  const addons = parseYamlListItems(match[2]);
+  if (addons.includes(moduleName)) {
+    return content;
+  }
+
+  const replacement = `${match[1]}${yamlList([...addons, moduleName])}\n`;
+  return content.replace(blockPattern, replacement);
+}
+
+export function removeModuleFromSourceRepoInAddonsYaml(
+  content: string,
+  repoPath: string,
+  moduleName: string,
+): string {
+  const blockPattern = sourceRepoBlockPattern(repoPath);
+  const match = content.match(blockPattern);
+  if (!match) {
+    return content;
+  }
+
+  const addons = parseYamlListItems(match[2]).filter((addon) => addon !== moduleName);
+  const replacement = `${match[1]}${addons.length ? `${yamlList(addons)}\n` : ''}`;
+
+  return ensureFinalNewline(content.replace(blockPattern, replacement).trimEnd());
+}

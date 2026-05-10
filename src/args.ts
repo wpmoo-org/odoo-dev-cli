@@ -10,14 +10,14 @@ type ParsedArgs = {
   values: Record<string, string | boolean>;
 };
 
-export type CliCommand = 'menu' | 'create' | 'add-repo' | 'remove-repo' | 'reset';
+export type CliCommand = 'menu' | 'create' | 'add-repo' | 'remove-repo' | 'add-module' | 'remove-module' | 'reset';
 
 export type CommandRoute = {
   command: CliCommand;
   argv: string[];
 };
 
-const commandNames = new Set<CliCommand>(['create', 'add-repo', 'remove-repo', 'reset']);
+const commandNames = new Set<CliCommand>(['create', 'add-repo', 'remove-repo', 'add-module', 'remove-module', 'reset']);
 
 export function commandFromArgs(argv: string[]): CommandRoute {
   if (argv.length === 0) {

@@ -10,7 +10,7 @@ For a product named `odoo_sample_module`, create these repositories first:
 
 ```text
 odoo_sample_module_dev  # private development environment repo
-odoo_sample_module      # module source repo
+odoo_sample_module      # source repo
 ```
 
 The CLI writes into `./odoo_sample_module_dev`. If that directory does not exist
@@ -19,7 +19,7 @@ locally, it clones the dev repo URL you provide.
 When GitHub CLI is installed and authenticated, the interactive wizard detects
 your GitHub username and organizations. If multiple accounts are available, it
 asks where the repos should live and uses that owner for the default repo URLs.
-The wizard also checks whether the dev and module repositories are accessible.
+The wizard also checks whether the dev and source repositories are accessible.
 If they are not accessible, it can create them for you after confirmation.
 
 ```bash
@@ -46,8 +46,10 @@ Odoo development environment, it starts the create flow directly.
 Inside an existing environment, it shows maintenance actions:
 
 ```text
-Add a module repo as submodule
-Remove a repo
+Add source repo
+Remove source repo
+Add module to source repo
+Remove module from source repo
 Safe reset environment
 ```
 
@@ -86,7 +88,7 @@ npx @wpmoo/odoo-dev create \
   --dry-run
 ```
 
-Add a module repository later from inside the dev environment:
+Add a source repository later from inside the dev environment:
 
 ```bash
 npx @wpmoo/odoo-dev add-repo \
@@ -95,10 +97,27 @@ npx @wpmoo/odoo-dev add-repo \
   --init-empty-repos
 ```
 
-Remove a module repository from the dev environment:
+Remove a source repository from the dev environment:
 
 ```bash
 npx @wpmoo/odoo-dev remove-repo --repo odoo_sample_module_reports
+```
+
+Add a minimal Odoo module skeleton to a selected source repository:
+
+```bash
+npx @wpmoo/odoo-dev add-module \
+  --repo odoo_sample_module \
+  --module odoo_sample_module_base \
+  --odoo-version 19.0
+```
+
+Remove a module from `addons.yaml` without deleting source files:
+
+```bash
+npx @wpmoo/odoo-dev remove-module \
+  --repo odoo_sample_module \
+  --module odoo_sample_module_base
 ```
 
 Refresh generated environment files without deleting module source code:
@@ -109,12 +128,16 @@ npx @wpmoo/odoo-dev reset
 
 ## Defaults
 
-Each source repo defaults to a single addon with the same name as its local
-submodule folder. For example:
+Each source repo can contain one or many Odoo modules. For example:
 
 ```text
 private/odoo_sample_module:
-  - odoo_sample_module
+  - odoo_sample_module_base
+  - odoo_sample_module_another_module
+
+private/odoo_sample_module_pro:
+  - odoo_sample_module_payment
+  - odoo_sample_module_analytics
 ```
 
 If the project has portal, demo, payment, reports, or other addons, add them

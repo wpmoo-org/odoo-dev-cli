@@ -30,7 +30,7 @@ describe('repository preflight', () => {
         defaultVisibility: 'private',
       },
       {
-        label: 'Module source repo: odoo_sample_module',
+        label: 'Source repo: odoo_sample_module',
         url: 'https://github.com/example-org/odoo_sample_module.git',
         defaultVisibility: 'private',
       },
@@ -58,7 +58,7 @@ describe('repository preflight', () => {
       ],
       inaccessible: [
         {
-          label: 'Module source repo: odoo_sample_module',
+          label: 'Source repo: odoo_sample_module',
           url: 'https://github.com/example-org/odoo_sample_module.git',
           defaultVisibility: 'private',
           slug: 'example-org/odoo_sample_module',

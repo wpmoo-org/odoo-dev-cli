@@ -8,6 +8,8 @@ Usage:
   npx @wpmoo/odoo-dev create --product <slug> --dev-repo-url <url> --source-repo-url <url>
   npx @wpmoo/odoo-dev add-repo --repo-url <url>
   npx @wpmoo/odoo-dev remove-repo --repo <name>
+  npx @wpmoo/odoo-dev add-module --repo <source-repo> --module <module-name>
+  npx @wpmoo/odoo-dev remove-module --repo <source-repo> --module <module-name>
   npx @wpmoo/odoo-dev reset
 
 Options:
@@ -15,9 +17,11 @@ Options:
   --odoo-version <branch>      Odoo branch to pin submodules to. Default: 19.0.
   --dev-repo-url <url>         Development environment repository URL for docs.
   --target <path>              Target dev repo directory. Default: ./<product>_dev.
-  --repo-url <url>             Module repo URL for add-repo.
-  --repo <name>                Module repo folder name for remove-repo.
-  --source-repo-url <url>      Source module repo URL. Repeat for multiple repos.
+  --repo-url <url>             Source repo URL for add-repo.
+  --repo <name>                Source repo folder name for repo/module actions.
+  --module <name>              Odoo module technical name for module actions.
+  --delete-files               Also delete module files in remove-module. Default: false.
+  --source-repo-url <url>      Source repo URL. Repeat for multiple repos.
   --source-path <path>         Advanced: local folder for the preceding source repo.
   --source-addons <list>       Advanced: comma-separated addons for the preceding source repo.
   --create-missing-repos       Create inaccessible GitHub repos with gh CLI.

@@ -32,7 +32,7 @@ export function repositoryRequirements(options: ScaffoldOptions): RepositoryRequ
       defaultVisibility: 'private',
     },
     ...options.sourceRepos.map((repo) => ({
-      label: `Module source repo: ${repo.path}`,
+      label: `Source repo: ${repo.path}`,
       url: repo.url,
       defaultVisibility: 'private' as const,
     })),
