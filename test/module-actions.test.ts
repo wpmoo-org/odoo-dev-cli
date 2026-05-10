@@ -22,18 +22,18 @@ function recordingGit(): GitRunner & { calls: Array<{ cwd: string; args: string[
 describe('module actions', () => {
   it('creates a minimal Odoo 16-19 compatible module skeleton and activates it', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-'));
-    await mkdir(join(target, 'odoo/custom/src/private/moo_test'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
     await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
 
     await addModuleToSourceRepo({
       target,
-      repoPath: 'moo_test',
-      moduleName: 'moo_test_base',
+      repoPath: 'odoo_sample_module',
+      moduleName: 'odoo_sample_module_base',
       odooVersion: '18.0',
       stage: false,
     });
 
-    const modulePath = join(target, 'odoo/custom/src/private/moo_test/moo_test_base');
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
     await expect(readFile(join(modulePath, '__init__.py'), 'utf8')).resolves.toBe('from . import models\n');
     await expect(readFile(join(modulePath, 'models/__init__.py'), 'utf8')).resolves.toBe('');
     await expect(readFile(join(modulePath, 'security/ir.model.access.csv'), 'utf8')).resolves.toContain(
@@ -43,48 +43,50 @@ describe('module actions', () => {
       '"version": "18.0.1.0.0"',
     );
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
-      'private/moo_test:\n  - moo_test_base',
+      'private/odoo_sample_module:\n  - odoo_sample_module_base',
     );
   });
 
   it('lists modules in a selected source repo and removes activation without deleting files', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-'));
-    await mkdir(join(target, 'odoo/custom/src/private/moo_test'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
 
     await addModuleToSourceRepo({
       target,
-      repoPath: 'moo_test',
-      moduleName: 'moo_test_base',
+      repoPath: 'odoo_sample_module',
+      moduleName: 'odoo_sample_module_base',
       odooVersion: '19.0',
       stage: false,
     });
 
-    await expect(listModulesInSourceRepo(target, 'moo_test')).resolves.toEqual(['moo_test_base']);
+    await expect(listModulesInSourceRepo(target, 'odoo_sample_module')).resolves.toEqual(['odoo_sample_module_base']);
 
     await removeModuleFromSourceRepo({
       target,
-      repoPath: 'moo_test',
-      moduleName: 'moo_test_base',
+      repoPath: 'odoo_sample_module',
+      moduleName: 'odoo_sample_module_base',
       deleteFiles: false,
       stage: false,
     });
 
-    await expect(stat(join(target, 'odoo/custom/src/private/moo_test/moo_test_base'))).resolves.toBeTruthy();
+    await expect(
+      stat(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base')),
+    ).resolves.toBeTruthy();
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.not.toContain(
-      '  - moo_test_base',
+      '  - odoo_sample_module_base',
     );
   });
 
   it('stages module file changes inside the selected source repo as well as the dev repo', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-stage-'));
     const git = recordingGit();
-    await mkdir(join(target, 'odoo/custom/src/private/moo_test'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
 
     await addModuleToSourceRepo(
       {
         target,
-        repoPath: 'moo_test',
-        moduleName: 'moo_test_base',
+        repoPath: 'odoo_sample_module',
+        moduleName: 'odoo_sample_module_base',
         odooVersion: '19.0',
         stage: true,
       },
@@ -92,7 +94,7 @@ describe('module actions', () => {
     );
 
     expect(git.calls).toContainEqual({
-      cwd: join(target, 'odoo/custom/src/private/moo_test'),
+      cwd: join(target, 'odoo/custom/src/private/odoo_sample_module'),
       args: ['add', '.'],
     });
     expect(git.calls).toContainEqual({ cwd: target, args: ['add', '.'] });

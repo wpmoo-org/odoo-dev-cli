@@ -328,10 +328,10 @@ async function addRepoOptionsFromPrompts(
     asString(
       await text({
         message: menuPromptMessage('GitHub owner/organization', cancelAction),
-        placeholder: 'wpmoo-org',
+        placeholder: 'example-org',
         validate: (value) => (value.trim() ? undefined : 'Enter a GitHub owner or organization.'),
       }),
-      'wpmoo-org',
+      'example-org',
       cancelAction,
     );
   const repoName = asString(

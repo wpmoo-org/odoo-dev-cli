@@ -15,15 +15,15 @@ describe('environment context', () => {
       JSON.stringify({
         tool: '@wpmoo/odoo-dev',
         version: '0.8.18',
-        product: 'moo_test',
+        product: 'odoo_sample_module',
         odooVersion: '19.0',
-        devRepo: 'moo_test_dev',
-        devRepoUrl: 'https://github.com/wpmoo-org/moo_test_dev.git',
+        devRepo: 'odoo_sample_module_dev',
+        devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
         sourceRepos: [],
       }),
     );
 
-    await expect(environmentGitHubOwner(target)).resolves.toBe('wpmoo-org');
-    await expect(environmentProduct(target)).resolves.toBe('moo_test');
+    await expect(environmentGitHubOwner(target)).resolves.toBe('example-org');
+    await expect(environmentProduct(target)).resolves.toBe('odoo_sample_module');
   });
 });

@@ -42,15 +42,15 @@ describe('safe reset', () => {
         {
           tool: '@wpmoo/odoo-dev',
           version: '0.7.0',
-          product: 'moo_test',
+          product: 'odoo_sample_module',
           odooVersion: '19.0',
-          devRepo: 'moo_test_dev',
-          devRepoUrl: 'https://github.com/example-org/moo_test_dev.git',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
           sourceRepos: [
             {
-              url: 'https://github.com/example-org/moo_test.git',
-              path: 'moo_test',
-              addons: ['moo_test_base'],
+              url: 'https://github.com/example-org/odoo_sample_module.git',
+              path: 'odoo_sample_module',
+              addons: ['odoo_sample_module_base'],
             },
           ],
         },
@@ -61,7 +61,7 @@ describe('safe reset', () => {
     await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
     await writeFile(
       join(target, 'odoo/custom/src/addons.yaml'),
-      'private/moo_test:\n  - moo_test_base\n  - moo_test_another_module\n',
+      'private/odoo_sample_module:\n  - odoo_sample_module_base\n  - odoo_sample_module_extra\n',
     );
 
     await safeResetEnvironment({
@@ -69,6 +69,8 @@ describe('safe reset', () => {
       stage: false,
     });
 
-    await expect(readFile(join(target, 'README.md'), 'utf8')).resolves.toContain('├── moo_test_another_module/');
+    await expect(readFile(join(target, 'README.md'), 'utf8')).resolves.toContain(
+      '├── odoo_sample_module_extra/',
+    );
   });
 });
