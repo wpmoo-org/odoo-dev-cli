@@ -35,4 +35,11 @@ describe('CLI environment maintenance prompts', () => {
     expect(source).toContain("inactive: 'No'");
     expect(source).toContain('initialValue: false');
   });
+
+  it('asks whether to install Odoo Agent Skills in create prompts', () => {
+    const source = readFileSync(new URL('../src/cli.ts', import.meta.url), 'utf8');
+
+    expect(source).toContain("message: 'Install project-local Odoo Agent Skills?'");
+    expect(source).toContain('agentSkillsTemplateUrl: Boolean(installAgentSkills) ? defaultAgentSkillsTemplateUrl : undefined');
+  });
 });

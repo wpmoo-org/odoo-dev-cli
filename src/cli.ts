@@ -13,6 +13,7 @@ import {
 } from './args.js';
 import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
+import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import {
@@ -271,6 +272,16 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
     addAnother = Boolean(shouldAddAnother);
   }
 
+  const installAgentSkills = await select({
+    message: 'Install project-local Odoo Agent Skills?',
+    options: [
+      { value: true, label: 'Yes, install latest default skills' },
+      { value: false, label: 'No' },
+    ],
+    initialValue: false,
+  });
+  handleCancel(installAgentSkills, cancelAction);
+
   const initEmpty = await select({
     message: 'Initialize repositories that exist but have no commits?',
     options: [
@@ -292,6 +303,7 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
     dryRun: false,
     initEmptyRepos: Boolean(initEmpty),
     stage: true,
+    agentSkillsTemplateUrl: Boolean(installAgentSkills) ? defaultAgentSkillsTemplateUrl : undefined,
     createMissingRepos: false,
     repoVisibility: 'private',
   };
