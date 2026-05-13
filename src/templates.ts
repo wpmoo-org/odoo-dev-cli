@@ -28,6 +28,43 @@ function repoTree(options: CreateOptions): string {
   return options.sourceRepos.map((repo) => `│       │   │   ├── ${repo.path}/`).join('\n');
 }
 
+function repositoryLayout(options: CreateOptions): string {
+  if ((options.engine ?? 'compose') === 'compose') {
+    return `${options.devRepo}/
+├── docker-compose_17.0.yml
+├── docker-compose_18.0.yml
+├── docker-compose_19.0.yml
+├── scripts/
+├── etc/
+├── odoo/
+│   └── custom/
+│       └── src/
+│           └── private/
+${options.sourceRepos.map((repo) => `│               ├── ${repo.path}/`).join('\n')}
+├── docs/
+├── README.md
+└── AGENTS.md`;
+  }
+
+  return `${options.devRepo}/
+├── odoo/
+│   └── custom/
+│       ├── src/
+│       │   ├── private/
+${repoTree(options)}
+│       │   ├── repos.yaml
+│       │   └── addons.yaml
+│       ├── dependencies/
+│       ├── conf.d/
+│       ├── entrypoint.d/
+│       └── build.d/
+${options.agentSkillsTemplateUrl ? `├── .agents/
+│   └── skills/
+├── docs/` : `├── docs/`}
+├── README.md
+└── AGENTS.md`;
+}
+
 function sourceRepoDocs(options: CreateOptions): string {
   return options.sourceRepos
     .map(
@@ -53,6 +90,141 @@ ${repo.addons.map((addon) => `├── ${addon}/`).join('\n')}
 \`\`\``,
     )
     .join('\n\n');
+}
+
+function optionalAgentSkillsReadme(options: CreateOptions): string {
+  if (!options.agentSkillsTemplateUrl) return '';
+
+  return `
+## Agent Skills
+
+This environment is configured to install project-local Agent Skills from:
+
+\`\`\`text
+${options.agentSkillsTemplateUrl}${options.agentSkillsTemplateRef ? `#${options.agentSkillsTemplateRef}` : ''}
+\`\`\`
+
+After external resource installation, skills normally live under:
+
+\`\`\`text
+.agents/skills/
+\`\`\`
+
+Agents that support the Agent Skills standard can load them on demand.
+`;
+}
+
+function optionalAgentSkillsAgentsSection(options: CreateOptions): string {
+  if (!options.agentSkillsTemplateUrl) return '';
+
+  return `
+## Active Agent Skills
+
+When using an agent that supports Agent Skills, prefer the project-local skills
+installed under \`.agents/skills/\`. They are sourced from:
+
+\`\`\`text
+${options.agentSkillsTemplateUrl}${options.agentSkillsTemplateRef ? `#${options.agentSkillsTemplateRef}` : ''}
+\`\`\`
+`;
+}
+
+function environmentKind(options: CreateOptions): string {
+  return (options.engine ?? 'compose') === 'compose' ? 'Docker Compose' : 'Doodba-compatible';
+}
+
+function repoDuplicationNote(options: CreateOptions): string {
+  if ((options.engine ?? 'compose') === 'compose') {
+    return 'Keep these repositories under `odoo/custom/src/private`; the Compose entrypoint exposes discovered addons through `/mnt/wpmoo-addons`.';
+  }
+
+  return 'Do not duplicate these repositories in `repos.yaml`.';
+}
+
+function verificationCommand(options: CreateOptions): string {
+  if ((options.engine ?? 'compose') === 'compose') {
+    const firstAddon = allAddons(options)[0] ?? options.product;
+    return `./scripts/test.sh ${firstAddon}`;
+  }
+
+  return `docker compose run --rm odoo addons update --test --with ${allAddons(options).join(',')}`;
+}
+
+function environmentUsageDocs(options: CreateOptions, modules: string): string {
+  if ((options.engine ?? 'compose') === 'compose') {
+    return `## Docker Compose Notes
+
+This environment uses the standalone WPMoo Odoo Compose resource. Compose files
+are version-specific and static:
+
+\`\`\`text
+docker-compose_17.0.yml
+docker-compose_18.0.yml
+docker-compose_19.0.yml
+\`\`\`
+
+If copied from the standalone resource, additional compose documentation is kept
+in \`docs/compose.md\`.
+
+Source repositories stay under \`odoo/custom/src/private\`. At container startup,
+\`entrypoint.sh\` scans those repositories for addons and exposes them through
+\`/mnt/wpmoo-addons\`.
+
+## Common Commands
+
+\`\`\`bash
+cp .env.example .env
+./scripts/up.sh
+./scripts/logs.sh
+./scripts/shell.sh
+./scripts/down.sh
+\`\`\`
+
+Run tests for one planned product addon:
+
+\`\`\`bash
+./scripts/test.sh ${allAddons(options)[0] ?? options.product}
+\`\`\`
+`;
+  }
+
+  return `## Doodba Notes
+
+The product source repositories are managed as Git submodules. Do not also add
+them to \`odoo/custom/src/repos.yaml\`, otherwise the same source will be managed
+by two different mechanisms.
+
+\`odoo/custom/src/addons.yaml\` activates addons from the submodule paths.
+
+The complete Doodba scaffold can be generated or refreshed from the official
+template when \`copier\` is available:
+
+\`\`\`bash
+copier copy https://github.com/Tecnativa/doodba-copier-template .
+\`\`\`
+
+Run this only after reviewing conflicts because this repository already contains
+project-specific source and documentation files.
+
+## Common Commands
+
+After the Doodba scaffold is generated:
+
+\`\`\`bash
+invoke develop
+invoke img-build --pull
+invoke git-aggregate
+invoke resetdb
+invoke start
+\`\`\`
+
+Run tests for all planned product addons:
+
+\`\`\`bash
+modules=${modules}
+docker compose run --rm odoo addons update --test --with $modules
+\`\`\`
+`;
 }
 
 const BANNER_GRADIENT_START = [31, 151, 231] as const;
@@ -195,7 +367,7 @@ export function renderReadme(options: CreateOptions): string {
 
   return `# ${title} Development Environment
 
-Private Doodba development environment for the ${title} product.
+Private ${environmentKind(options)} development environment for the ${title} product.
 
 This repository owns the development environment only. Product source code lives
 in source repository submodules under \`odoo/custom/src/private\`.
@@ -203,21 +375,7 @@ in source repository submodules under \`odoo/custom/src/private\`.
 ## Repository Layout
 
 \`\`\`text
-${options.devRepo}/
-├── odoo/
-│   └── custom/
-│       ├── src/
-│       │   ├── private/
-${repoTree(options)}
-│       │   ├── repos.yaml
-│       │   └── addons.yaml
-│       ├── dependencies/
-│       ├── conf.d/
-│       ├── entrypoint.d/
-│       └── build.d/
-├── docs/
-├── README.md
-└── AGENTS.md
+${repositoryLayout(options)}
 \`\`\`
 
 ## Clone
@@ -247,48 +405,12 @@ root:
 
 If this repository root is on your \`PATH\`, you can run \`moo ...\` from
 anywhere and the script will delegate back to this environment.
-
+${optionalAgentSkillsReadme(options)}
 ## Source Repositories
 
 ${sourceRepoDocs(options)}
 
-## Doodba Notes
-
-The product source repositories are managed as Git submodules. Do not also add
-them to \`odoo/custom/src/repos.yaml\`, otherwise the same source will be managed
-by two different mechanisms.
-
-\`odoo/custom/src/addons.yaml\` activates addons from the submodule paths.
-
-The complete Doodba scaffold can be generated or refreshed from the official
-template when \`copier\` is available:
-
-\`\`\`bash
-copier copy https://github.com/Tecnativa/doodba-copier-template .
-\`\`\`
-
-Run this only after reviewing conflicts because this repository already contains
-project-specific source and documentation files.
-
-## Common Commands
-
-After the Doodba scaffold is generated:
-
-\`\`\`bash
-invoke develop
-invoke img-build --pull
-invoke git-aggregate
-invoke resetdb
-invoke start
-\`\`\`
-
-Run tests for all planned product addons:
-
-\`\`\`bash
-modules=${modules}
-docker compose run --rm odoo addons update --test --with $modules
-\`\`\`
-
+${environmentUsageDocs(options, modules)}
 ## Branching
 
 Use Odoo major-version branches in source repositories:
@@ -314,7 +436,7 @@ export function renderAgents(options: CreateOptions): string {
 
 ## Project
 
-Private Doodba development environment for the ${titleizeProduct(options.product)} product.
+Private ${environmentKind(options)} development environment for the ${titleizeProduct(options.product)} product.
 
 ## Repository Roles
 
@@ -329,8 +451,8 @@ Product repositories are Git submodules:
 ${options.sourceRepos.map((repo) => `odoo/custom/src/private/${repo.path}`).join('\n')}
 \`\`\`
 
-Do not duplicate these repositories in \`repos.yaml\`.
-
+${repoDuplicationNote(options)}
+${optionalAgentSkillsAgentsSection(options)}
 ## Addon Boundaries
 
 ${addonList}
@@ -349,10 +471,10 @@ addons may depend on public/community addons.
 
 ## Verification
 
-After Doodba scaffold generation, use Doodba addon commands:
+Use the environment's addon test/update command:
 
 \`\`\`bash
-docker compose run --rm odoo addons update --test --with ${allAddons(options).join(',')}
+${verificationCommand(options)}
 \`\`\`
 
 Only report completion after the relevant update/test command exits cleanly.

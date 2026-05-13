@@ -2,11 +2,16 @@
 
 ![WPMoo Workflow Platform - Micro Object Oriented](https://cdn.jsdelivr.net/npm/@wpmoo/odoo-dev/docs/assets/wpmoo-banner.png)
 
-Create Doodba-ready Odoo development environment overlays.
+Create Odoo development environment overlays.
 
-The CLI creates development environment files, adds source repositories as Git
-submodules, generates Doodba `addons.yaml` and `repos.yaml`, then stages the
-result with `git add .`. It does not commit.
+The CLI creates a Docker Compose based Odoo development environment, adds source
+repositories as Git submodules, and stages the result with `git add .`. It does
+not commit.
+
+Compose resources and project-local Agent Skills are copied from standalone
+repositories, so large Docker/skill assets do not need to be embedded in the
+TypeScript CLI. The compose resource uses static version-specific files such as
+`docker-compose_19.0.yml` so it can also be used standalone.
 
 For a product named `odoo_sample_module`, create these repositories first:
 
@@ -90,6 +95,31 @@ npx @wpmoo/odoo-dev create \
   --dry-run
 ```
 
+Default Docker Compose engine through an external standalone compose resource:
+
+```bash
+npx @wpmoo/odoo-dev create \
+  --product odoo_sample_module \
+  --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
+  --source-repo-url https://github.com/example-org/odoo_sample_module.git \
+  --agent-skills-template
+```
+
+During local resource development, point to local clones of the standalone repos:
+
+```bash
+git clone https://github.com/wpmoo-org/odoo-docker-compose ../odoo-docker-compose
+git clone https://github.com/wpmoo-org/odoo-skills ../odoo-skills
+
+npx @wpmoo/odoo-dev create \
+  --engine compose \
+  --compose-template-url ../odoo-docker-compose \
+  --agent-skills-template \
+  --agent-skills-template-url ../odoo-skills \
+  --product odoo_sample_module \
+  --source-repo-url https://github.com/example-org/odoo_sample_module.git
+```
+
 Add a source repository later from inside the dev environment:
 
 ```bash
@@ -158,15 +188,15 @@ private/odoo_sample_module_pro:
   - odoo_sample_module_analytics
 ```
 
-If the project has portal, demo, payment, reports, or other addons, add them
-later in Doodba's `odoo/custom/src/addons.yaml`, or pass `--source-addons` in
-non-interactive advanced usage.
+If the project has portal, demo, payment, reports, or other addons, pass
+`--source-addons` in non-interactive advanced usage or add modules later with the
+CLI.
 
 ## WPMoo Development Guidelines
 
-The CLI keeps environment creation focused on Doodba files, source submodules,
-and WPMoo metadata. It does not install agent tools, editor setup, doctor
-scripts, or other optional development packs.
+The CLI keeps environment creation focused on Docker Compose resources, source
+submodules, and WPMoo metadata. It does not install agent tools, editor setup,
+doctor scripts, or other optional development packs.
 
 If you want agent-assisted workflows inside a generated environment, install
 and manage them manually in that environment. For example, Agentic Stack can be
@@ -183,7 +213,7 @@ tool-owned development guideline files.
 
 ## Notes
 
-- V1 is overlay-first and does not run the official Doodba Copier template.
+- V1 is overlay-first and uses WPMoo's Docker Compose resources by default.
 - Product source repositories are managed as Git submodules under
   `odoo/custom/src/private`.
 - Product source repositories are intentionally not listed in `repos.yaml`.

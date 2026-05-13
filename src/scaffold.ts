@@ -1,7 +1,9 @@
 import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import { applyExternalAsset, renderExternalAssetCommand, writeTextFile } from './external-assets.js';
 import { renderEnvironmentMetadata } from './environment.js';
+import { plannedExternalAssetOptions, renderComposeEnvExample } from './external-templates.js';
 import {
   cloneRepository,
   ensureSubmodule,
@@ -30,13 +32,27 @@ type GeneratedFile = {
 };
 
 export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
-  return [
+  const files: GeneratedFile[] = [
     { path: '.wpmoo/odoo-dev.json', content: renderEnvironmentMetadata(options) },
     { path: 'moo', content: renderMooDelegationScript(), mode: 0o755 },
     { path: '.gitignore', content: renderGitignore() },
     { path: 'README.md', content: renderReadme(options) },
     { path: 'AGENTS.md', content: renderAgents(options) },
     { path: 'docs/appstore-release.md', content: renderAppstoreRelease(options) },
+  ];
+
+  if ((options.engine ?? 'compose') === 'compose') {
+    return [
+      ...files,
+      {
+        path: 'odoo/custom/src/private/README.md',
+        content: renderPlaceholder('private', 'WPMoo source repositories are added here as Git submodules.'),
+      },
+    ];
+  }
+
+  return [
+    ...files,
     { path: 'odoo/custom/src/addons.yaml', content: renderAddonsYaml(options) },
     { path: 'odoo/custom/src/repos.yaml', content: renderReposYaml(options) },
     {
@@ -120,10 +136,14 @@ export async function scaffold(
   git: GitRunner = realGit,
 ): Promise<ScaffoldResult> {
   const files = generatedFiles(options);
-  const plannedCommands = options.sourceRepos.map(
-    (repo) =>
-      `git submodule add -b ${options.odooVersion} ${repo.url} odoo/custom/src/private/${repo.path}`,
-  );
+  const externalAssets = plannedExternalAssetOptions(options);
+  const plannedCommands = [
+    ...externalAssets.map((assetOptions) => renderExternalAssetCommand(assetOptions)),
+    ...options.sourceRepos.map(
+      (repo) =>
+        `git submodule add -b ${options.odooVersion} ${repo.url} odoo/custom/src/private/${repo.path}`,
+    ),
+  ];
   if (options.stage) {
     plannedCommands.push('git add .');
   }
@@ -139,6 +159,13 @@ export async function scaffold(
     await prepareTargetRepository(options, git);
   }
   await writeGeneratedFiles(options.target, files);
+
+  for (const assetOptions of externalAssets) {
+    await applyExternalAsset(assetOptions, git);
+  }
+  if ((options.engine ?? 'compose') === 'compose') {
+    await writeTextFile(join(options.target, '.env.example'), renderComposeEnvExample(options));
+  }
 
   if (!options.skipSubmodules) {
     for (const repo of options.sourceRepos) {

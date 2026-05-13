@@ -1,7 +1,7 @@
 import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { ScaffoldOptions, SourceRepo } from './types.js';
+import type { EnvironmentEngine, ScaffoldOptions, SourceRepo } from './types.js';
 import { packageName, packageVersion } from './version.js';
 
 export const markerPath = '.wpmoo/odoo-dev.json';
@@ -15,6 +15,14 @@ export type EnvironmentMetadata = {
   devRepo: string;
   devRepoUrl: string;
   sourceRepos: SourceRepo[];
+  engine?: EnvironmentEngine;
+  composeTemplateUrl?: string;
+  composeTemplateRef?: string;
+  agentSkillsTemplateUrl?: string;
+  agentSkillsTemplateRef?: string;
+  postgresVersion?: string;
+  httpPort?: string;
+  geventPort?: string;
 };
 
 export type DevelopmentEnvironmentDetection = {
@@ -40,6 +48,14 @@ export function environmentMetadata(options: ScaffoldOptions): EnvironmentMetada
     devRepo: options.devRepo,
     devRepoUrl: options.devRepoUrl,
     sourceRepos: options.sourceRepos,
+    engine: options.engine,
+    composeTemplateUrl: options.composeTemplateUrl,
+    composeTemplateRef: options.composeTemplateRef,
+    agentSkillsTemplateUrl: options.agentSkillsTemplateUrl,
+    agentSkillsTemplateRef: options.agentSkillsTemplateRef,
+    postgresVersion: options.postgresVersion,
+    httpPort: options.httpPort,
+    geventPort: options.geventPort,
   };
 }
 

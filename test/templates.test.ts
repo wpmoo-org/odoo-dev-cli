@@ -82,6 +82,18 @@ describe('template rendering', () => {
     expect(readme).not.toContain('private paid/pro modules');
   });
 
+  it('renders optional Agent Skills instructions when a skills resource is configured', () => {
+    const readme = renderReadme({
+      ...options,
+      agentSkillsTemplateUrl: 'gh:wpmoo-org/odoo-skills',
+      agentSkillsTemplateRef: 'v0.1.0',
+    });
+
+    expect(readme).toContain('Agent Skills');
+    expect(readme).toContain('gh:wpmoo-org/odoo-skills#v0.1.0');
+    expect(readme).toContain('.agents/skills/');
+  });
+
   it('renders a large CLI banner', () => {
     const banner = renderBanner();
 
@@ -99,7 +111,7 @@ describe('template rendering', () => {
     expect(banner).toContain('\u001B[0m');
   });
 
-  it('renders gitignore for Doodba and local files', () => {
+  it('renders gitignore for Docker, Odoo, and local files', () => {
     const gitignore = renderGitignore();
 
     expect(gitignore).toContain('node_modules/');

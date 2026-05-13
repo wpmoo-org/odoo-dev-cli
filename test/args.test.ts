@@ -228,6 +228,68 @@ describe('args', () => {
     expect(options?.stage).toBe(false);
   });
 
+  it('parses external compose and agent skill template options', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'odoo_sample_module',
+      '--source-repo-url',
+      'https://github.com/example-org/odoo_sample_module.git',
+      '--engine',
+      'compose',
+      '--compose-template-url',
+      'gh:wpmoo-org/odoo-docker-compose',
+      '--compose-template-ref',
+      'v0.1.0',
+      '--agent-skills-template',
+      '--agent-skills-template-url',
+      'gh:wpmoo-org/odoo-skills',
+      '--agent-skills-template-ref',
+      'v0.1.0',
+      '--postgres-version',
+      '18',
+      '--http-port',
+      '11019',
+      '--gevent-port',
+      '21019',
+    ]);
+
+    expect(options?.engine).toBe('compose');
+    expect(options?.composeTemplateUrl).toBe('gh:wpmoo-org/odoo-docker-compose');
+    expect(options?.composeTemplateRef).toBe('v0.1.0');
+    expect(options?.agentSkillsTemplateUrl).toBe('gh:wpmoo-org/odoo-skills');
+    expect(options?.agentSkillsTemplateRef).toBe('v0.1.0');
+    expect(options?.postgresVersion).toBe('18');
+    expect(options?.httpPort).toBe('11019');
+    expect(options?.geventPort).toBe('21019');
+  });
+
+  it('infers compose engine when a compose template URL is provided', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'odoo_sample_module',
+      '--source-repo-url',
+      'https://github.com/example-org/odoo_sample_module.git',
+      '--compose-template-url',
+      '../odoo-docker-compose',
+    ]);
+
+    expect(options?.engine).toBe('compose');
+    expect(options?.composeTemplateUrl).toBe('../odoo-docker-compose');
+  });
+
+  it('rejects unknown environment engines', () => {
+    expect(() =>
+      optionsFromArgs([
+        '--product',
+        'odoo_sample_module',
+        '--source-repo-url',
+        'https://github.com/example-org/odoo_sample_module.git',
+        '--engine',
+        'unknown',
+      ]),
+    ).toThrow('Invalid value for --engine');
+  });
+
   it('parses missing repository creation options', () => {
     const options = optionsFromArgs([
       '--product',

@@ -30,6 +30,7 @@ describe('git integration', () => {
       product: 'odoo_sample_module',
       org: 'example-org',
       odooVersion: '19.0',
+      engine: 'doodba',
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: target,
       communityRepo: 'odoo_sample_module',
@@ -83,6 +84,7 @@ describe('git integration', () => {
       product: 'odoo_sample_module',
       org: 'example-org',
       odooVersion: '19.0',
+      engine: 'doodba',
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: target,
       communityRepo: 'odoo_sample_module',
@@ -123,6 +125,7 @@ describe('git integration', () => {
     await scaffold({
       product: 'odoo_sample_module',
       odooVersion: '19.0',
+      engine: 'doodba',
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: devRemote,
       sourceRepos: [
@@ -161,6 +164,7 @@ describe('git integration', () => {
     await scaffold({
       product: 'odoo_sample_module',
       odooVersion: '19.0',
+      engine: 'doodba',
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: devRemote,
       sourceRepos: [
@@ -181,6 +185,7 @@ describe('git integration', () => {
     await scaffold({
       product: 'odoo_sample_module',
       odooVersion: '19.0',
+      engine: 'doodba',
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: devRemote,
       sourceRepos: [
@@ -215,6 +220,7 @@ describe('git integration', () => {
     await scaffold({
       product: 'odoo_sample_module',
       odooVersion: '19.0',
+      engine: 'doodba',
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: target,
       sourceRepos: [
@@ -273,6 +279,7 @@ describe('git integration', () => {
     await scaffold({
       product: 'odoo_sample_module',
       odooVersion: '19.0',
+      engine: 'doodba',
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: target,
       sourceRepos: [

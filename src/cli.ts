@@ -284,6 +284,7 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   return {
     product,
     odooVersion,
+    engine: 'compose',
     devRepo: inferRepoPath(devRepoUrl),
     devRepoUrl,
     sourceRepos,

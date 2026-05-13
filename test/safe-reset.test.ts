@@ -10,7 +10,7 @@ describe('safe reset', () => {
   it('explains what safe reset will and will not touch', () => {
     expect(renderSafeResetPreview('/tmp/odoo_sample_module_dev', true)).toBe(
       [
-        'Safe reset will refresh generated WPMoo/Doodba environment files.',
+        'Safe reset will refresh generated WPMoo environment files.',
         '',
         'Target:',
         '/tmp/odoo_sample_module_dev',
@@ -22,16 +22,9 @@ describe('safe reset', () => {
         '- README.md',
         '- AGENTS.md',
         '- docs/appstore-release.md',
-        '- odoo/custom/src/repos.yaml',
-        '- odoo/custom/dependencies/apt.txt',
-        '- odoo/custom/dependencies/pip.txt',
-        '- odoo/custom/dependencies/npm.txt',
-        '- odoo/custom/conf.d/README.md',
-        '- odoo/custom/entrypoint.d/README.md',
-        '- odoo/custom/build.d/README.md',
+        '- engine-specific generated files',
         '',
         'Will not touch:',
-        '- odoo/custom/src/addons.yaml',
         '- source repo folders under odoo/custom/src/private',
         '- module source code',
         '- Git history, remotes, or branches',

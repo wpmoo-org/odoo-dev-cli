@@ -1,9 +1,10 @@
 import { basename, resolve } from 'node:path';
 
 import { supportedOdooVersions } from './odoo-versions.js';
+import { defaultAgentSkillsTemplateUrl, defaultComposeTemplateUrl } from './external-templates.js';
 import { defaultCommunityAddons, defaultProAddons } from './templates.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
-import type { ScaffoldOptions, SourceRepo } from './types.js';
+import type { EnvironmentEngine, ScaffoldOptions, SourceRepo } from './types.js';
 import type { RepositoryVisibility } from './github.js';
 
 type ParsedArgs = {
@@ -175,6 +176,15 @@ function visibilityValue(values: Record<string, string | boolean>): RepositoryVi
   throw new Error(`Invalid value for --repo-visibility: ${value}`);
 }
 
+function engineValue(values: Record<string, string | boolean>): EnvironmentEngine {
+  const value = stringValue(values, 'engine') ?? 'compose';
+  if (value === 'doodba' || value === 'compose') {
+    return value;
+  }
+
+  throw new Error(`Invalid value for --engine: ${value}`);
+}
+
 function assertNoRemovedDevelopmentPackFlags(argv: string[]): void {
   for (const arg of argv) {
     const rawKey = arg.startsWith('--') ? arg.slice(2).split('=', 1)[0] : '';
@@ -215,6 +225,12 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
 
   const org = stringValue(values, 'org') ?? inferGitHubOwner(parsedSourceRepos[0]?.url ?? '') ?? 'example-org';
   const odooVersion = stringValue(values, 'odooVersion') ?? supportedOdooVersions[0];
+  const engine = engineValue(values);
+  const installAgentSkillsTemplate = booleanValue(
+    values,
+    'agentSkillsTemplate',
+    values.agentSkillsTemplateUrl !== undefined,
+  );
   const devRepoUrl = normalizeRepositoryUrl(
     stringValue(values, 'devRepoUrl') ?? `https://github.com/${org}/${product}_dev.git`,
   );
@@ -257,6 +273,16 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
     product,
     org,
     odooVersion,
+    engine,
+    composeTemplateUrl: engine === 'compose' ? stringValue(values, 'composeTemplateUrl') ?? defaultComposeTemplateUrl : undefined,
+    composeTemplateRef: stringValue(values, 'composeTemplateRef'),
+    agentSkillsTemplateUrl: installAgentSkillsTemplate
+      ? stringValue(values, 'agentSkillsTemplateUrl') ?? defaultAgentSkillsTemplateUrl
+      : undefined,
+    agentSkillsTemplateRef: stringValue(values, 'agentSkillsTemplateRef'),
+    postgresVersion: stringValue(values, 'postgresVersion'),
+    httpPort: stringValue(values, 'httpPort'),
+    geventPort: stringValue(values, 'geventPort'),
     devRepo,
     devRepoUrl,
     communityRepo,

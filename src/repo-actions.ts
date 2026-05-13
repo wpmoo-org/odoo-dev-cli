@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { addSourceRepoToAddonsYaml, removeSourceRepoFromAddonsYaml } from './addons-yaml.js';
+import { readEnvironmentMetadata } from './environment.js';
 import {
   ensureRemoteHasBranch,
   ensureSubmodule,
@@ -52,6 +53,38 @@ export async function writeAddonsYaml(target: string, content: string): Promise<
   await writeFile(path, content, 'utf8');
 }
 
+function composeAddonsPath(): string {
+  return '/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons,/mnt/wpmoo-addons';
+}
+
+async function isComposeEnvironment(target: string): Promise<boolean> {
+  const metadata = await readEnvironmentMetadata(target);
+  return metadata?.engine === 'compose';
+}
+
+export async function syncComposeOdooConfAddonsPath(target: string): Promise<void> {
+  if (!(await isComposeEnvironment(target))) {
+    return;
+  }
+
+  const configPath = join(target, 'etc/odoo.conf');
+  let content: string;
+  try {
+    content = await readFile(configPath, 'utf8');
+  } catch {
+    return;
+  }
+
+  const addonsPathLine = `addons_path = ${composeAddonsPath()}`;
+  const nextContent = /^addons_path\s*=.*$/m.test(content)
+    ? content.replace(/^addons_path\s*=.*$/m, addonsPathLine)
+    : `${content.trimEnd()}\n${addonsPathLine}\n`;
+
+  if (nextContent !== content) {
+    await writeFile(configPath, nextContent, 'utf8');
+  }
+}
+
 export async function addModuleRepo(
   options: AddModuleRepoOptions,
   git: GitRunner = realGit,
@@ -68,14 +101,17 @@ export async function addModuleRepo(
     throw new Error(`Source repo was added but is not registered in .gitmodules: ${repoPath}`);
   }
 
-  const addonsYaml = await readAddonsYaml(options.target);
-  await writeAddonsYaml(
-    options.target,
-    addSourceRepoToAddonsYaml(addonsYaml, {
-      path: repoPath,
-      addons: [repoPath],
-    }),
-  );
+  if (!(await isComposeEnvironment(options.target))) {
+    const addonsYaml = await readAddonsYaml(options.target);
+    await writeAddonsYaml(
+      options.target,
+      addSourceRepoToAddonsYaml(addonsYaml, {
+        path: repoPath,
+        addons: [repoPath],
+      }),
+    );
+  }
+  await syncComposeOdooConfAddonsPath(options.target);
 
   if (options.stage) {
     await stageAll(git, options.target);
@@ -107,8 +143,11 @@ export async function removeModuleRepo(
 
   await removeSubmodule(git, options.target, submodulePath);
 
-  const addonsYaml = await readAddonsYaml(options.target);
-  await writeAddonsYaml(options.target, removeSourceRepoFromAddonsYaml(addonsYaml, options.repoPath));
+  if (!(await isComposeEnvironment(options.target))) {
+    const addonsYaml = await readAddonsYaml(options.target);
+    await writeAddonsYaml(options.target, removeSourceRepoFromAddonsYaml(addonsYaml, options.repoPath));
+  }
+  await syncComposeOdooConfAddonsPath(options.target);
 
   if (options.stage) {
     await stageAll(git, options.target);

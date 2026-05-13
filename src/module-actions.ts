@@ -5,6 +5,7 @@ import {
   addModuleToSourceRepoInAddonsYaml,
   removeModuleFromSourceRepoInAddonsYaml,
 } from './addons-yaml.js';
+import { readEnvironmentMetadata } from './environment.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
 import { readAddonsYaml, writeAddonsYaml } from './repo-actions.js';
 
@@ -65,6 +66,11 @@ async function writeIfMissing(path: string, content: string): Promise<void> {
   }
 }
 
+async function usesAddonsYaml(target: string): Promise<boolean> {
+  const metadata = await readEnvironmentMetadata(target);
+  return metadata?.engine !== 'compose';
+}
+
 export async function addModuleToSourceRepo(
   options: AddModuleOptions,
   git: GitRunner = realGit,
@@ -83,11 +89,13 @@ export async function addModuleToSourceRepo(
   );
   await writeIfMissing(join(destination, 'views/.gitkeep'), '');
 
-  const addonsYaml = await readAddonsYaml(options.target);
-  await writeAddonsYaml(
-    options.target,
-    addModuleToSourceRepoInAddonsYaml(addonsYaml, options.repoPath, options.moduleName),
-  );
+  if (await usesAddonsYaml(options.target)) {
+    const addonsYaml = await readAddonsYaml(options.target);
+    await writeAddonsYaml(
+      options.target,
+      addModuleToSourceRepoInAddonsYaml(addonsYaml, options.repoPath, options.moduleName),
+    );
+  }
 
   if (options.stage) {
     await stageAll(git, sourceRepoPath(options.target, options.repoPath));
@@ -121,11 +129,13 @@ export async function removeModuleFromSourceRepo(
   options: RemoveModuleOptions,
   git: GitRunner = realGit,
 ): Promise<void> {
-  const addonsYaml = await readAddonsYaml(options.target);
-  await writeAddonsYaml(
-    options.target,
-    removeModuleFromSourceRepoInAddonsYaml(addonsYaml, options.repoPath, options.moduleName),
-  );
+  if (await usesAddonsYaml(options.target)) {
+    const addonsYaml = await readAddonsYaml(options.target);
+    await writeAddonsYaml(
+      options.target,
+      removeModuleFromSourceRepoInAddonsYaml(addonsYaml, options.repoPath, options.moduleName),
+    );
+  }
 
   if (options.deleteFiles) {
     await rm(modulePath(options.target, options.repoPath, options.moduleName), { recursive: true, force: true });

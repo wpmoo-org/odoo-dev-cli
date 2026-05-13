@@ -14,7 +14,7 @@ export type SafeResetOptions = {
 
 export function renderSafeResetPreview(target: string, stage: boolean): string {
   return [
-    'Safe reset will refresh generated WPMoo/Doodba environment files.',
+    'Safe reset will refresh generated WPMoo environment files.',
     '',
     'Target:',
     target,
@@ -26,16 +26,9 @@ export function renderSafeResetPreview(target: string, stage: boolean): string {
     '- README.md',
     '- AGENTS.md',
     '- docs/appstore-release.md',
-    '- odoo/custom/src/repos.yaml',
-    '- odoo/custom/dependencies/apt.txt',
-    '- odoo/custom/dependencies/pip.txt',
-    '- odoo/custom/dependencies/npm.txt',
-    '- odoo/custom/conf.d/README.md',
-    '- odoo/custom/entrypoint.d/README.md',
-    '- odoo/custom/build.d/README.md',
+    '- engine-specific generated files',
     '',
     'Will not touch:',
-    '- odoo/custom/src/addons.yaml',
     '- source repo folders under odoo/custom/src/private',
     '- module source code',
     '- Git history, remotes, or branches',
@@ -84,6 +77,16 @@ async function readSubmoduleUrl(target: string, repoPath: string): Promise<strin
   }
 }
 
+async function hasLegacyDoodbaLayout(target: string): Promise<boolean> {
+  try {
+    await readFile(join(target, 'odoo/custom/src/repos.yaml'), 'utf8');
+    await readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function inferOptions(target: string): Promise<ScaffoldOptions> {
   const metadata = await readEnvironmentMetadata(target);
   const addonsYaml = await readAddonsYaml(target);
@@ -107,6 +110,14 @@ async function inferOptions(target: string): Promise<ScaffoldOptions> {
     devRepo: metadata?.devRepo ?? basename(target),
     devRepoUrl: metadata?.devRepoUrl ?? target,
     sourceRepos,
+    engine: metadata?.engine ?? ((await hasLegacyDoodbaLayout(target)) ? 'doodba' : 'compose'),
+    composeTemplateUrl: metadata?.composeTemplateUrl,
+    composeTemplateRef: metadata?.composeTemplateRef,
+    agentSkillsTemplateUrl: metadata?.agentSkillsTemplateUrl,
+    agentSkillsTemplateRef: metadata?.agentSkillsTemplateRef,
+    postgresVersion: metadata?.postgresVersion,
+    httpPort: metadata?.httpPort,
+    geventPort: metadata?.geventPort,
     target,
     dryRun: false,
     initEmptyRepos: false,

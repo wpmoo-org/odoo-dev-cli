@@ -1,7 +1,7 @@
 export function renderHelp(): string {
   return `@wpmoo/odoo-dev
 
-Create a Doodba-ready Odoo development environment overlay.
+Create an Odoo development environment overlay.
 
 Usage:
   npx @wpmoo/odoo-dev
@@ -17,6 +17,17 @@ Options:
   --odoo-version <branch>      Odoo branch to pin submodules to. Default: 19.0.
   --dev-repo-url <url>         Development environment repository URL for docs.
   --target <path>              Target dev repo directory. Default: ./<product>_dev.
+  --engine <value>             Environment engine: compose or doodba legacy. Default: compose.
+  --compose-template-url <url> Standalone compose resource source for --engine compose. Default: gh:wpmoo-org/odoo-docker-compose.
+  --compose-template-ref <ref> Git ref for the compose resource.
+  --agent-skills-template      Install project Agent Skills from a standalone skills resource.
+  --agent-skills-template-url <url>
+                               Agent Skills resource source. Default: gh:wpmoo-org/odoo-skills.
+  --agent-skills-template-ref <ref>
+                               Git ref for the Agent Skills resource.
+  --postgres-version <value>   PostgreSQL image version written to compose .env.example.
+  --http-port <port>           Host HTTP port written to .env.example.
+  --gevent-port <port>         Host gevent/live chat port written to .env.example.
   --repo-url <url>             Source repo URL for add-repo.
   --repo <name>                Source repo folder name for repo/module actions.
   --module <name>              Odoo module technical name for module actions.
@@ -40,5 +51,12 @@ Example:
     --odoo-version 19.0 \\
     --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \\
     --source-repo-url https://github.com/example-org/odoo_sample_module.git
+
+Compose resource example:
+  npx @wpmoo/odoo-dev create \\
+    --engine compose \\
+    --product odoo_sample_module \\
+    --source-repo-url https://github.com/example-org/odoo_sample_module.git \\
+    --agent-skills-template
 `;
 }

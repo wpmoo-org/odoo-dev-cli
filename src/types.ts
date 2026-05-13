@@ -6,12 +6,22 @@ export type SourceRepo = {
   addons: string[];
 };
 
+export type EnvironmentEngine = 'doodba' | 'compose';
+
 export type CreateOptions = {
   product: string;
   odooVersion: string;
   devRepo: string;
   devRepoUrl: string;
   sourceRepos: SourceRepo[];
+  engine?: EnvironmentEngine;
+  composeTemplateUrl?: string;
+  composeTemplateRef?: string;
+  agentSkillsTemplateUrl?: string;
+  agentSkillsTemplateRef?: string;
+  postgresVersion?: string;
+  httpPort?: string;
+  geventPort?: string;
 
   // Legacy fields kept for CLI compatibility and older tests/consumers.
   org?: string;
