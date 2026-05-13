@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Node 20
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Check package dry run
+        run: npm publish --dry-run --access public
+
+      - name: Check removed engine references
+        run: |
+          removed_engine="$(printf '%s%s' 'doo' 'dba')"
+          if git grep -n -i "$removed_engine" -- ':!dist'; then
+            echo "Removed engine reference found."
+            exit 1
+          fi
