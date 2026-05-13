@@ -1,5 +1,7 @@
 # @wpmoo/odoo-dev
 
+[![CI](https://github.com/wpmoo-org/odoo-dev-cli/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wpmoo-org/odoo-dev-cli/actions/workflows/ci.yml)
+
 ![WPMoo Workflow Platform - Micro Object Oriented](https://cdn.jsdelivr.net/npm/@wpmoo/odoo-dev/docs/assets/wpmoo-banner.png)
 
 Create Odoo development environment overlays.
