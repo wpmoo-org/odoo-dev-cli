@@ -12,6 +12,7 @@ import {
   stageAll,
   type GitRunner,
 } from './git.js';
+import { isValidPathSegment, validateRepoPath } from './path-validation.js';
 import { inferRepoPath } from './repo-url.js';
 
 export const addonsYamlHeader = `# Addons activated from source submodules.
@@ -36,7 +37,7 @@ export type RemoveModuleRepoOptions = {
 };
 
 function privateSubmodulePath(repoPath: string): string {
-  return `odoo/custom/src/private/${repoPath}`;
+  return `odoo/custom/src/private/${validateRepoPath(repoPath)}`;
 }
 
 export async function readAddonsYaml(target: string): Promise<string> {
@@ -89,7 +90,7 @@ export async function addModuleRepo(
   options: AddModuleRepoOptions,
   git: GitRunner = realGit,
 ): Promise<void> {
-  const repoPath = options.repoPath?.trim() || inferRepoPath(options.repoUrl);
+  const repoPath = validateRepoPath(options.repoPath?.trim() || inferRepoPath(options.repoUrl));
   const submodulePath = privateSubmodulePath(repoPath);
 
   await ensureRemoteHasBranch(git, options.target, options.repoUrl, options.odooVersion, options.initEmptyRepos);
@@ -123,7 +124,7 @@ export async function listModuleRepos(target: string): Promise<string[]> {
     const gitmodules = await readFile(join(target, '.gitmodules'), 'utf8');
     return [...gitmodules.matchAll(/^\s*path\s*=\s*odoo\/custom\/src\/private\/(.+)$/gm)]
       .map((match) => match[1].trim())
-      .filter(Boolean)
+      .filter((repoPath) => repoPath && isValidPathSegment(repoPath))
       .sort();
   } catch {
     return [];
@@ -134,18 +135,19 @@ export async function removeModuleRepo(
   options: RemoveModuleRepoOptions,
   git: GitRunner = realGit,
 ): Promise<void> {
-  const submodulePath = privateSubmodulePath(options.repoPath);
+  const repoPath = validateRepoPath(options.repoPath);
+  const submodulePath = privateSubmodulePath(repoPath);
   const fullSubmodulePath = join(options.target, submodulePath);
 
   if (await hasUncommittedChanges(git, fullSubmodulePath)) {
-    throw new Error(`Cannot remove ${options.repoPath}: submodule has uncommitted changes.`);
+    throw new Error(`Cannot remove ${repoPath}: submodule has uncommitted changes.`);
   }
 
   await removeSubmodule(git, options.target, submodulePath);
 
   if (!(await isComposeEnvironment(options.target))) {
     const addonsYaml = await readAddonsYaml(options.target);
-    await writeAddonsYaml(options.target, removeSourceRepoFromAddonsYaml(addonsYaml, options.repoPath));
+    await writeAddonsYaml(options.target, removeSourceRepoFromAddonsYaml(addonsYaml, repoPath));
   }
   await syncComposeOdooConfAddonsPath(options.target);
 

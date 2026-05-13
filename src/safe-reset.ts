@@ -3,6 +3,7 @@ import { basename, join } from 'node:path';
 
 import { readEnvironmentMetadata } from './environment.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
+import { isValidPathSegment, validateAddonName, validateRepoPath } from './path-validation.js';
 import { listModuleRepos, readAddonsYaml } from './repo-actions.js';
 import { generatedFiles } from './scaffold.js';
 import type { ScaffoldOptions, SourceRepo } from './types.js';
@@ -42,38 +43,44 @@ function titleFromTarget(target: string): string {
 }
 
 function parseAddonsForRepo(addonsYaml: string, repoPath: string): string[] {
+  const safeRepoPath = validateRepoPath(repoPath);
   const lines = addonsYaml.split('\n');
-  const header = `private/${repoPath}:`;
+  const header = `private/${safeRepoPath}:`;
   const start = lines.findIndex((line) => line.trim() === header);
-  if (start === -1) return [repoPath];
+  if (start === -1) return [safeRepoPath];
 
   const addons: string[] = [];
   for (let index = start + 1; index < lines.length; index += 1) {
     const line = lines[index];
     if (!line.startsWith(' ')) break;
     const match = line.trim().match(/^-\s+(.+)$/);
-    if (match) addons.push(match[1].trim());
+    const addon = match?.[1]?.trim();
+    if (addon && isValidPathSegment(addon)) {
+      addons.push(validateAddonName(addon));
+    }
   }
 
-  return addons.length ? addons : [repoPath];
+  return addons.length ? addons : [safeRepoPath];
 }
 
 function parseRepoPathsFromAddonsYaml(addonsYaml: string): string[] {
   return [...addonsYaml.matchAll(/^private\/(.+):$/gm)]
     .map((match) => match[1].trim())
-    .filter(Boolean);
+    .filter((repoPath) => repoPath && isValidPathSegment(repoPath))
+    .map(validateRepoPath);
 }
 
 async function readSubmoduleUrl(target: string, repoPath: string): Promise<string> {
+  const safeRepoPath = validateRepoPath(repoPath);
   try {
     const gitmodules = await readFile(join(target, '.gitmodules'), 'utf8');
-    const escapedPath = `odoo/custom/src/private/${repoPath}`;
+    const escapedPath = `odoo/custom/src/private/${safeRepoPath}`;
     const sections = gitmodules.split(/\n(?=\[submodule )/);
     const section = sections.find((value) => value.includes(`path = ${escapedPath}`));
     const url = section?.match(/^\s*url\s*=\s*(.+)$/m)?.[1]?.trim();
-    return url || `odoo/custom/src/private/${repoPath}`;
+    return url || `odoo/custom/src/private/${safeRepoPath}`;
   } catch {
-    return `odoo/custom/src/private/${repoPath}`;
+    return `odoo/custom/src/private/${safeRepoPath}`;
   }
 }
 
@@ -92,8 +99,11 @@ async function inferOptions(target: string): Promise<ScaffoldOptions> {
   const addonsYaml = await readAddonsYaml(target);
   const moduleRepos = await listModuleRepos(target);
   const addonRepos = parseRepoPathsFromAddonsYaml(addonsYaml);
+  const metadataRepoPaths =
+    metadata?.sourceRepos.map((repo) => repo.path).filter((repoPath) => isValidPathSegment(repoPath)).map(validateRepoPath) ??
+    [];
   const repoPaths = [
-    ...new Set([...(metadata?.sourceRepos.map((repo) => repo.path) ?? []), ...moduleRepos, ...addonRepos]),
+    ...new Set([...metadataRepoPaths, ...moduleRepos, ...addonRepos]),
   ];
   const product = metadata?.product ?? repoPaths[0] ?? titleFromTarget(target);
   const sourceRepos: SourceRepo[] = await Promise.all(

@@ -23,7 +23,8 @@ import {
   renderReadme,
   renderReposYaml,
 } from './templates.js';
-import type { ScaffoldOptions, ScaffoldResult } from './types.js';
+import { validateAddonName, validateRepoPath } from './path-validation.js';
+import type { ScaffoldOptions, ScaffoldResult, SourceRepo } from './types.js';
 
 type GeneratedFile = {
   path: string;
@@ -31,17 +32,34 @@ type GeneratedFile = {
   mode?: number;
 };
 
+function validateSourceRepo(repo: SourceRepo): SourceRepo {
+  const path = validateRepoPath(repo.path);
+  return {
+    ...repo,
+    path,
+    addons: repo.addons.map(validateAddonName),
+  };
+}
+
+function validateScaffoldOptions(options: ScaffoldOptions): ScaffoldOptions {
+  return {
+    ...options,
+    sourceRepos: options.sourceRepos.map(validateSourceRepo),
+  };
+}
+
 export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
+  const safeOptions = validateScaffoldOptions(options);
   const files: GeneratedFile[] = [
-    { path: '.wpmoo/odoo-dev.json', content: renderEnvironmentMetadata(options) },
+    { path: '.wpmoo/odoo-dev.json', content: renderEnvironmentMetadata(safeOptions) },
     { path: 'moo', content: renderMooDelegationScript(), mode: 0o755 },
     { path: '.gitignore', content: renderGitignore() },
-    { path: 'README.md', content: renderReadme(options) },
-    { path: 'AGENTS.md', content: renderAgents(options) },
-    { path: 'docs/appstore-release.md', content: renderAppstoreRelease(options) },
+    { path: 'README.md', content: renderReadme(safeOptions) },
+    { path: 'AGENTS.md', content: renderAgents(safeOptions) },
+    { path: 'docs/appstore-release.md', content: renderAppstoreRelease(safeOptions) },
   ];
 
-  if ((options.engine ?? 'compose') === 'compose') {
+  if ((safeOptions.engine ?? 'compose') === 'compose') {
     return [
       ...files,
       {
@@ -53,8 +71,8 @@ export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
 
   return [
     ...files,
-    { path: 'odoo/custom/src/addons.yaml', content: renderAddonsYaml(options) },
-    { path: 'odoo/custom/src/repos.yaml', content: renderReposYaml(options) },
+    { path: 'odoo/custom/src/addons.yaml', content: renderAddonsYaml(safeOptions) },
+    { path: 'odoo/custom/src/repos.yaml', content: renderReposYaml(safeOptions) },
     {
       path: 'odoo/custom/dependencies/apt.txt',
       content: '# Add Debian/Ubuntu package dependencies here, one per line.\n',
@@ -135,51 +153,52 @@ export async function scaffold(
   options: ScaffoldOptions,
   git: GitRunner = realGit,
 ): Promise<ScaffoldResult> {
-  const files = generatedFiles(options);
-  const externalAssets = plannedExternalAssetOptions(options);
+  const safeOptions = validateScaffoldOptions(options);
+  const files = generatedFiles(safeOptions);
+  const externalAssets = plannedExternalAssetOptions(safeOptions);
   const plannedCommands = [
     ...externalAssets.map((assetOptions) => renderExternalAssetCommand(assetOptions)),
-    ...options.sourceRepos.map(
+    ...safeOptions.sourceRepos.map(
       (repo) =>
-        `git submodule add -b ${options.odooVersion} ${repo.url} odoo/custom/src/private/${repo.path}`,
+        `git submodule add -b ${safeOptions.odooVersion} ${repo.url} odoo/custom/src/private/${repo.path}`,
     ),
   ];
-  if (options.stage) {
+  if (safeOptions.stage) {
     plannedCommands.push('git add .');
   }
 
-  if (options.dryRun) {
+  if (safeOptions.dryRun) {
     return {
       plannedFiles: files.map((file) => file.path),
       plannedCommands,
     };
   }
 
-  if (!options.skipSubmodules || options.stage) {
-    await prepareTargetRepository(options, git);
+  if (!safeOptions.skipSubmodules || safeOptions.stage) {
+    await prepareTargetRepository(safeOptions, git);
   }
-  await writeGeneratedFiles(options.target, files);
+  await writeGeneratedFiles(safeOptions.target, files);
 
   for (const assetOptions of externalAssets) {
     await applyExternalAsset(assetOptions, git);
   }
-  if ((options.engine ?? 'compose') === 'compose') {
-    await writeTextFile(join(options.target, '.env.example'), renderComposeEnvExample(options));
+  if ((safeOptions.engine ?? 'compose') === 'compose') {
+    await writeTextFile(join(safeOptions.target, '.env.example'), renderComposeEnvExample(safeOptions));
   }
 
-  if (!options.skipSubmodules) {
-    for (const repo of options.sourceRepos) {
-      await ensureRemoteHasBranch(git, options.target, repo.url, options.odooVersion, options.initEmptyRepos);
+  if (!safeOptions.skipSubmodules) {
+    for (const repo of safeOptions.sourceRepos) {
+      await ensureRemoteHasBranch(git, safeOptions.target, repo.url, safeOptions.odooVersion, safeOptions.initEmptyRepos);
     }
-    await mkdir(join(options.target, 'odoo/custom/src/private'), { recursive: true });
-    for (const repo of options.sourceRepos) {
-      await ensureSubmodule(git, options.target, repo.url, options.odooVersion, `odoo/custom/src/private/${repo.path}`);
+    await mkdir(join(safeOptions.target, 'odoo/custom/src/private'), { recursive: true });
+    for (const repo of safeOptions.sourceRepos) {
+      await ensureSubmodule(git, safeOptions.target, repo.url, safeOptions.odooVersion, `odoo/custom/src/private/${repo.path}`);
     }
-    await syncSubmodules(git, options.target);
+    await syncSubmodules(git, safeOptions.target);
   }
 
-  if (options.stage) {
-    await stageAll(git, options.target);
+  if (safeOptions.stage) {
+    await stageAll(git, safeOptions.target);
   }
 
   return {

@@ -116,6 +116,19 @@ describe('args', () => {
     ]);
   });
 
+  it('rejects traversal source path overrides', () => {
+    expect(() =>
+      optionsFromArgs([
+        '--product',
+        'odoo_sample_module',
+        '--source-repo-url',
+        'https://github.com/example-org/odoo_sample_module.git',
+        '--source-path',
+        '../outside_target',
+      ]),
+    ).toThrow('Invalid repo path');
+  });
+
   it('infers source paths from common repo URL forms', () => {
     expect(inferRepoPath('https://github.com/example-org/odoo_sample_module.git')).toBe('odoo_sample_module');
     expect(inferRepoPath('git@github.com:example-org/odoo_sample_module_reports.git')).toBe(

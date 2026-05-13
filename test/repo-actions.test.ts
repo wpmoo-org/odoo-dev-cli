@@ -4,7 +4,16 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { syncComposeOdooConfAddonsPath } from '../src/repo-actions.js';
+import type { GitRunner } from '../src/git.js';
+import { addModuleRepo, listModuleRepos, syncComposeOdooConfAddonsPath } from '../src/repo-actions.js';
+
+function failingGit(): GitRunner {
+  return {
+    async run() {
+      throw new Error('git should not be called');
+    },
+  };
+}
 
 describe('repo actions', () => {
   it('syncs compose addons_path from current private submodules', async () => {
@@ -61,5 +70,41 @@ describe('repo actions', () => {
     await syncComposeOdooConfAddonsPath(target);
 
     await expect(readFile(join(target, 'etc/odoo.conf'), 'utf8')).resolves.toBe('addons_path = old\n');
+  });
+
+  it('ignores traversal paths in gitmodules when listing module repos', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-gitmodules-traversal-'));
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/private/../../../../../outside_target"]',
+        '\tpath = odoo/custom/src/private/../../../../../outside_target',
+        '\turl = https://github.com/example-org/outside_target.git',
+        '[submodule "odoo/custom/src/private/odoo_sample_module"]',
+        '\tpath = odoo/custom/src/private/odoo_sample_module',
+        '\turl = https://github.com/example-org/odoo_sample_module.git',
+        '',
+      ].join('\n'),
+    );
+
+    await expect(listModuleRepos(target)).resolves.toEqual(['odoo_sample_module']);
+  });
+
+  it('rejects traversal source paths before running git', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-add-repo-traversal-'));
+
+    await expect(
+      addModuleRepo(
+        {
+          target,
+          repoUrl: 'https://github.com/example-org/outside_target.git',
+          repoPath: '../outside_target',
+          odooVersion: '19.0',
+          initEmptyRepos: false,
+          stage: false,
+        },
+        failingGit(),
+      ),
+    ).rejects.toThrow('Invalid repo path');
   });
 });

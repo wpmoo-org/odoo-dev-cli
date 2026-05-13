@@ -7,6 +7,7 @@ import {
 } from './addons-yaml.js';
 import { readEnvironmentMetadata } from './environment.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
+import { pathUnderBase, validateModuleName, validateRepoPath } from './path-validation.js';
 import { readAddonsYaml, writeAddonsYaml } from './repo-actions.js';
 
 export type AddModuleOptions = {
@@ -26,11 +27,11 @@ export type RemoveModuleOptions = {
 };
 
 function sourceRepoPath(target: string, repoPath: string): string {
-  return join(target, 'odoo/custom/src/private', repoPath);
+  return pathUnderBase(join(target, 'odoo/custom/src/private'), repoPath, 'repo path');
 }
 
 function modulePath(target: string, repoPath: string, moduleName: string): string {
-  return join(sourceRepoPath(target, repoPath), moduleName);
+  return pathUnderBase(sourceRepoPath(target, repoPath), moduleName, 'module name');
 }
 
 function titleizeModule(moduleName: string): string {
@@ -75,13 +76,15 @@ export async function addModuleToSourceRepo(
   options: AddModuleOptions,
   git: GitRunner = realGit,
 ): Promise<void> {
-  const destination = modulePath(options.target, options.repoPath, options.moduleName);
+  const repoPath = validateRepoPath(options.repoPath);
+  const moduleName = validateModuleName(options.moduleName);
+  const destination = modulePath(options.target, repoPath, moduleName);
   await mkdir(join(destination, 'models'), { recursive: true });
   await mkdir(join(destination, 'security'), { recursive: true });
   await mkdir(join(destination, 'views'), { recursive: true });
 
   await writeIfMissing(join(destination, '__init__.py'), 'from . import models\n');
-  await writeIfMissing(join(destination, '__manifest__.py'), manifestContent(options.moduleName, options.odooVersion));
+  await writeIfMissing(join(destination, '__manifest__.py'), manifestContent(moduleName, options.odooVersion));
   await writeIfMissing(join(destination, 'models/__init__.py'), '');
   await writeIfMissing(
     join(destination, 'security/ir.model.access.csv'),
@@ -93,25 +96,26 @@ export async function addModuleToSourceRepo(
     const addonsYaml = await readAddonsYaml(options.target);
     await writeAddonsYaml(
       options.target,
-      addModuleToSourceRepoInAddonsYaml(addonsYaml, options.repoPath, options.moduleName),
+      addModuleToSourceRepoInAddonsYaml(addonsYaml, repoPath, moduleName),
     );
   }
 
   if (options.stage) {
-    await stageAll(git, sourceRepoPath(options.target, options.repoPath));
+    await stageAll(git, sourceRepoPath(options.target, repoPath));
     await stageAll(git, options.target);
   }
 }
 
 export async function listModulesInSourceRepo(target: string, repoPath: string): Promise<string[]> {
+  const safeRepoPath = validateRepoPath(repoPath);
   try {
-    const entries = await readdir(sourceRepoPath(target, repoPath), { withFileTypes: true });
+    const entries = await readdir(sourceRepoPath(target, safeRepoPath), { withFileTypes: true });
     const modules = await Promise.all(
       entries
         .filter((entry) => entry.isDirectory())
         .map(async (entry) => {
           try {
-            await readFile(join(sourceRepoPath(target, repoPath), entry.name, '__manifest__.py'), 'utf8');
+            await readFile(join(sourceRepoPath(target, safeRepoPath), entry.name, '__manifest__.py'), 'utf8');
             return entry.name;
           } catch {
             return undefined;
@@ -129,21 +133,24 @@ export async function removeModuleFromSourceRepo(
   options: RemoveModuleOptions,
   git: GitRunner = realGit,
 ): Promise<void> {
+  const repoPath = validateRepoPath(options.repoPath);
+  const moduleName = validateModuleName(options.moduleName);
+
   if (await usesAddonsYaml(options.target)) {
     const addonsYaml = await readAddonsYaml(options.target);
     await writeAddonsYaml(
       options.target,
-      removeModuleFromSourceRepoInAddonsYaml(addonsYaml, options.repoPath, options.moduleName),
+      removeModuleFromSourceRepoInAddonsYaml(addonsYaml, repoPath, moduleName),
     );
   }
 
   if (options.deleteFiles) {
-    await rm(modulePath(options.target, options.repoPath, options.moduleName), { recursive: true, force: true });
+    await rm(modulePath(options.target, repoPath, moduleName), { recursive: true, force: true });
   }
 
   if (options.stage) {
     if (options.deleteFiles) {
-      await stageAll(git, sourceRepoPath(options.target, options.repoPath));
+      await stageAll(git, sourceRepoPath(options.target, repoPath));
     }
     await stageAll(git, options.target);
   }

@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -98,5 +98,51 @@ describe('module actions', () => {
       args: ['add', '.'],
     });
     expect(git.calls).toContainEqual({ cwd: target, args: ['add', '.'] });
+  });
+
+  it('rejects traversal repo paths before writing module files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-traversal-add-'));
+    const escapedPath = resolve(target, 'odoo/custom/src/private', '../../../../../outside_target');
+
+    await expect(
+      addModuleToSourceRepo({
+        target,
+        repoPath: '../../../../../outside_target',
+        moduleName: 'injected_mod',
+        odooVersion: '19.0',
+        stage: false,
+      }),
+    ).rejects.toThrow('Invalid repo path');
+
+    await expect(stat(join(escapedPath, 'injected_mod'))).rejects.toThrow();
+  });
+
+  it('rejects traversal module names before writing module files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-traversal-name-'));
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
+
+    await expect(
+      addModuleToSourceRepo({
+        target,
+        repoPath: 'odoo_sample_module',
+        moduleName: '../injected_mod',
+        odooVersion: '19.0',
+        stage: false,
+      }),
+    ).rejects.toThrow('Invalid module name');
+  });
+
+  it('rejects traversal repo paths before deleting module files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-traversal-remove-'));
+
+    await expect(
+      removeModuleFromSourceRepo({
+        target,
+        repoPath: '../../../../../outside_target',
+        moduleName: 'injected_mod',
+        deleteFiles: true,
+        stage: false,
+      }),
+    ).rejects.toThrow('Invalid repo path');
   });
 });

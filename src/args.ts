@@ -3,6 +3,7 @@ import { basename, resolve } from 'node:path';
 import { supportedOdooVersions } from './odoo-versions.js';
 import { defaultAgentSkillsTemplateUrl, defaultComposeTemplateUrl } from './external-templates.js';
 import { defaultCommunityAddons, defaultProAddons } from './templates.js';
+import { validateAddonName, validateRepoPath } from './path-validation.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import type { EnvironmentEngine, ScaffoldOptions, SourceRepo } from './types.js';
 import type { RepositoryVisibility } from './github.js';
@@ -89,6 +90,10 @@ function listValue(value: string | undefined, fallback: string[]): string[] {
     .filter(Boolean);
 }
 
+function validateAddons(addons: string[]): string[] {
+  return addons.map(validateAddonName);
+}
+
 function valueAfter(argv: string[], index: number, key: string): { value: string; nextIndex: number } {
   const arg = argv[index];
   const inlineValue = arg.includes('=') ? arg.slice(arg.indexOf('=') + 1) : undefined;
@@ -141,12 +146,12 @@ function parseSourceRepos(argv: string[]): SourceRepo[] {
   }
 
   return repos.map((repo) => {
-    const path = repo.path?.trim() || inferRepoPath(repo.url);
+    const path = validateRepoPath(repo.path?.trim() || inferRepoPath(repo.url));
 
     return {
       url: repo.url,
       path,
-      addons: repo.addons?.length ? repo.addons : [path],
+      addons: validateAddons(repo.addons?.length ? repo.addons : [path]),
     };
   });
 }
@@ -235,8 +240,8 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
     stringValue(values, 'devRepoUrl') ?? `https://github.com/${org}/${product}_dev.git`,
   );
   const devRepo = stringValue(values, 'devRepo') ?? inferRepoPath(devRepoUrl);
-  const communityRepo = stringValue(values, 'communityRepo') ?? product;
-  const proRepo = stringValue(values, 'proRepo') ?? `${product}_pro`;
+  const communityRepo = validateRepoPath(stringValue(values, 'communityRepo') ?? product);
+  const proRepo = validateRepoPath(stringValue(values, 'proRepo') ?? `${product}_pro`);
   const targetValue = stringValue(values, 'target');
   const target = targetValue ? resolve(targetValue) : defaultTargetForProduct(product);
   const communityRepoUrl = normalizeRepositoryUrl(
@@ -245,8 +250,8 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
   const proRepoUrl = normalizeRepositoryUrl(
     stringValue(values, 'proRepoUrl') ?? `https://github.com/${org}/${proRepo}.git`,
   );
-  const communityAddons = listValue(stringValue(values, 'communityAddons'), defaultCommunityAddons(product));
-  const proAddons = listValue(stringValue(values, 'proAddons'), defaultProAddons(product));
+  const communityAddons = validateAddons(listValue(stringValue(values, 'communityAddons'), defaultCommunityAddons(product)));
+  const proAddons = validateAddons(listValue(stringValue(values, 'proAddons'), defaultProAddons(product)));
   const hasExplicitProRepo =
     values.proRepo !== undefined || values.proRepoUrl !== undefined || values.proAddons !== undefined;
   const sourceRepos =
