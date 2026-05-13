@@ -62,8 +62,8 @@ describe('repo actions', () => {
     );
   });
 
-  it('leaves non-compose environments untouched', async () => {
-    const target = await mkdtemp(join(tmpdir(), 'wpmoo-doodba-addons-path-'));
+  it('leaves environments without compose metadata untouched', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-addons-path-'));
     await mkdir(join(target, 'etc'), { recursive: true });
     await writeFile(join(target, 'etc/odoo.conf'), 'addons_path = old\n');
 

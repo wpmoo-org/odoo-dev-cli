@@ -74,9 +74,7 @@ describe('external assets', () => {
     await expect(readFile(join(destination, '.agents/skills/node_modules/ignored/file.txt'), 'utf8')).rejects.toThrow();
   });
 
-  it('plans the compose asset by default and skips it only for legacy doodba engine', () => {
-    expect(composeTemplateOptions({ ...baseOptions, engine: 'doodba' })).toBeUndefined();
-
+  it('plans the compose asset by default', () => {
     const templateOptions = composeTemplateOptions(baseOptions);
 
     expect(templateOptions?.source).toBe(defaultComposeTemplateUrl);

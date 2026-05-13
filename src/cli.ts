@@ -766,7 +766,7 @@ async function main(): Promise<void> {
         if (action === 'remove-module') {
           const options = await removeModuleOptionsFromPrompts(false, 'back');
           await removeModuleFromSourceRepo(options);
-          outro(`Removed module ${options.moduleName} from addons.yaml.`);
+          outro(`Removed module ${options.moduleName} from source repo ${options.repoPath}.`);
           return;
         }
 
@@ -838,14 +838,14 @@ async function main(): Promise<void> {
     if (options) {
       console.log(renderBanner());
       await removeModuleFromSourceRepo(options);
-      outro(`Removed module ${options.moduleName} from addons.yaml.`);
+      outro(`Removed module ${options.moduleName} from source repo ${options.repoPath}.`);
       return;
     }
 
     await showStartup(argv, skipUpdateCheck);
     const promptedOptions = await removeModuleOptionsFromPrompts();
     await removeModuleFromSourceRepo(promptedOptions);
-    outro(`Removed module ${promptedOptions.moduleName} from addons.yaml.`);
+    outro(`Removed module ${promptedOptions.moduleName} from source repo ${promptedOptions.repoPath}.`);
     return;
   }
 

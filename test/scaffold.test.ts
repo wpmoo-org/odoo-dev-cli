@@ -127,12 +127,13 @@ describe('scaffold', () => {
 
   it('writes overlay files when dry-run is disabled', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-scaffold-'));
+    const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-overlay-fixtures-')));
 
     await scaffold({
       product: 'odoo_sample_module',
       org: 'example-org',
       odooVersion: '19.0',
-      engine: 'doodba',
+      composeTemplateUrl: fixtures.compose,
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
       communityRepo: 'odoo_sample_module',
@@ -158,8 +159,9 @@ describe('scaffold', () => {
     await expect(readFile(join(target, 'README.md'), 'utf8')).resolves.toContain(
       'Odoo Sample Module Development Environment',
     );
-    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
-      'private/odoo_sample_module:',
+    await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toContain('ODOO_TEST_MODULE=odoo_sample_module');
+    await expect(readFile(join(target, 'odoo/custom/src/private/README.md'), 'utf8')).resolves.toContain(
+      'WPMoo source repositories',
     );
     await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain(
       'exec npx --yes @wpmoo/odoo-dev@latest "$@"',

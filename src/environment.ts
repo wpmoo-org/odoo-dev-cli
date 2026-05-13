@@ -48,7 +48,7 @@ export function environmentMetadata(options: ScaffoldOptions): EnvironmentMetada
     devRepo: options.devRepo,
     devRepoUrl: options.devRepoUrl,
     sourceRepos: options.sourceRepos,
-    engine: options.engine,
+    engine: options.engine ?? 'compose',
     composeTemplateUrl: options.composeTemplateUrl,
     composeTemplateRef: options.composeTemplateRef,
     agentSkillsTemplateUrl: options.agentSkillsTemplateUrl,

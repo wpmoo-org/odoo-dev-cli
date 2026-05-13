@@ -50,8 +50,8 @@ npx vitest run test/<file>.test.ts
 
 - The CLI stages generated results with `git add .` but does not commit.
 - Source repositories are managed as Git submodules under `odoo/custom/src/private`.
-- Product source repositories are intentionally not listed in `repos.yaml` for the Doodba-compatible engine.
-- Compose engine resources are copied by the CLI and expose WPMoo source submodule addons through `/mnt/wpmoo-addons`.
+- Product source repositories live under `odoo/custom/src/private` and are exposed through `/mnt/wpmoo-addons`.
+- Compose resources are copied by the CLI and provide the Docker/Odoo helper scripts.
 - Maintenance commands rely on `.wpmoo/odoo-dev.json` inside generated environments.
 
 ## Agent workflow

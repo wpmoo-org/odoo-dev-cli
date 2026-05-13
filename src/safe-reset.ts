@@ -27,7 +27,7 @@ export function renderSafeResetPreview(target: string, stage: boolean): string {
     '- README.md',
     '- AGENTS.md',
     '- docs/appstore-release.md',
-    '- engine-specific generated files',
+    '- Compose generated files',
     '',
     'Will not touch:',
     '- source repo folders under odoo/custom/src/private',
@@ -84,16 +84,6 @@ async function readSubmoduleUrl(target: string, repoPath: string): Promise<strin
   }
 }
 
-async function hasLegacyDoodbaLayout(target: string): Promise<boolean> {
-  try {
-    await readFile(join(target, 'odoo/custom/src/repos.yaml'), 'utf8');
-    await readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function inferOptions(target: string): Promise<ScaffoldOptions> {
   const metadata = await readEnvironmentMetadata(target);
   const addonsYaml = await readAddonsYaml(target);
@@ -120,7 +110,7 @@ async function inferOptions(target: string): Promise<ScaffoldOptions> {
     devRepo: metadata?.devRepo ?? basename(target),
     devRepoUrl: metadata?.devRepoUrl ?? target,
     sourceRepos,
-    engine: metadata?.engine ?? ((await hasLegacyDoodbaLayout(target)) ? 'doodba' : 'compose'),
+    engine: 'compose',
     composeTemplateUrl: metadata?.composeTemplateUrl,
     composeTemplateRef: metadata?.composeTemplateRef,
     agentSkillsTemplateUrl: metadata?.agentSkillsTemplateUrl,

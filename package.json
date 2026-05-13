@@ -1,7 +1,7 @@
 {
   "name": "@wpmoo/odoo-dev",
   "version": "0.8.28",
-  "description": "Create Doodba-ready Odoo development environments.",
+  "description": "Create Docker Compose based Odoo development environments.",
   "type": "module",
   "repository": {
     "type": "git",

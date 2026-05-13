@@ -24,13 +24,8 @@ function allAddons(options: CreateOptions): string[] {
   return options.sourceRepos.flatMap((repo) => repo.addons);
 }
 
-function repoTree(options: CreateOptions): string {
-  return options.sourceRepos.map((repo) => `│       │   │   ├── ${repo.path}/`).join('\n');
-}
-
 function repositoryLayout(options: CreateOptions): string {
-  if ((options.engine ?? 'compose') === 'compose') {
-    return `${options.devRepo}/
+  return `${options.devRepo}/
 ├── docker-compose_17.0.yml
 ├── docker-compose_18.0.yml
 ├── docker-compose_19.0.yml
@@ -42,25 +37,6 @@ function repositoryLayout(options: CreateOptions): string {
 │           └── private/
 ${options.sourceRepos.map((repo) => `│               ├── ${repo.path}/`).join('\n')}
 ├── docs/
-├── README.md
-└── AGENTS.md`;
-  }
-
-  return `${options.devRepo}/
-├── odoo/
-│   └── custom/
-│       ├── src/
-│       │   ├── private/
-${repoTree(options)}
-│       │   ├── repos.yaml
-│       │   └── addons.yaml
-│       ├── dependencies/
-│       ├── conf.d/
-│       ├── entrypoint.d/
-│       └── build.d/
-${options.agentSkillsTemplateUrl ? `├── .agents/
-│   └── skills/
-├── docs/` : `├── docs/`}
 ├── README.md
 └── AGENTS.md`;
 }
@@ -129,30 +105,21 @@ ${options.agentSkillsTemplateUrl}${options.agentSkillsTemplateRef ? `#${options.
 `;
 }
 
-function environmentKind(options: CreateOptions): string {
-  return (options.engine ?? 'compose') === 'compose' ? 'Docker Compose' : 'Doodba-compatible';
+function environmentKind(): string {
+  return 'Docker Compose';
 }
 
-function repoDuplicationNote(options: CreateOptions): string {
-  if ((options.engine ?? 'compose') === 'compose') {
-    return 'Keep these repositories under `odoo/custom/src/private`; the Compose entrypoint exposes discovered addons through `/mnt/wpmoo-addons`.';
-  }
-
-  return 'Do not duplicate these repositories in `repos.yaml`.';
+function repoDuplicationNote(): string {
+  return 'Keep these repositories under `odoo/custom/src/private`; the Compose entrypoint exposes discovered addons through `/mnt/wpmoo-addons`.';
 }
 
 function verificationCommand(options: CreateOptions): string {
-  if ((options.engine ?? 'compose') === 'compose') {
-    const firstAddon = allAddons(options)[0] ?? options.product;
-    return `./scripts/test.sh ${firstAddon}`;
-  }
-
-  return `docker compose run --rm odoo addons update --test --with ${allAddons(options).join(',')}`;
+  const firstAddon = allAddons(options)[0] ?? options.product;
+  return `./scripts/test.sh ${firstAddon}`;
 }
 
-function environmentUsageDocs(options: CreateOptions, modules: string): string {
-  if ((options.engine ?? 'compose') === 'compose') {
-    return `## Docker Compose Notes
+function environmentUsageDocs(options: CreateOptions): string {
+  return `## Docker Compose Notes
 
 This environment uses the standalone WPMoo Odoo Compose resource. Compose files
 are version-specific and static:
@@ -184,45 +151,6 @@ Run tests for one planned product addon:
 
 \`\`\`bash
 ./scripts/test.sh ${allAddons(options)[0] ?? options.product}
-\`\`\`
-`;
-  }
-
-  return `## Doodba Notes
-
-The product source repositories are managed as Git submodules. Do not also add
-them to \`odoo/custom/src/repos.yaml\`, otherwise the same source will be managed
-by two different mechanisms.
-
-\`odoo/custom/src/addons.yaml\` activates addons from the submodule paths.
-
-The complete Doodba scaffold can be generated or refreshed from the official
-template when \`copier\` is available:
-
-\`\`\`bash
-copier copy https://github.com/Tecnativa/doodba-copier-template .
-\`\`\`
-
-Run this only after reviewing conflicts because this repository already contains
-project-specific source and documentation files.
-
-## Common Commands
-
-After the Doodba scaffold is generated:
-
-\`\`\`bash
-invoke develop
-invoke img-build --pull
-invoke git-aggregate
-invoke resetdb
-invoke start
-\`\`\`
-
-Run tests for all planned product addons:
-
-\`\`\`bash
-modules=${modules}
-docker compose run --rm odoo addons update --test --with $modules
 \`\`\`
 `;
 }
@@ -298,7 +226,7 @@ __pycache__/
 !.env.example
 *.local
 
-# Doodba/local generated files
+# Local generated files
 *.code-workspace
 auto/
 data/
@@ -340,14 +268,14 @@ ${options.sourceRepos.map((repo) => `private/${repo.path}:\n${yamlList(repo.addo
 }
 
 export function renderReposYaml(options: CreateOptions): string {
-  return `# Doodba git-aggregator repositories.
+  return `# git-aggregator repositories.
 #
 # Project source repositories are intentionally not listed here because
 # they are pinned as Git submodules:
 #
 ${options.sourceRepos.map((repo) => `# - private/${repo.path}`).join('\n')}
 #
-# Keep this file for upstream/OCA repositories that Doodba should aggregate.
+# Keep this file for upstream/OCA repositories that should be aggregated.
 
 odoo:
   defaults:
@@ -363,11 +291,10 @@ odoo:
 
 export function renderReadme(options: CreateOptions): string {
   const title = titleizeProduct(options.product);
-  const modules = allAddons(options).join(',');
 
   return `# ${title} Development Environment
 
-Private ${environmentKind(options)} development environment for the ${title} product.
+Private ${environmentKind()} development environment for the ${title} product.
 
 This repository owns the development environment only. Product source code lives
 in source repository submodules under \`odoo/custom/src/private\`.
@@ -410,7 +337,7 @@ ${optionalAgentSkillsReadme(options)}
 
 ${sourceRepoDocs(options)}
 
-${environmentUsageDocs(options, modules)}
+${environmentUsageDocs(options)}
 ## Branching
 
 Use Odoo major-version branches in source repositories:
@@ -436,7 +363,7 @@ export function renderAgents(options: CreateOptions): string {
 
 ## Project
 
-Private ${environmentKind(options)} development environment for the ${titleizeProduct(options.product)} product.
+Private ${environmentKind()} development environment for the ${titleizeProduct(options.product)} product.
 
 ## Repository Roles
 
@@ -451,7 +378,7 @@ Product repositories are Git submodules:
 ${options.sourceRepos.map((repo) => `odoo/custom/src/private/${repo.path}`).join('\n')}
 \`\`\`
 
-${repoDuplicationNote(options)}
+${repoDuplicationNote()}
 ${optionalAgentSkillsAgentsSection(options)}
 ## Addon Boundaries
 

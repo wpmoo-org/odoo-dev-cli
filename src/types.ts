@@ -6,7 +6,7 @@ export type SourceRepo = {
   addons: string[];
 };
 
-export type EnvironmentEngine = 'doodba' | 'compose';
+export type EnvironmentEngine = 'compose';
 
 export type CreateOptions = {
   product: string;

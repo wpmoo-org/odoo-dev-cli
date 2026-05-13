@@ -46,11 +46,7 @@ export function renderComposeEnvExample(options: ScaffoldOptions): string {
   ].join('\n');
 }
 
-export function composeTemplateOptions(options: ScaffoldOptions): ExternalAssetOptions | undefined {
-  if ((options.engine ?? 'compose') !== 'compose') {
-    return undefined;
-  }
-
+export function composeTemplateOptions(options: ScaffoldOptions): ExternalAssetOptions {
   return {
     label: 'compose',
     source: options.composeTemplateUrl ?? defaultComposeTemplateUrl,

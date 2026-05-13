@@ -160,7 +160,7 @@ npx @wpmoo/odoo-dev add-module \
   --odoo-version 19.0
 ```
 
-Remove a module from `addons.yaml` without deleting source files:
+Remove a module registration without deleting source files:
 
 ```bash
 npx @wpmoo/odoo-dev remove-module \
@@ -179,13 +179,13 @@ npx @wpmoo/odoo-dev reset
 Each source repo can contain one or many Odoo modules. For example:
 
 ```text
-private/odoo_sample_module:
-  - odoo_sample_module_base
-  - odoo_sample_module_another_module
+odoo/custom/src/private/odoo_sample_module/
+├── odoo_sample_module_base/
+└── odoo_sample_module_another_module/
 
-private/odoo_sample_module_pro:
-  - odoo_sample_module_payment
-  - odoo_sample_module_analytics
+odoo/custom/src/private/odoo_sample_module_pro/
+├── odoo_sample_module_payment/
+└── odoo_sample_module_analytics/
 ```
 
 If the project has portal, demo, payment, reports, or other addons, pass
@@ -216,7 +216,8 @@ tool-owned development guideline files.
 - V1 is overlay-first and uses WPMoo's Docker Compose resources by default.
 - Product source repositories are managed as Git submodules under
   `odoo/custom/src/private`.
-- Product source repositories are intentionally not listed in `repos.yaml`.
+- Product source repositories are discovered from `odoo/custom/src/private` by
+  the compose entrypoint and exposed through `/mnt/wpmoo-addons`.
 - Empty source repos can be initialized with an empty commit and the selected
   Odoo branch when `--init-empty-repos` is provided.
 - Missing GitHub repositories can be created with GitHub CLI when

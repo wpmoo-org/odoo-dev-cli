@@ -12,10 +12,21 @@ import {
 } from '../src/environment.js';
 import { scaffold } from '../src/scaffold.js';
 
-function scaffoldOptions(target: string) {
+async function writeLocalComposeFixture(root: string): Promise<string> {
+  const compose = join(root, 'compose-fixture');
+  await mkdir(join(compose, 'etc'), { recursive: true });
+  await writeFile(join(compose, 'docker-compose_19.0.yml'), 'services:\n  odoo:\n    image: "${ODOO_IMAGE:-odoo:19}"\n');
+  await writeFile(join(compose, 'README.md'), '# WPMoo Odoo Compose\n');
+  await writeFile(join(compose, 'etc/odoo.conf'), '[options]\n');
+
+  return compose;
+}
+
+async function scaffoldOptions(target: string) {
   return {
     product: 'odoo_sample_module',
     odooVersion: '19.0',
+    composeTemplateUrl: await writeLocalComposeFixture(await mkdtemp(join(tmpdir(), 'wpmoo-compose-fixture-'))),
     devRepo: 'odoo_sample_module_dev',
     devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
     sourceRepos: [
@@ -37,13 +48,14 @@ describe('development environment detection', () => {
   it('writes and detects the wpmoo environment marker', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-env-marker-'));
 
-    await scaffold(scaffoldOptions(target));
+    await scaffold(await scaffoldOptions(target));
 
     await expect(readFile(join(target, markerPath), 'utf8')).resolves.toContain('"tool": "@wpmoo/odoo-dev"');
     await expect(readEnvironmentMetadata(target)).resolves.toMatchObject({
       tool: '@wpmoo/odoo-dev',
       product: 'odoo_sample_module',
       odooVersion: '19.0',
+      engine: 'compose',
     });
     await expect(readFile(join(target, markerPath), 'utf8')).resolves.not.toContain('"packs"');
     await expect(detectDevelopmentEnvironment(target)).resolves.toEqual({
@@ -78,7 +90,7 @@ describe('development environment detection', () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-env-version-'));
 
     await scaffold({
-      ...scaffoldOptions(target),
+      ...(await scaffoldOptions(target)),
       odooVersion: '18.0',
     });
 

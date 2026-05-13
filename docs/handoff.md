@@ -9,8 +9,8 @@
 
 ## What changed
 
-- Docker Compose is now the default environment engine.
-- Doodba is no longer the default path; it remains only as a legacy `--engine doodba` option.
+- Docker Compose is now the environment engine.
+- The previous alternate engine option has been removed from the CLI surface.
 - `odoo-dev-cli` no longer reads compose/skill resources from its own `templates/` directory.
 - External resources are copied from standalone repositories by default:
   - `gh:wpmoo-org/odoo-docker-compose`

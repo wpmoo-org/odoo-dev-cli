@@ -17,8 +17,8 @@ Options:
   --odoo-version <branch>      Odoo branch to pin submodules to. Default: 19.0.
   --dev-repo-url <url>         Development environment repository URL for docs.
   --target <path>              Target dev repo directory. Default: ./<product>_dev.
-  --engine <value>             Environment engine: compose or doodba legacy. Default: compose.
-  --compose-template-url <url> Standalone compose resource source for --engine compose. Default: gh:wpmoo-org/odoo-docker-compose.
+  --engine <value>             Environment engine: compose. Default: compose.
+  --compose-template-url <url> Standalone compose resource source. Default: gh:wpmoo-org/odoo-docker-compose.
   --compose-template-ref <ref> Git ref for the compose resource.
   --agent-skills-template      Install project Agent Skills from a standalone skills resource.
   --agent-skills-template-url <url>

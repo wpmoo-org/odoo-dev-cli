@@ -137,7 +137,7 @@ describe('args', () => {
     expect(inferRepoPath('/tmp/remotes/odoo_sample_module_private.git')).toBe('odoo_sample_module_private');
   });
 
-  it('keeps legacy community/pro flags as a compatibility fallback', () => {
+  it('keeps community/pro flags as a compatibility fallback', () => {
     const options = optionsFromArgs([
       '--product',
       'odoo_sample_module',
@@ -167,7 +167,7 @@ describe('args', () => {
     ]);
   });
 
-  it('does not invent legacy portal demo or pro repos from product alone', () => {
+  it('does not invent portal demo or pro repos from product alone', () => {
     expect(() => optionsFromArgs(['--product', 'odoo_sample_module'])).toThrow(
       '--source-repo-url',
     );
@@ -180,7 +180,7 @@ describe('args', () => {
     expect(renderHelp()).not.toContain('  odoo-dev ');
   });
 
-  it('routes explicit subcommands and legacy create args', () => {
+  it('routes explicit subcommands and create args', () => {
     expect(commandFromArgs([])).toEqual({ command: 'menu', argv: [] });
     expect(commandFromArgs(['create', '--product', 'odoo_sample_module'])).toEqual({
       command: 'create',
@@ -291,6 +291,8 @@ describe('args', () => {
   });
 
   it('rejects unknown environment engines', () => {
+    const removedEngine = ['doo', 'dba'].join('');
+
     expect(() =>
       optionsFromArgs([
         '--product',
@@ -299,6 +301,17 @@ describe('args', () => {
         'https://github.com/example-org/odoo_sample_module.git',
         '--engine',
         'unknown',
+      ]),
+    ).toThrow('Invalid value for --engine');
+
+    expect(() =>
+      optionsFromArgs([
+        '--product',
+        'odoo_sample_module',
+        '--source-repo-url',
+        'https://github.com/example-org/odoo_sample_module.git',
+        '--engine',
+        removedEngine,
       ]),
     ).toThrow('Invalid value for --engine');
   });

@@ -183,7 +183,7 @@ function visibilityValue(values: Record<string, string | boolean>): RepositoryVi
 
 function engineValue(values: Record<string, string | boolean>): EnvironmentEngine {
   const value = stringValue(values, 'engine') ?? 'compose';
-  if (value === 'doodba' || value === 'compose') {
+  if (value === 'compose') {
     return value;
   }
 
@@ -279,7 +279,7 @@ export function optionsFromArgs(argv: string[]): ScaffoldOptions | undefined {
     org,
     odooVersion,
     engine,
-    composeTemplateUrl: engine === 'compose' ? stringValue(values, 'composeTemplateUrl') ?? defaultComposeTemplateUrl : undefined,
+    composeTemplateUrl: stringValue(values, 'composeTemplateUrl') ?? defaultComposeTemplateUrl,
     composeTemplateRef: stringValue(values, 'composeTemplateRef'),
     agentSkillsTemplateUrl: installAgentSkillsTemplate
       ? stringValue(values, 'agentSkillsTemplateUrl') ?? defaultAgentSkillsTemplateUrl

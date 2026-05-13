@@ -14,14 +14,12 @@ import {
   type GitRunner,
 } from './git.js';
 import {
-  renderAddonsYaml,
   renderAgents,
   renderAppstoreRelease,
   renderGitignore,
   renderMooDelegationScript,
   renderPlaceholder,
   renderReadme,
-  renderReposYaml,
 } from './templates.js';
 import { validateAddonName, validateRepoPath } from './path-validation.js';
 import type { ScaffoldOptions, ScaffoldResult, SourceRepo } from './types.js';
@@ -59,43 +57,11 @@ export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
     { path: 'docs/appstore-release.md', content: renderAppstoreRelease(safeOptions) },
   ];
 
-  if ((safeOptions.engine ?? 'compose') === 'compose') {
-    return [
-      ...files,
-      {
-        path: 'odoo/custom/src/private/README.md',
-        content: renderPlaceholder('private', 'WPMoo source repositories are added here as Git submodules.'),
-      },
-    ];
-  }
-
   return [
     ...files,
-    { path: 'odoo/custom/src/addons.yaml', content: renderAddonsYaml(safeOptions) },
-    { path: 'odoo/custom/src/repos.yaml', content: renderReposYaml(safeOptions) },
     {
-      path: 'odoo/custom/dependencies/apt.txt',
-      content: '# Add Debian/Ubuntu package dependencies here, one per line.\n',
-    },
-    {
-      path: 'odoo/custom/dependencies/pip.txt',
-      content: '# Add Python package dependencies here, one per line.\n',
-    },
-    {
-      path: 'odoo/custom/dependencies/npm.txt',
-      content: '# Add Node package dependencies here, one per line.\n',
-    },
-    {
-      path: 'odoo/custom/conf.d/README.md',
-      content: renderPlaceholder('conf.d', 'Place project-specific Odoo config snippets here.'),
-    },
-    {
-      path: 'odoo/custom/entrypoint.d/README.md',
-      content: renderPlaceholder('entrypoint.d', 'Place executable startup hooks here.'),
-    },
-    {
-      path: 'odoo/custom/build.d/README.md',
-      content: renderPlaceholder('build.d', 'Place executable image build hooks here.'),
+      path: 'odoo/custom/src/private/README.md',
+      content: renderPlaceholder('private', 'WPMoo source repositories are added here as Git submodules.'),
     },
   ];
 }
@@ -182,9 +148,7 @@ export async function scaffold(
   for (const assetOptions of externalAssets) {
     await applyExternalAsset(assetOptions, git);
   }
-  if ((safeOptions.engine ?? 'compose') === 'compose') {
-    await writeTextFile(join(safeOptions.target, '.env.example'), renderComposeEnvExample(safeOptions));
-  }
+  await writeTextFile(join(safeOptions.target, '.env.example'), renderComposeEnvExample(safeOptions));
 
   if (!safeOptions.skipSubmodules) {
     for (const repo of safeOptions.sourceRepos) {

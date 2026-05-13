@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,12 +12,26 @@ async function git(cwd: string, args: string[]) {
   return execa('git', args, { cwd });
 }
 
+async function writeLocalComposeFixture(root: string): Promise<string> {
+  const compose = join(root, 'compose-fixture');
+  await mkdir(join(compose, 'etc'), { recursive: true });
+  await writeFile(join(compose, 'docker-compose_19.0.yml'), 'services:\n  odoo:\n    image: "${ODOO_IMAGE:-odoo:19}"\n');
+  await writeFile(join(compose, 'README.md'), '# WPMoo Odoo Compose\n');
+  await writeFile(
+    join(compose, 'etc/odoo.conf'),
+    '[options]\naddons_path = /usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons,/mnt/wpmoo-addons\n',
+  );
+
+  return compose;
+}
+
 describe('git integration', () => {
   it('initializes empty local remotes, adds submodules, and stages generated files', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wpmoo-git-'));
     const communityRemote = join(root, 'odoo_sample_module.git');
     const reportsRemote = join(root, 'odoo_sample_module_reports.git');
     const target = join(root, 'odoo_sample_module_dev');
+    const composeTemplateUrl = await writeLocalComposeFixture(root);
 
     await git(root, ['init', '--bare', communityRemote]);
     await git(root, ['init', '--bare', reportsRemote]);
@@ -30,7 +44,7 @@ describe('git integration', () => {
       product: 'odoo_sample_module',
       org: 'example-org',
       odooVersion: '19.0',
-      engine: 'doodba',
+      composeTemplateUrl,
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: target,
       communityRepo: 'odoo_sample_module',
@@ -73,6 +87,7 @@ describe('git integration', () => {
     const root = await mkdtemp(join(tmpdir(), 'wpmoo-git-single-'));
     const communityRemote = join(root, 'odoo_sample_module.git');
     const target = join(root, 'odoo_sample_module_dev');
+    const composeTemplateUrl = await writeLocalComposeFixture(root);
 
     await git(root, ['init', '--bare', communityRemote]);
     await git(root, ['init', target]);
@@ -84,7 +99,7 @@ describe('git integration', () => {
       product: 'odoo_sample_module',
       org: 'example-org',
       odooVersion: '19.0',
-      engine: 'doodba',
+      composeTemplateUrl,
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: target,
       communityRepo: 'odoo_sample_module',
@@ -108,9 +123,9 @@ describe('git integration', () => {
 
     await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module'))).resolves.toBeTruthy();
     await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module_reports'))).rejects.toThrow();
-    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.not.toContain(
-      'private/odoo_sample_module_reports:',
-    );
+    await expect(readFile(join(target, '.gitmodules'), 'utf8')).resolves.not.toContain('odoo_sample_module_reports');
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toContain('ODOO_TEST_MODULE=odoo_sample_module');
   });
 
   it('clones the dev repo into the product_dev target when target is missing', async () => {
@@ -118,6 +133,7 @@ describe('git integration', () => {
     const devRemote = join(root, 'odoo_sample_module_dev.git');
     const sourceRemote = join(root, 'odoo_sample_module.git');
     const target = join(root, 'odoo_sample_module_dev');
+    const composeTemplateUrl = await writeLocalComposeFixture(root);
 
     await git(root, ['init', '--bare', devRemote]);
     await git(root, ['init', '--bare', sourceRemote]);
@@ -125,7 +141,7 @@ describe('git integration', () => {
     await scaffold({
       product: 'odoo_sample_module',
       odooVersion: '19.0',
-      engine: 'doodba',
+      composeTemplateUrl,
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: devRemote,
       sourceRepos: [
@@ -143,9 +159,7 @@ describe('git integration', () => {
 
     await expect(stat(join(target, '.git'))).resolves.toBeTruthy();
     await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module'))).resolves.toBeTruthy();
-    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
-      '  - odoo_sample_module',
-    );
+    await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toContain('ODOO_TEST_MODULE=odoo_sample_module');
   });
 
   it('reuses already tracked submodules when cloning an existing dev repo', async () => {
@@ -154,6 +168,7 @@ describe('git integration', () => {
     const sourceRemote = join(root, 'odoo_sample_module.git');
     const seed = join(root, 'seed-dev');
     const target = join(root, 'odoo_sample_module_dev');
+    const composeTemplateUrl = await writeLocalComposeFixture(root);
 
     await git(root, ['init', '--bare', devRemote]);
     await git(root, ['init', '--bare', sourceRemote]);
@@ -164,7 +179,7 @@ describe('git integration', () => {
     await scaffold({
       product: 'odoo_sample_module',
       odooVersion: '19.0',
-      engine: 'doodba',
+      composeTemplateUrl,
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: devRemote,
       sourceRepos: [
@@ -185,7 +200,7 @@ describe('git integration', () => {
     await scaffold({
       product: 'odoo_sample_module',
       odooVersion: '19.0',
-      engine: 'doodba',
+      composeTemplateUrl,
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: devRemote,
       sourceRepos: [
@@ -209,6 +224,7 @@ describe('git integration', () => {
     const baseRemote = join(root, 'odoo_sample_module.git');
     const reportsRemote = join(root, 'odoo_sample_module_reports.git');
     const target = join(root, 'odoo_sample_module_dev');
+    const composeTemplateUrl = await writeLocalComposeFixture(root);
 
     await git(root, ['init', '--bare', baseRemote]);
     await git(root, ['init', '--bare', reportsRemote]);
@@ -220,7 +236,7 @@ describe('git integration', () => {
     await scaffold({
       product: 'odoo_sample_module',
       odooVersion: '19.0',
-      engine: 'doodba',
+      composeTemplateUrl,
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: target,
       sourceRepos: [
@@ -246,9 +262,13 @@ describe('git integration', () => {
     });
 
     await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module_reports'))).resolves.toBeTruthy();
-    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
-      'private/odoo_sample_module_reports:\n  - odoo_sample_module_reports',
+    await expect(readFile(join(target, '.gitmodules'), 'utf8')).resolves.toContain(
+      'path = odoo/custom/src/private/odoo_sample_module_reports',
     );
+    await expect(readFile(join(target, 'etc/odoo.conf'), 'utf8')).resolves.toContain(
+      '/mnt/wpmoo-addons',
+    );
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
 
     await git(target, ['commit', '-m', 'Add reports repo']);
 
@@ -259,9 +279,8 @@ describe('git integration', () => {
     });
 
     await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module_reports'))).rejects.toThrow();
-    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.not.toContain(
-      'private/odoo_sample_module_reports:',
-    );
+    await expect(readFile(join(target, '.gitmodules'), 'utf8')).resolves.not.toContain('odoo_sample_module_reports');
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
   });
 
   it('lists a module repo added before the first dev environment commit', async () => {
@@ -269,6 +288,7 @@ describe('git integration', () => {
     const baseRemote = join(root, 'odoo_sample_module.git');
     const reportsRemote = join(root, 'odoo_sample_module_reports.git');
     const target = join(root, 'odoo_sample_module_dev');
+    const composeTemplateUrl = await writeLocalComposeFixture(root);
 
     await git(root, ['init', '--bare', baseRemote]);
     await git(root, ['init', '--bare', reportsRemote]);
@@ -279,7 +299,7 @@ describe('git integration', () => {
     await scaffold({
       product: 'odoo_sample_module',
       odooVersion: '19.0',
-      engine: 'doodba',
+      composeTemplateUrl,
       devRepo: 'odoo_sample_module_dev',
       devRepoUrl: target,
       sourceRepos: [
@@ -308,9 +328,8 @@ describe('git integration', () => {
       'path = odoo/custom/src/private/odoo_sample_module_reports',
     );
     await expect(listModuleRepos(target)).resolves.toEqual(['odoo_sample_module', 'odoo_sample_module_reports']);
-    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
-      'private/odoo_sample_module_reports:\n  - odoo_sample_module_reports',
-    );
+    await expect(readFile(join(target, 'etc/odoo.conf'), 'utf8')).resolves.toContain('/mnt/wpmoo-addons');
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
   });
 
   it('refuses to remove a dirty module submodule', async () => {

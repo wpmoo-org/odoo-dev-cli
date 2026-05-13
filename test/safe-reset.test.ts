@@ -22,7 +22,7 @@ describe('safe reset', () => {
         '- README.md',
         '- AGENTS.md',
         '- docs/appstore-release.md',
-        '- engine-specific generated files',
+        '- Compose generated files',
         '',
         'Will not touch:',
         '- source repo folders under odoo/custom/src/private',
