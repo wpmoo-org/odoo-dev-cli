@@ -3,6 +3,7 @@ import { basename, resolve } from 'node:path';
 import { supportedOdooVersions } from './odoo-versions.js';
 import { defaultAgentSkillsTemplateUrl, defaultComposeTemplateUrl } from './external-templates.js';
 import { defaultCommunityAddons, defaultProAddons } from './templates.js';
+import { dailyActionCommands, type DailyActionCommand } from './daily-actions.js';
 import { validateAddonName, validateRepoPath } from './path-validation.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import type { EnvironmentEngine, ScaffoldOptions, SourceRepo } from './types.js';
@@ -12,14 +13,30 @@ type ParsedArgs = {
   values: Record<string, string | boolean>;
 };
 
-export type CliCommand = 'menu' | 'create' | 'add-repo' | 'remove-repo' | 'add-module' | 'remove-module' | 'reset';
+export type CliCommand =
+  | 'menu'
+  | 'create'
+  | 'add-repo'
+  | 'remove-repo'
+  | 'add-module'
+  | 'remove-module'
+  | 'reset'
+  | DailyActionCommand;
 
 export type CommandRoute = {
   command: CliCommand;
   argv: string[];
 };
 
-const commandNames = new Set<CliCommand>(['create', 'add-repo', 'remove-repo', 'add-module', 'remove-module', 'reset']);
+const commandNames = new Set<CliCommand>([
+  'create',
+  'add-repo',
+  'remove-repo',
+  'add-module',
+  'remove-module',
+  'reset',
+  ...dailyActionCommands,
+]);
 const internalFlags = new Set(['--no-update-check']);
 
 export function isUpdateCheckFlag(arg: string): boolean {

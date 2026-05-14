@@ -177,6 +177,22 @@ Refresh generated environment files without deleting module source code:
 npx @wpmoo/odoo reset
 ```
 
+Run daily local development actions from a generated environment root:
+
+```bash
+npx @wpmoo/odoo logs odoo
+npx @wpmoo/odoo restart
+npx @wpmoo/odoo shell
+npx @wpmoo/odoo psql devel
+npx @wpmoo/odoo install sale devel
+npx @wpmoo/odoo update sale devel
+npx @wpmoo/odoo test sale --db devel --mode update --tags /sale
+```
+
+Daily actions require `.wpmoo/odoo.json` in the current directory and delegate to
+fixed scripts under `./scripts`; they do not search parent directories or accept
+arbitrary script names.
+
 ## Defaults
 
 Each source repo can contain one or many Odoo modules. For example:

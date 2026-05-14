@@ -14,6 +14,7 @@ import {
 import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
 import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
+import { isDailyActionCommand, runDailyAction } from './daily-actions.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import {
@@ -854,6 +855,12 @@ async function main(): Promise<void> {
     const options = resetOptionsFromArgs(route.argv);
     await safeResetEnvironment(options);
     outro(`Safe reset refreshed generated environment files in ${options.target}.`);
+    return;
+  }
+
+  if (isDailyActionCommand(route.command)) {
+    console.log(renderBanner());
+    await runDailyAction(route.command, route.argv);
     return;
   }
 

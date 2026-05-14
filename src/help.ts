@@ -11,6 +11,13 @@ Usage:
   npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
   npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name>
   npx @wpmoo/odoo reset
+  npx @wpmoo/odoo logs [service]
+  npx @wpmoo/odoo restart
+  npx @wpmoo/odoo shell
+  npx @wpmoo/odoo psql [db]
+  npx @wpmoo/odoo install <module[,module]> [db]
+  npx @wpmoo/odoo update <module[,module]> [db]
+  npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
 
 Options:
   --product <slug>             Product slug, for example my_odoo_module.
@@ -44,6 +51,10 @@ Options:
   --no-update-check            Skip the startup npm update check.
   --version, -v                Show the package version.
   --help, -h                   Show this help.
+
+Daily actions:
+  Daily actions must be run from a generated environment root containing .wpmoo/odoo.json.
+  They delegate to the fixed scripts copied from the compose resource under ./scripts.
 
 Example:
   npx @wpmoo/odoo create \\

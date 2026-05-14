@@ -177,6 +177,9 @@ describe('args', () => {
     expect(renderHelp()).toContain('--source-repo-url');
     expect(renderHelp()).toContain('--dev-repo-url');
     expect(renderHelp()).toContain('npx @wpmoo/odoo');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo logs [service]');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo update <module[,module]> [db]');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update]');
   });
 
   it('routes explicit subcommands and create args', () => {
@@ -204,6 +207,34 @@ describe('args', () => {
     expect(commandFromArgs(['reset', '--target', '/tmp/dev'])).toEqual({
       command: 'reset',
       argv: ['--target', '/tmp/dev'],
+    });
+    expect(commandFromArgs(['logs', 'db'])).toEqual({
+      command: 'logs',
+      argv: ['db'],
+    });
+    expect(commandFromArgs(['restart'])).toEqual({
+      command: 'restart',
+      argv: [],
+    });
+    expect(commandFromArgs(['shell'])).toEqual({
+      command: 'shell',
+      argv: [],
+    });
+    expect(commandFromArgs(['psql', 'devel'])).toEqual({
+      command: 'psql',
+      argv: ['devel'],
+    });
+    expect(commandFromArgs(['install', 'sale', 'devel'])).toEqual({
+      command: 'install',
+      argv: ['sale', 'devel'],
+    });
+    expect(commandFromArgs(['update', 'sale', 'devel'])).toEqual({
+      command: 'update',
+      argv: ['sale', 'devel'],
+    });
+    expect(commandFromArgs(['test', 'sale', '--db', 'devel', '--mode', 'update'])).toEqual({
+      command: 'test',
+      argv: ['sale', '--db', 'devel', '--mode', 'update'],
     });
     expect(commandFromArgs(['--product', 'odoo_sample_module'])).toEqual({
       command: 'create',

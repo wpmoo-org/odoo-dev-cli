@@ -12,6 +12,19 @@
     "url": "https://github.com/wpmoo-org/wpmoo-odoo/issues"
   },
   "readmeFilename": "README.md",
+  "fundingUrl": "https://buymeacoffee.com/cangir",
+  "keywords": [
+    "odoo",
+    "odoo development",
+    "odoo cli",
+    "odoo lifecycle",
+    "odoo dev workflow",
+    "odoo staging workflow",
+    "odoo production workflow",
+    "odoo docker",
+    "odoo docker compose",
+    "odoo skills"
+  ],
   "bin": {
     "wpmoo": "dist/cli.js"
   },
