@@ -31,7 +31,8 @@
   },
   "files": [
     "dist",
-    "docs/assets"
+    "docs/assets",
+    "docs/*.md"
   ],
   "engines": {
     "node": ">=20.17"

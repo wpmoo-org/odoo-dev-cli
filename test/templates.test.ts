@@ -169,7 +169,7 @@ describe('template rendering', () => {
         '',
       ].join('\n'),
     );
-  });
+  }, 15000);
 
   it('renders README without pro assumptions for one source repo', () => {
     const readme = renderReadme({

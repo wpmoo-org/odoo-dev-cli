@@ -26,6 +26,7 @@ describe('package metadata', () => {
       url: 'git+https://github.com/wpmoo-org/wpmoo-odoo.git',
     });
     expect(packageJson.files).toContain('docs/assets');
+    expect(packageJson.files).toContain('docs/*.md');
     expect(packageJson.bin).toMatchObject({
       wpmoo: 'dist/cli.js',
     });

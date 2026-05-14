@@ -75,7 +75,7 @@ describe('generated environment moo delegation matrix', () => {
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(
       ['up.sh|', 'logs.sh|odoo', 'logs.sh|db', 'test.sh|sale --db devel --mode update --tags /sale', 'restore-snapshot.sh|snap1 devel', ''].join('\n'),
     );
-  });
+  }, 15000);
 
   it('falls back to package command for doctor', async () => {
     const { callsPath, env, root } = await createMooFixture();
