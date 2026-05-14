@@ -1,0 +1,111 @@
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import { dailyActionScripts } from '../src/daily-actions.js';
+import { scaffold } from '../src/scaffold.js';
+
+async function writeComposeFixture(root: string): Promise<string> {
+  const fixture = join(root, 'compose-fixture');
+  await mkdir(join(fixture, 'scripts'), { recursive: true });
+  await mkdir(join(fixture, 'etc'), { recursive: true });
+  await writeFile(join(fixture, 'docker-compose_19.0.yml'), 'services:\n  odoo:\n    image: odoo:19\n', 'utf8');
+  await writeFile(join(fixture, 'docker-compose_18.0.yml'), 'services:\n  odoo:\n    image: odoo:18\n', 'utf8');
+  await writeFile(
+    join(fixture, 'etc/odoo.conf'),
+    '[options]\naddons_path = /usr/lib/python3/dist-packages/odoo/addons,/mnt/wpmoo-addons\n',
+    'utf8',
+  );
+  await writeFile(join(fixture, 'README.md'), '# Compose Fixture\nLocal compose fixture content.\n', 'utf8');
+
+  for (const script of Object.values(dailyActionScripts)) {
+    await writeFile(join(fixture, 'scripts', script), '#!/usr/bin/env bash\nexit 0\n', 'utf8');
+  }
+
+  return fixture;
+}
+
+describe('generated environment scaffold output matrix', () => {
+  it('writes expected scaffold assets and metadata from a local compose fixture', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wpmoo-generated-scaffold-'));
+    const target = join(root, 'odoo_sample_module_dev');
+    const composeTemplateUrl = await writeComposeFixture(root);
+
+    await scaffold({
+      product: 'odoo_sample_module',
+      odooVersion: '19.0',
+      engine: 'compose',
+      composeTemplateUrl,
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+      sourceRepos: [
+        {
+          url: 'https://github.com/example-org/odoo_sample_module.git',
+          path: 'odoo_sample_module',
+          addons: ['odoo_sample_module', 'odoo_sample_module_portal'],
+        },
+        {
+          url: 'https://github.com/example-org/odoo_sample_module_reports.git',
+          path: 'odoo_sample_module_reports',
+          addons: ['odoo_sample_module_reports'],
+        },
+      ],
+      target,
+      dryRun: false,
+      initEmptyRepos: false,
+      skipSubmodules: true,
+      stage: false,
+    });
+
+    const expectedFiles = [
+      '.wpmoo/odoo.json',
+      'moo',
+      'README.md',
+      'AGENTS.md',
+      'docs/appstore-release.md',
+      '.env.example',
+      'docker-compose_19.0.yml',
+      'docs/compose.md',
+      'etc/odoo.conf',
+    ];
+    for (const relativePath of expectedFiles) {
+      await expect(stat(join(target, relativePath))).resolves.toBeTruthy();
+    }
+
+    for (const script of Object.values(dailyActionScripts)) {
+      await expect(stat(join(target, 'scripts', script))).resolves.toBeTruthy();
+    }
+
+    expect((await stat(join(target, 'moo'))).mode & 0o100).toBeTruthy();
+
+    await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toContain('ODOO_VERSION=19.0');
+    await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toContain('POSTGRES_IMAGE=postgres:18');
+    await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toContain(
+      'ODOO_TEST_MODULE=odoo_sample_module',
+    );
+    await expect(readFile(join(target, 'docs/compose.md'), 'utf8')).resolves.toContain('Compose Fixture');
+    await expect(readFile(join(target, 'docs/compose.md'), 'utf8')).resolves.toContain(
+      'Local compose fixture content.',
+    );
+
+    const metadata = JSON.parse(await readFile(join(target, '.wpmoo/odoo.json'), 'utf8')) as {
+      engine: string;
+      odooVersion: string;
+      composeTemplateUrl: string;
+      sourceRepos: Array<{ url: string; addons: string[] }>;
+    };
+    expect(metadata.engine).toBe('compose');
+    expect(metadata.odooVersion).toBe('19.0');
+    expect(metadata.composeTemplateUrl).toBe(composeTemplateUrl);
+    expect(metadata.sourceRepos.map((repo) => repo.url)).toEqual([
+      'https://github.com/example-org/odoo_sample_module.git',
+      'https://github.com/example-org/odoo_sample_module_reports.git',
+    ]);
+    expect(metadata.sourceRepos.map((repo) => repo.addons)).toEqual([
+      ['odoo_sample_module', 'odoo_sample_module_portal'],
+      ['odoo_sample_module_reports'],
+    ]);
+  });
+});

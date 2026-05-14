@@ -220,6 +220,8 @@ Use `npx @wpmoo/odoo ...` for package/operator commands such as create,
 add/remove repo, add/remove module, `doctor`, and `reset`. Generated
 environments include `./moo` for local daily commands; it also falls back to
 `npx @wpmoo/odoo@latest` for package commands such as `./moo doctor`.
+For the operator-facing verification matrix, see
+[`docs/generated-environment-verification.md`](docs/generated-environment-verification.md).
 
 ## Defaults
 
