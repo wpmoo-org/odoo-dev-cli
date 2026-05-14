@@ -22,10 +22,10 @@ describe('repo actions', () => {
     await mkdir(join(target, 'etc'), { recursive: true });
 
     await writeFile(
-      join(target, '.wpmoo/odoo-dev.json'),
+      join(target, '.wpmoo/odoo.json'),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo-dev',
+          tool: '@wpmoo/odoo',
           version: '0.8.25',
           product: 'odoo_sample_module',
           odooVersion: '19.0',

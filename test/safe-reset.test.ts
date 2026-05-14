@@ -16,7 +16,7 @@ describe('safe reset', () => {
         '/tmp/odoo_sample_module_dev',
         '',
         'Will update:',
-        '- .wpmoo/odoo-dev.json',
+        '- .wpmoo/odoo.json',
         '- moo',
         '- .gitignore',
         '- README.md',
@@ -64,10 +64,10 @@ describe('safe reset', () => {
 
     await mkdir(join(target, '.wpmoo'), { recursive: true });
     await writeFile(
-      join(target, '.wpmoo/odoo-dev.json'),
+      join(target, '.wpmoo/odoo.json'),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo-dev',
+          tool: '@wpmoo/odoo',
           version: '0.7.0',
           product: 'odoo_sample_module',
           odooVersion: '19.0',

@@ -11,9 +11,9 @@ describe('environment command Odoo version', () => {
     const target = join(tmpdir(), `wpmoo-env-version-command-${Date.now()}`);
     await mkdir(join(target, '.wpmoo'), { recursive: true });
     await writeFile(
-      join(target, '.wpmoo/odoo-dev.json'),
+      join(target, '.wpmoo/odoo.json'),
       JSON.stringify({
-        tool: '@wpmoo/odoo-dev',
+        tool: '@wpmoo/odoo',
         version: '0.8.17',
         product: 'odoo_sample_module',
         odooVersion: '18.0',

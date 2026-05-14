@@ -4,8 +4,8 @@ Guidance for coding agents working in this repository.
 
 ## Project overview
 
-- Package: `@wpmoo/odoo-dev`
-- Purpose: TypeScript Node CLI for creating and maintaining Odoo development environment overlays with Docker Compose defaults and optional external standalone resources.
+- Package: `@wpmoo/odoo`
+- Purpose: TypeScript Node CLI for WPMoo Odoo lifecycle workflows, starting with Docker Compose based environment creation and maintenance.
 - Runtime: Node.js `>=20`, ESM (`"type": "module"`).
 - Source code lives in `src/`; tests live in `test/`.
 - Built files are emitted to `dist/` and should not be edited by hand.
@@ -52,7 +52,7 @@ npx vitest run test/<file>.test.ts
 - Source repositories are managed as Git submodules under `odoo/custom/src/private`.
 - Product source repositories live under `odoo/custom/src/private` and are exposed through `/mnt/wpmoo-addons`.
 - Compose resources are copied by the CLI and provide the Docker/Odoo helper scripts.
-- Maintenance commands rely on `.wpmoo/odoo-dev.json` inside generated environments.
+- Maintenance commands rely on `.wpmoo/odoo.json` inside generated environments.
 
 ## Agent workflow
 

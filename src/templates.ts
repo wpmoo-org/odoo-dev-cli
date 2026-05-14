@@ -253,7 +253,7 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")" && pwd)"
 cd "$script_dir"
 
-exec npx --yes @wpmoo/odoo-dev@latest "$@"
+exec npx --yes @wpmoo/odoo@latest "$@"
 `;
 }
 

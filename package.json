@@ -1,22 +1,19 @@
 {
-  "name": "@wpmoo/odoo-dev",
+  "name": "@wpmoo/odoo",
   "version": "0.8.29",
-  "description": "Create Docker Compose based Odoo development environments.",
+  "description": "WPMoo Odoo lifecycle tooling for development, staging, and production workflows.",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wpmoo-org/odoo-dev-cli.git"
+    "url": "git+https://github.com/wpmoo-org/wpmoo-odoo.git"
   },
-  "homepage": "https://github.com/wpmoo-org/odoo-dev-cli",
+  "homepage": "https://github.com/wpmoo-org/wpmoo-odoo",
   "bugs": {
-    "url": "https://github.com/wpmoo-org/odoo-dev-cli/issues"
+    "url": "https://github.com/wpmoo-org/wpmoo-odoo/issues"
   },
   "readmeFilename": "README.md",
   "bin": {
-    "odoo-dev": "dist/cli.js",
-    "wpmoo": "dist/cli.js",
-    "wpmoo-odoo-dev": "dist/cli.js",
-    "create-odoo-dev": "dist/cli.js"
+    "wpmoo": "dist/cli.js"
   },
   "files": [
     "dist",

@@ -68,7 +68,7 @@ describe('template rendering', () => {
     expect(script).toContain('#!/usr/bin/env bash');
     expect(script).toContain('set -euo pipefail');
     expect(script).toContain('cd "$script_dir"');
-    expect(script).toContain('exec npx --yes @wpmoo/odoo-dev@latest "$@"');
+    expect(script).toContain('exec npx --yes @wpmoo/odoo@latest "$@"');
   });
 
   it('renders README without pro assumptions for one source repo', () => {

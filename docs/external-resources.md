@@ -35,7 +35,7 @@ docker compose -f docker-compose_19.0.yml up -d
 WPMoo CLI usage with the default remote source:
 
 ```bash
-npx @wpmoo/odoo-dev create \
+npx @wpmoo/odoo create \
   --engine compose \
   --product my_product \
   --source-repo-url https://github.com/example-org/my_product.git
@@ -46,7 +46,7 @@ During resource development, use a local clone:
 ```bash
 git clone https://github.com/wpmoo-org/odoo-docker-compose ../odoo-docker-compose
 
-npx @wpmoo/odoo-dev create \
+npx @wpmoo/odoo create \
   --engine compose \
   --compose-template-url ../odoo-docker-compose \
   --product my_product \
@@ -79,7 +79,7 @@ WPMoo CLI can also copy those skills into generated environments from the defaul
 remote source:
 
 ```bash
-npx @wpmoo/odoo-dev create \
+npx @wpmoo/odoo create \
   --product my_product \
   --source-repo-url https://github.com/example-org/my_product.git \
   --agent-skills-template
@@ -90,7 +90,7 @@ During skill development, use a local clone:
 ```bash
 git clone https://github.com/wpmoo-org/odoo-skills ../odoo-skills
 
-npx @wpmoo/odoo-dev create \
+npx @wpmoo/odoo create \
   --product my_product \
   --source-repo-url https://github.com/example-org/my_product.git \
   --agent-skills-template \
@@ -111,7 +111,7 @@ Project or module-specific guidance should live in that project/module's own
 Remote Git sources can be pinned with refs:
 
 ```bash
-npx @wpmoo/odoo-dev create \
+npx @wpmoo/odoo create \
   --engine compose \
   --compose-template-ref v0.1.0 \
   --agent-skills-template \

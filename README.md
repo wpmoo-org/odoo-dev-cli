@@ -1,14 +1,17 @@
-# @wpmoo/odoo-dev
+# @wpmoo/odoo
 
-[![CI](https://github.com/wpmoo-org/odoo-dev-cli/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wpmoo-org/odoo-dev-cli/actions/workflows/ci.yml)
+![WPMoo Workflow Platform - Micro Object Oriented](https://cdn.jsdelivr.net/npm/@wpmoo/odoo/docs/assets/wpmoo-banner.png)
 
-![WPMoo Workflow Platform - Micro Object Oriented](https://cdn.jsdelivr.net/npm/@wpmoo/odoo-dev/docs/assets/wpmoo-banner.png)
+[![CI](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml)
 
-Create Odoo development environment overlays.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-The CLI creates a Docker Compose based Odoo development environment, adds source
+WPMoo Odoo lifecycle tooling for development, staging, and production workflows.
+
+The CLI currently creates Docker Compose based Odoo environments, adds source
 repositories as Git submodules, and stages the result with `git add .`. It does
-not commit.
+not commit. Staging and production workflows will build on the same package and
+command surface.
 
 Compose resources and project-local Agent Skills are copied from standalone
 repositories, so large Docker/skill assets do not need to be embedded in the
@@ -46,7 +49,7 @@ is entered, the CLI normalizes it to the cloneable form.
 Interactive wizard:
 
 ```bash
-npx @wpmoo/odoo-dev
+npx @wpmoo/odoo
 ```
 
 The wizard is context-aware. If the current directory is not already a WPMoo
@@ -65,7 +68,7 @@ Safe reset environment
 Non-interactive:
 
 ```bash
-npx @wpmoo/odoo-dev create \
+npx @wpmoo/odoo create \
   --product odoo_sample_module \
   --odoo-version 19.0 \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
@@ -77,7 +80,7 @@ npx @wpmoo/odoo-dev create \
 Multiple source repositories:
 
 ```bash
-npx @wpmoo/odoo-dev create \
+npx @wpmoo/odoo create \
   --product odoo_sample_module \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
@@ -90,7 +93,7 @@ npx @wpmoo/odoo-dev create \
 Dry run:
 
 ```bash
-npx @wpmoo/odoo-dev create \
+npx @wpmoo/odoo create \
   --product odoo_sample_module \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
@@ -100,7 +103,7 @@ npx @wpmoo/odoo-dev create \
 Default Docker Compose engine through an external standalone compose resource:
 
 ```bash
-npx @wpmoo/odoo-dev create \
+npx @wpmoo/odoo create \
   --product odoo_sample_module \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
@@ -113,7 +116,7 @@ During local resource development, point to local clones of the standalone repos
 git clone https://github.com/wpmoo-org/odoo-docker-compose ../odoo-docker-compose
 git clone https://github.com/wpmoo-org/odoo-skills ../odoo-skills
 
-npx @wpmoo/odoo-dev create \
+npx @wpmoo/odoo create \
   --engine compose \
   --compose-template-url ../odoo-docker-compose \
   --agent-skills-template \
@@ -125,7 +128,7 @@ npx @wpmoo/odoo-dev create \
 Add a source repository later from inside the dev environment:
 
 ```bash
-npx @wpmoo/odoo-dev
+npx @wpmoo/odoo
 ```
 
 Choose `Add source repo`, then enter only the repository name, such as
@@ -137,26 +140,26 @@ branch automatically.
 Non-interactive URL form:
 
 ```bash
-npx @wpmoo/odoo-dev add-repo \
+npx @wpmoo/odoo add-repo \
   --repo-url https://github.com/example-org/odoo_sample_module_reports.git \
   --odoo-version 19.0 \
   --init-empty-repos
 ```
 
 When run inside a generated environment, maintenance actions use the environment
-Odoo version from `.wpmoo/odoo-dev.json`. Pass `--odoo-version` only when you
+Odoo version from `.wpmoo/odoo.json`. Pass `--odoo-version` only when you
 need an explicit override.
 
 Remove a source repository from the dev environment:
 
 ```bash
-npx @wpmoo/odoo-dev remove-repo --repo odoo_sample_module_reports
+npx @wpmoo/odoo remove-repo --repo odoo_sample_module_reports
 ```
 
 Add a minimal Odoo module skeleton to a selected source repository:
 
 ```bash
-npx @wpmoo/odoo-dev add-module \
+npx @wpmoo/odoo add-module \
   --repo odoo_sample_module \
   --module odoo_sample_module_base \
   --odoo-version 19.0
@@ -165,7 +168,7 @@ npx @wpmoo/odoo-dev add-module \
 Remove a module registration without deleting source files:
 
 ```bash
-npx @wpmoo/odoo-dev remove-module \
+npx @wpmoo/odoo remove-module \
   --repo odoo_sample_module \
   --module odoo_sample_module_base
 ```
@@ -173,7 +176,7 @@ npx @wpmoo/odoo-dev remove-module \
 Refresh generated environment files without deleting module source code:
 
 ```bash
-npx @wpmoo/odoo-dev reset
+npx @wpmoo/odoo reset
 ```
 
 ## Defaults

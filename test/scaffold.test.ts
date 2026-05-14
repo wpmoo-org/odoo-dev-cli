@@ -164,7 +164,7 @@ describe('scaffold', () => {
       'WPMoo source repositories',
     );
     await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain(
-      'exec npx --yes @wpmoo/odoo-dev@latest "$@"',
+      'exec npx --yes @wpmoo/odoo@latest "$@"',
     );
     expect((await stat(join(target, 'moo'))).mode & 0o111).not.toBe(0);
   });

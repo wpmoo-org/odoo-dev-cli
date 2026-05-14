@@ -1,16 +1,16 @@
 export function renderHelp(): string {
-  return `@wpmoo/odoo-dev
+  return `@wpmoo/odoo
 
-Create an Odoo development environment overlay.
+WPMoo Odoo lifecycle tooling.
 
 Usage:
-  npx @wpmoo/odoo-dev
-  npx @wpmoo/odoo-dev create --product <slug> --dev-repo-url <url> --source-repo-url <url>
-  npx @wpmoo/odoo-dev add-repo --repo-url <url>
-  npx @wpmoo/odoo-dev remove-repo --repo <name>
-  npx @wpmoo/odoo-dev add-module --repo <source-repo> --module <module-name>
-  npx @wpmoo/odoo-dev remove-module --repo <source-repo> --module <module-name>
-  npx @wpmoo/odoo-dev reset
+  npx @wpmoo/odoo
+  npx @wpmoo/odoo create --product <slug> --dev-repo-url <url> --source-repo-url <url>
+  npx @wpmoo/odoo add-repo --repo-url <url>
+  npx @wpmoo/odoo remove-repo --repo <name>
+  npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
+  npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name>
+  npx @wpmoo/odoo reset
 
 Options:
   --product <slug>             Product slug, for example my_odoo_module.
@@ -46,14 +46,14 @@ Options:
   --help, -h                   Show this help.
 
 Example:
-  npx @wpmoo/odoo-dev create \\
+  npx @wpmoo/odoo create \\
     --product odoo_sample_module \\
     --odoo-version 19.0 \\
     --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \\
     --source-repo-url https://github.com/example-org/odoo_sample_module.git
 
 Compose resource example:
-  npx @wpmoo/odoo-dev create \\
+  npx @wpmoo/odoo create \\
     --engine compose \\
     --product odoo_sample_module \\
     --source-repo-url https://github.com/example-org/odoo_sample_module.git \\

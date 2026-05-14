@@ -2,7 +2,7 @@ import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { applyExternalAsset, renderExternalAssetCommand, writeTextFile } from './external-assets.js';
-import { renderEnvironmentMetadata } from './environment.js';
+import { markerPath, renderEnvironmentMetadata } from './environment.js';
 import { plannedExternalAssetOptions, renderComposeEnvExample } from './external-templates.js';
 import {
   cloneRepository,
@@ -49,7 +49,7 @@ function validateScaffoldOptions(options: ScaffoldOptions): ScaffoldOptions {
 export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
   const safeOptions = validateScaffoldOptions(options);
   const files: GeneratedFile[] = [
-    { path: '.wpmoo/odoo-dev.json', content: renderEnvironmentMetadata(safeOptions) },
+    { path: markerPath, content: renderEnvironmentMetadata(safeOptions) },
     { path: 'moo', content: renderMooDelegationScript(), mode: 0o755 },
     { path: '.gitignore', content: renderGitignore() },
     { path: 'README.md', content: renderReadme(safeOptions) },

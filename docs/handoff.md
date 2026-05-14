@@ -11,7 +11,7 @@
 
 - Docker Compose is now the environment engine.
 - The previous alternate engine option has been removed from the CLI surface.
-- `odoo-dev-cli` no longer reads compose/skill resources from its own `templates/` directory.
+- `wpmoo-odoo` no longer reads compose/skill resources from its own `templates/` directory.
 - External resources are copied from standalone repositories by default:
   - `gh:wpmoo-org/odoo-docker-compose`
   - `gh:wpmoo-org/odoo-skills`
@@ -33,7 +33,7 @@
 - `https://github.com/wpmoo-org/odoo-docker-compose`
   - Public
   - Standalone Docker Compose files for Odoo 17, 18, and 19
-  - Topics: `docker-compose`, `odoo`, `odoo-development`, `wpmoo`
+  - Topics: `docker-compose`, `odoo`, `odoo-lifecycle`, `wpmoo`
 
 ## Test environment created
 
@@ -46,7 +46,7 @@ A test environment was generated at:
 The command used was:
 
 ```bash
-node /Users/cng/wpmoo-org/odoo-dev-cli/dist/cli.js create \
+npx @wpmoo/odoo create \
   --product moo_test \
   --dev-repo-url https://github.com/wpmoo-org/moo_test_dev.git \
   --source-repo-url https://github.com/wpmoo-org/moo_test.git \
@@ -109,7 +109,7 @@ npm publish --access public
    npm login
    ```
 
-2. Publish `@wpmoo/odoo-dev@0.8.26`:
+2. Publish `@wpmoo/odoo@0.8.26`:
 
    ```bash
    npm publish --access public

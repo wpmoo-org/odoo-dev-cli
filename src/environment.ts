@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { EnvironmentEngine, ScaffoldOptions, SourceRepo } from './types.js';
 import { packageName, packageVersion } from './version.js';
 
-export const markerPath = '.wpmoo/odoo-dev.json';
+export const markerPath = '.wpmoo/odoo.json';
 export const defaultOdooVersion = '19.0';
 
 export type EnvironmentMetadata = {

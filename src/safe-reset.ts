@@ -21,7 +21,7 @@ export function renderSafeResetPreview(target: string, stage: boolean): string {
     target,
     '',
     'Will update:',
-    '- .wpmoo/odoo-dev.json',
+    '- .wpmoo/odoo.json',
     '- moo',
     '- .gitignore',
     '- README.md',

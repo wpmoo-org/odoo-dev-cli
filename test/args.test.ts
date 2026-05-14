@@ -176,8 +176,7 @@ describe('args', () => {
   it('renders help for url-first usage', () => {
     expect(renderHelp()).toContain('--source-repo-url');
     expect(renderHelp()).toContain('--dev-repo-url');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo-dev');
-    expect(renderHelp()).not.toContain('  odoo-dev ');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo');
   });
 
   it('routes explicit subcommands and create args', () => {

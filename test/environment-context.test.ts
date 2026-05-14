@@ -11,9 +11,9 @@ describe('environment context', () => {
     const target = join(tmpdir(), `wpmoo-env-context-${Date.now()}`);
     await mkdir(join(target, '.wpmoo'), { recursive: true });
     await writeFile(
-      join(target, '.wpmoo/odoo-dev.json'),
+      join(target, '.wpmoo/odoo.json'),
       JSON.stringify({
-        tool: '@wpmoo/odoo-dev',
+        tool: '@wpmoo/odoo',
         version: '0.8.18',
         product: 'odoo_sample_module',
         odooVersion: '19.0',
