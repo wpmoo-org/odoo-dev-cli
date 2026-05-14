@@ -1,0 +1,30 @@
+{
+  "name": "@wpmoo/odoo-dev",
+  "version": "0.8.33",
+  "description": "Deprecated compatibility shim for @wpmoo/odoo.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wpmoo-org/wpmoo-odoo.git",
+    "directory": "compat/odoo-dev"
+  },
+  "homepage": "https://github.com/wpmoo-org/wpmoo-odoo",
+  "bugs": {
+    "url": "https://github.com/wpmoo-org/wpmoo-odoo/issues"
+  },
+  "readmeFilename": "README.md",
+  "bin": {
+    "odoo-dev": "dist/cli.js",
+    "wpmoo": "dist/cli.js",
+    "wpmoo-odoo-dev": "dist/cli.js",
+    "create-odoo-dev": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
