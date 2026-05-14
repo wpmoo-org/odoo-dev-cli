@@ -1,6 +1,6 @@
 {
   "name": "@wpmoo/odoo",
-  "version": "0.8.47",
+  "version": "0.8.48",
   "description": "WPMoo Odoo lifecycle tooling for development, staging, and production workflows.",
   "type": "module",
   "repository": {
@@ -34,7 +34,7 @@
     "docs/assets"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20.17"
   },
   "scripts": {
     "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",
+    "@inquirer/search": "^4.1.9",
     "execa": "^9.6.0"
   },
   "devDependencies": {
