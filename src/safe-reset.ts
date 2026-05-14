@@ -2,6 +2,8 @@ import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import { readEnvironmentMetadata } from './environment.js';
+import { applyExternalAsset, writeTextFile, type ExternalAssetOptions } from './external-assets.js';
+import { plannedExternalAssetOptions, renderComposeEnvExample } from './external-templates.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
 import { isValidPathSegment, validateAddonName, validateRepoPath } from './path-validation.js';
 import { listModuleRepos, readAddonsYaml } from './repo-actions.js';
@@ -24,10 +26,12 @@ export function renderSafeResetPreview(target: string, stage: boolean): string {
     '- .wpmoo/odoo.json',
     '- moo',
     '- .gitignore',
+    '- .env.example',
     '- README.md',
     '- AGENTS.md',
     '- docs/appstore-release.md',
-    '- Compose generated files',
+    '- External compose template assets',
+    '- External agent skill assets when configured',
     '',
     'Will not touch:',
     '- source repo folders under odoo/custom/src/private',
@@ -40,6 +44,18 @@ export function renderSafeResetPreview(target: string, stage: boolean): string {
 
 function titleFromTarget(target: string): string {
   return basename(target).replace(/_dev$/, '') || 'odoo_sample_module';
+}
+
+function safeResetExternalAssetOptions(options: ScaffoldOptions): ExternalAssetOptions[] {
+  return plannedExternalAssetOptions(options).map((assetOptions) => ({
+    ...assetOptions,
+    exclude: [
+      ...(assetOptions.exclude ?? []),
+      '.env',
+      '.gitmodules',
+      'odoo/custom/src/private',
+    ],
+  }));
 }
 
 function parseAddonsForRepo(addonsYaml: string, repoPath: string): string[] {
@@ -132,6 +148,7 @@ export async function safeResetEnvironment(
 ): Promise<void> {
   const scaffoldOptions = await inferOptions(options.target);
   const files = generatedFiles(scaffoldOptions);
+  const externalAssets = safeResetExternalAssetOptions(scaffoldOptions);
 
   for (const file of files) {
     if (file.path === 'odoo/custom/src/addons.yaml') {
@@ -145,6 +162,11 @@ export async function safeResetEnvironment(
       await chmod(destination, file.mode);
     }
   }
+
+  for (const assetOptions of externalAssets) {
+    await applyExternalAsset(assetOptions, git);
+  }
+  await writeTextFile(join(options.target, '.env.example'), renderComposeEnvExample(scaffoldOptions));
 
   if (options.stage) {
     await stageAll(git, options.target);
