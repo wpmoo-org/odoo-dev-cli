@@ -57,6 +57,13 @@ describe('github helpers', () => {
     expect(parseGitHubRepoUrl('/tmp/odoo_sample_module.git')).toBeUndefined();
   });
 
+  it('parses normalized GitHub URLs with trailing slash and query/hash suffixes', () => {
+    expect(parseGitHubRepoUrl(' https://github.com/example-org/odoo_sample_module/?tab=readme#top ')).toEqual({
+      owner: 'example-org',
+      name: 'odoo_sample_module',
+    });
+  });
+
   it('checks repository accessibility with gh repo view', async () => {
     const runner = fakeRunner();
 
@@ -109,6 +116,22 @@ describe('github helpers', () => {
     await expect(isGitHubAuthenticated(runner)).resolves.toBe(false);
   });
 
+  it('reports available when gh version lookup succeeds', async () => {
+    const runner = outputRunner({
+      '--version': 'gh version 2.74.0',
+    });
+
+    await expect(isGitHubCliAvailable(runner)).resolves.toBe(true);
+  });
+
+  it('treats successful login reads as authenticated', async () => {
+    const runner = outputRunner({
+      'api user --jq .login': 'wpmoo\n',
+    });
+
+    await expect(isGitHubAuthenticated(runner)).resolves.toBe(true);
+  });
+
   it('treats missing gh binary as unavailable', async () => {
     const runner: GitHubRunner = {
       async run() {
@@ -135,6 +158,14 @@ describe('github helpers', () => {
     });
 
     await expect(getAuthenticatedGitHubLogin(runner)).rejects.toThrow('GitHub CLI is not authenticated');
+  });
+
+  it('trims and filters blank organization lines', async () => {
+    const runner = outputRunner({
+      'api user/orgs --jq .[].login': '\nwpmoo-org\n \nexample-org\t\n',
+    });
+
+    await expect(listGitHubOrganizations(runner)).resolves.toEqual(['wpmoo-org', 'example-org']);
   });
 
   it('returns unsupported status for non-github repository urls', async () => {

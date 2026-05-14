@@ -1,0 +1,50 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  agentSkillsTemplateOptions,
+  composeTemplateOptions,
+  defaultPostgresVersion,
+  plannedExternalAssetOptions,
+} from '../src/external-templates.js';
+import type { ScaffoldOptions } from '../src/types.js';
+
+const baseOptions: ScaffoldOptions = {
+  product: 'odoo_sample_module',
+  odooVersion: '19.0',
+  devRepo: 'odoo_sample_module_dev',
+  devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+  sourceRepos: [
+    {
+      url: 'https://github.com/example-org/odoo_sample_module.git',
+      path: 'odoo_sample_module',
+      addons: ['odoo_sample_module'],
+    },
+  ],
+  target: '/tmp/odoo_sample_module_dev',
+  dryRun: false,
+  initEmptyRepos: false,
+  stage: true,
+};
+
+describe('external template helpers', () => {
+  it('maps supported Odoo majors to postgres defaults and falls back for others', () => {
+    expect(defaultPostgresVersion('17.0')).toBe('15');
+    expect(defaultPostgresVersion('16.0')).toBe('14');
+    expect(defaultPostgresVersion('15.0')).toBe('17');
+    expect(defaultPostgresVersion('master')).toBe('17');
+  });
+
+  it('omits agent skills options when no template URL is configured', () => {
+    expect(agentSkillsTemplateOptions(baseOptions)).toBeUndefined();
+  });
+
+  it('plans compose only by default and includes agent skills when configured', () => {
+    expect(plannedExternalAssetOptions(baseOptions)).toEqual([composeTemplateOptions(baseOptions)]);
+
+    const withAgentSkills = {
+      ...baseOptions,
+      agentSkillsTemplateUrl: 'gh:wpmoo-org/odoo-skills',
+    };
+    expect(plannedExternalAssetOptions(withAgentSkills)).toHaveLength(2);
+  });
+});

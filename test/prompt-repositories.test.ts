@@ -96,4 +96,17 @@ describe('repository URL prompts', () => {
       },
     ]);
   });
+
+  it('throws a required label error when manual input is blank', async () => {
+    const api = promptApi(false, ' \n\t ');
+
+    await expect(
+      promptRepositoryUrl({
+        label: 'Dev environment repo URL',
+        suggestedUrl: 'https://github.com/cangir/odoo_sample_module_dev.git',
+        placeholder: 'https://github.com/owner/odoo_sample_module_dev.git',
+        prompt: api,
+      }),
+    ).rejects.toThrow('Dev environment repo URL is required');
+  });
 });

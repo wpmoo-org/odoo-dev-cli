@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -98,6 +98,118 @@ describe('module actions', () => {
       args: ['add', '.'],
     });
     expect(git.calls).toContainEqual({ cwd: target, args: ['add', '.'] });
+  });
+
+  it('skips non-module directories and returns [] when source repo path does not exist', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-list-fallback-'));
+    const repoRoot = join(target, 'odoo/custom/src/private/odoo_sample_module');
+    await mkdir(join(repoRoot, 'odoo_sample_module_valid'), { recursive: true });
+    await mkdir(join(repoRoot, 'docs'), { recursive: true });
+    await mkdir(join(repoRoot, 'scripts'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_missing_manifest'), { recursive: true });
+    await writeFile(join(repoRoot, 'odoo_sample_module_valid/__manifest__.py'), '{}\n', 'utf8');
+
+    await expect(listModulesInSourceRepo(target, 'odoo_sample_module')).resolves.toEqual(['odoo_sample_module_valid']);
+    await expect(listModulesInSourceRepo(target, 'odoo_sample_module_reports')).resolves.toEqual([]);
+  });
+
+  it('removes module files and stages both source repo + target when deleteFiles=true and stage=true', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-delete-stage-'));
+    const git = recordingGit();
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base/models'), {
+      recursive: true,
+    });
+    await writeFile(
+      join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/addons.yaml'),
+      'private/odoo_sample_module:\n  - odoo_sample_module_base\n',
+      'utf8',
+    );
+
+    await removeModuleFromSourceRepo(
+      {
+        target,
+        repoPath: 'odoo_sample_module',
+        moduleName: 'odoo_sample_module_base',
+        deleteFiles: true,
+        stage: true,
+      },
+      git,
+    );
+
+    await expect(
+      stat(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base')),
+    ).rejects.toThrow();
+    expect(git.calls).toContainEqual({
+      cwd: join(target, 'odoo/custom/src/private/odoo_sample_module'),
+      args: ['add', '.'],
+    });
+    expect(git.calls).toContainEqual({ cwd: target, args: ['add', '.'] });
+  });
+
+  it('stages only target repo when deleteFiles=false and stage=true', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-no-delete-stage-'));
+    const git = recordingGit();
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base'), {
+      recursive: true,
+    });
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/addons.yaml'),
+      'private/odoo_sample_module:\n  - odoo_sample_module_base\n',
+      'utf8',
+    );
+
+    await removeModuleFromSourceRepo(
+      {
+        target,
+        repoPath: 'odoo_sample_module',
+        moduleName: 'odoo_sample_module_base',
+        deleteFiles: false,
+        stage: true,
+      },
+      git,
+    );
+
+    expect(git.calls).not.toContainEqual({
+      cwd: join(target, 'odoo/custom/src/private/odoo_sample_module'),
+      args: ['add', '.'],
+    });
+    expect(git.calls).toContainEqual({ cwd: target, args: ['add', '.'] });
+  });
+
+  it('skips addons.yaml updates in compose environments for add/remove module operations', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-compose-addons-skip-'));
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify({ tool: '@wpmoo/odoo', version: '0.8.0', engine: 'compose' }, null, 2),
+      'utf8',
+    );
+
+    await addModuleToSourceRepo({
+      target,
+      repoPath: 'odoo_sample_module',
+      moduleName: 'odoo_sample_module_base',
+      odooVersion: '19.0',
+      stage: false,
+    });
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
+
+    await removeModuleFromSourceRepo({
+      target,
+      repoPath: 'odoo_sample_module',
+      moduleName: 'odoo_sample_module_base',
+      deleteFiles: false,
+      stage: false,
+    });
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
   });
 
   it('rejects traversal repo paths before writing module files', async () => {

@@ -402,4 +402,101 @@ describe('safe reset', () => {
       addons: ['odoo_sample_module'],
     });
   });
+
+  it('falls back to default product/addon names when metadata and addons entries are invalid', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-fallback-root-'));
+    const target = join(root, '_dev');
+    const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-fallback-fixtures-')));
+
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/addons.yaml'),
+      'private/odoo_sample_module:\n  - ../invalid-addon\n',
+      'utf8',
+    );
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/odoo',
+          version: '0.8.0',
+          odooVersion: '19.0',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          sourceRepos: [{ path: '../invalid-path' }],
+          engine: 'compose',
+          composeTemplateUrl: fixtures.compose,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    await safeResetEnvironment({ target, stage: false });
+
+    await expect(readFile(join(target, 'README.md'), 'utf8')).resolves.toContain('Odoo Sample Module Development Environment');
+    const regenerated = JSON.parse(await readFile(join(target, '.wpmoo/odoo.json'), 'utf8')) as {
+      product: string;
+      sourceRepos: Array<{ path: string; addons: string[] }>;
+    };
+    expect(regenerated.product).toBe('odoo_sample_module');
+    expect(regenerated.sourceRepos).toContainEqual({
+      path: 'odoo_sample_module',
+      url: 'odoo/custom/src/private/odoo_sample_module',
+      addons: ['odoo_sample_module'],
+    });
+  });
+
+  it('preserves addons.yaml and stages generated files when stage=true', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-stage-'));
+    const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-stage-fixtures-')));
+    const gitCalls: string[][] = [];
+    const git: GitRunner = {
+      async run(_cwd, args) {
+        gitCalls.push(args);
+        return { stdout: '', stderr: '' };
+      },
+    };
+
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/addons.yaml'),
+      'private/odoo_sample_module:\n  - odoo_sample_module_custom\n',
+      'utf8',
+    );
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/odoo',
+          version: '0.8.0',
+          product: 'odoo_sample_module',
+          odooVersion: '19.0',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          sourceRepos: [
+            {
+              path: 'odoo_sample_module',
+              addons: ['odoo_sample_module_custom'],
+            },
+          ],
+          engine: 'compose',
+          composeTemplateUrl: fixtures.compose,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    await safeResetEnvironment({ target, stage: true }, git);
+
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toBe(
+      'private/odoo_sample_module:\n  - odoo_sample_module_custom\n',
+    );
+    expect(gitCalls).toContainEqual(['add', '.']);
+  });
 });

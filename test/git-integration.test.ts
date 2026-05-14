@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
+import { ensureRemoteHasBranch, ensureSubmodule, getOriginUrl, removeSubmodule, type GitRunner } from '../src/git.js';
 import { addModuleRepo, listModuleRepos, removeModuleRepo } from '../src/repo-actions.js';
 import { scaffold } from '../src/scaffold.js';
 
@@ -26,6 +27,102 @@ async function writeLocalComposeFixture(root: string): Promise<string> {
 }
 
 describe('git integration', () => {
+  it('throws when adding from an empty remote and initEmptyRepos=false', async () => {
+    const git: GitRunner = {
+      async run(_cwd, args) {
+        if (args[0] === 'ls-remote' && args[1] === '--heads' && args.length === 3) {
+          return { stdout: '', stderr: '' };
+        }
+
+        throw new Error(`Unexpected git command: ${args.join(' ')}`);
+      },
+    };
+
+    await expect(
+      ensureRemoteHasBranch(git, '/tmp', 'https://github.com/example-org/empty.git', '19.0', false),
+    ).rejects.toThrow('Repository has no commits: https://github.com/example-org/empty.git');
+  });
+
+  it('throws when remote exists but requested branch is missing', async () => {
+    const git: GitRunner = {
+      async run(_cwd, args) {
+        if (args[0] === 'ls-remote' && args[1] === '--heads' && args.length === 3) {
+          return { stdout: 'abcd1234\trefs/heads/main\n', stderr: '' };
+        }
+        if (args[0] === 'ls-remote' && args[1] === '--heads' && args.length === 4) {
+          return { stdout: '', stderr: '' };
+        }
+
+        throw new Error(`Unexpected git command: ${args.join(' ')}`);
+      },
+    };
+
+    await expect(
+      ensureRemoteHasBranch(git, '/tmp', 'https://github.com/example-org/source.git', '19.0', false),
+    ).rejects.toThrow('Repository https://github.com/example-org/source.git does not have branch 19.0');
+  });
+
+  it('falls back to submodule add when tracked-path lookup fails', async () => {
+    const calls: string[][] = [];
+    const git: GitRunner = {
+      async run(_cwd, args) {
+        calls.push(args);
+        if (args[0] === 'ls-files') {
+          throw new Error('path not tracked');
+        }
+        return { stdout: '', stderr: '' };
+      },
+    };
+
+    await ensureSubmodule(
+      git,
+      '/tmp/dev',
+      'https://github.com/example-org/odoo_sample_module.git',
+      '19.0',
+      'odoo/custom/src/private/odoo_sample_module',
+    );
+
+    expect(calls).toContainEqual(['ls-files', '--error-unmatch', 'odoo/custom/src/private/odoo_sample_module']);
+    expect(calls).toContainEqual([
+      '-c',
+      'protocol.file.allow=always',
+      'submodule',
+      'add',
+      '-b',
+      '19.0',
+      'https://github.com/example-org/odoo_sample_module.git',
+      'odoo/custom/src/private/odoo_sample_module',
+    ]);
+  });
+
+  it('continues submodule removal when deinit fails', async () => {
+    const calls: string[][] = [];
+    const git: GitRunner = {
+      async run(_cwd, args) {
+        calls.push(args);
+        if (args[0] === 'submodule' && args[1] === 'deinit') {
+          throw new Error('not initialized');
+        }
+        return { stdout: '', stderr: '' };
+      },
+    };
+
+    await removeSubmodule(git, '/tmp/dev', 'odoo/custom/src/private/odoo_sample_module');
+
+    expect(calls).toContainEqual(['submodule', 'deinit', '-f', 'odoo/custom/src/private/odoo_sample_module']);
+    expect(calls).toContainEqual(['rm', '-f', 'odoo/custom/src/private/odoo_sample_module']);
+  });
+
+  it('returns undefined when origin URL cannot be resolved', async () => {
+    const git: GitRunner = {
+      async run() {
+        throw new Error('no origin');
+      },
+    };
+
+    await expect(getOriginUrl(git, '/tmp/dev')).resolves.toBeUndefined();
+  });
+
   it('initializes empty local remotes, adds submodules, and stages generated files', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wpmoo-git-'));
     const communityRemote = join(root, 'odoo_sample_module.git');

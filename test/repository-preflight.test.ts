@@ -4,6 +4,7 @@ import {
   checkGitHubRepositories,
   createGitHubRepositories,
   findInaccessibleGitHubRepositories,
+  manualCreateCommands,
   repositoryPreflightAvailable,
   repositoryRequirements,
 } from '../src/repository-preflight.js';
@@ -148,5 +149,66 @@ describe('repository preflight', () => {
     };
 
     await expect(repositoryPreflightAvailable(runner)).resolves.toBe(false);
+  });
+
+  it('reports available when gh is present and authenticated', async () => {
+    const runner: GitHubRunner = {
+      async run(args) {
+        if (args[0] === '--version') {
+          return { stdout: 'gh version 2.0.0', stderr: '' };
+        }
+        if (args[0] === 'api' && args[1] === 'user') {
+          return { stdout: 'wpmoo-org\n', stderr: '' };
+        }
+        throw new Error(`Unexpected command: ${args.join(' ')}`);
+      },
+    };
+
+    await expect(repositoryPreflightAvailable(runner)).resolves.toBe(true);
+  });
+
+  it('ignores unsupported repository urls in preflight grouping', async () => {
+    const runner: GitHubRunner = {
+      async run() {
+        return { stdout: 'ok', stderr: '' };
+      },
+    };
+    const mixedOptions = {
+      ...options,
+      sourceRepos: [
+        ...options.sourceRepos,
+        {
+          url: 'https://gitlab.com/example-org/odoo_sample_module_private.git',
+          path: 'odoo_sample_module_private',
+          addons: ['odoo_sample_module_private'],
+        },
+      ],
+    };
+
+    const result = await checkGitHubRepositories(mixedOptions, runner);
+    expect(result.accessible).toHaveLength(2);
+    expect(result.inaccessible).toEqual([]);
+  });
+
+  it('builds manual gh create commands for github and non-github urls', () => {
+    expect(
+      manualCreateCommands([
+        {
+          label: 'Dev environment repo',
+          url: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module_dev',
+        },
+        {
+          label: 'Source repo: custom',
+          url: 'https://gitlab.com/example-org/odoo_sample_module_private.git',
+          defaultVisibility: 'public',
+          slug: 'example-org/odoo_sample_module_private',
+        },
+      ]),
+    ).toEqual([
+      'gh repo create example-org/odoo_sample_module_dev --private',
+      'gh repo create https://gitlab.com/example-org/odoo_sample_module_private.git --public',
+    ]);
   });
 });
