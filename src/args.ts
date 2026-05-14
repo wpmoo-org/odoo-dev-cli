@@ -21,6 +21,7 @@ export type CliCommand =
   | 'add-module'
   | 'remove-module'
   | 'reset'
+  | 'doctor'
   | DailyActionCommand;
 
 export type CommandRoute = {
@@ -35,6 +36,7 @@ const commandNames = new Set<CliCommand>([
   'add-module',
   'remove-module',
   'reset',
+  'doctor',
   ...dailyActionCommands,
 ]);
 const internalFlags = new Set(['--no-update-check']);

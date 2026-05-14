@@ -177,6 +177,7 @@ describe('args', () => {
     expect(renderHelp()).toContain('--source-repo-url');
     expect(renderHelp()).toContain('--dev-repo-url');
     expect(renderHelp()).toContain('npx @wpmoo/odoo');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo doctor');
     expect(renderHelp()).toContain('npx @wpmoo/odoo start');
     expect(renderHelp()).toContain('npx @wpmoo/odoo stop');
     expect(renderHelp()).toContain('npx @wpmoo/odoo logs [service]');
@@ -214,6 +215,10 @@ describe('args', () => {
     expect(commandFromArgs(['reset', '--target', '/tmp/dev'])).toEqual({
       command: 'reset',
       argv: ['--target', '/tmp/dev'],
+    });
+    expect(commandFromArgs(['doctor'])).toEqual({
+      command: 'doctor',
+      argv: [],
     });
     expect(commandFromArgs(['logs', 'db'])).toEqual({
       command: 'logs',

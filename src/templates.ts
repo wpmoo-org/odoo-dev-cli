@@ -146,6 +146,7 @@ cp .env.example .env
 ./moo logs
 ./moo shell
 ./moo stop
+./moo doctor
 ./moo resetdb devel sale
 ./moo snapshot devel before-update
 ./moo restore-snapshot before-update devel
@@ -520,6 +521,7 @@ root:
 ./moo start
 ./moo stop
 ./moo restart
+./moo doctor
 ./moo add-module
 \`\`\`
 

@@ -15,6 +15,7 @@ import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
 import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
 import { isDailyActionCommand, runDailyAction } from './daily-actions.js';
+import { runDoctor } from './doctor.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import {
@@ -855,6 +856,15 @@ async function main(): Promise<void> {
     const options = resetOptionsFromArgs(route.argv);
     await safeResetEnvironment(options);
     outro(`Safe reset refreshed generated environment files in ${options.target}.`);
+    return;
+  }
+
+  if (route.command === 'doctor') {
+    if (route.argv.length > 0) {
+      throw new Error('Usage: wpmoo doctor');
+    }
+    console.log(renderBanner());
+    console.log(await runDoctor(process.cwd()));
     return;
   }
 

@@ -33,7 +33,7 @@ export type DailyActionRunner = (plan: DailyActionPlan) => Promise<void>;
 
 const dailyActionCommandSet = new Set<string>(dailyActionCommands);
 
-const scripts: Record<DailyActionCommand, string> = {
+export const dailyActionScripts: Record<DailyActionCommand, string> = {
   start: 'up.sh',
   stop: 'down.sh',
   logs: 'logs.sh',
@@ -154,7 +154,7 @@ export async function dailyActionPlan(
   cwd = process.cwd(),
 ): Promise<DailyActionPlan> {
   await assertEnvironmentRoot(cwd);
-  const scriptPath = await assertScriptExists(cwd, scripts[command]);
+  const scriptPath = await assertScriptExists(cwd, dailyActionScripts[command]);
 
   return {
     cwd,

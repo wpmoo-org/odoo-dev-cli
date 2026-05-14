@@ -68,6 +68,7 @@ describe('template rendering', () => {
     expect(readme).toContain('./moo start');
     expect(readme).toContain('./moo stop');
     expect(readme).toContain('./moo restart');
+    expect(readme).toContain('./moo doctor');
     expect(readme).toContain('./moo add-module');
     expect(readme).toContain('./moo resetdb devel sale');
     expect(readme).toContain('./moo snapshot devel before-update');
@@ -141,6 +142,7 @@ describe('template rendering', () => {
     await execa(join(target, 'moo'), ['restart'], { env });
     await execa(join(target, 'moo'), ['restore-snapshot', 'before-update', 'devel'], { env });
     await execa(join(target, 'moo'), ['pot', 'sale,stock', 'devel', 'i18n/sale.pot'], { env });
+    await execa(join(target, 'moo'), ['doctor'], { env });
     await execa(join(target, 'moo'), ['add-module'], { env });
 
     await expect(readFile(join(target, 'calls.log'), 'utf8')).resolves.toBe(
@@ -149,6 +151,7 @@ describe('template rendering', () => {
         'restart:',
         'restore-snapshot:before-update devel',
         'pot:sale,stock devel i18n/sale.pot',
+        'npx:--yes @wpmoo/odoo@latest doctor',
         'npx:--yes @wpmoo/odoo@latest add-module',
         '',
       ].join('\n'),

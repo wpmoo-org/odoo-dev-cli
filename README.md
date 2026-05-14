@@ -171,6 +171,12 @@ npx @wpmoo/odoo remove-module \
   --module odoo_sample_module_base
 ```
 
+Check that a generated environment is structurally ready:
+
+```bash
+npx @wpmoo/odoo doctor
+```
+
 Refresh generated environment files without deleting module source code:
 
 ```bash
@@ -196,13 +202,18 @@ npx @wpmoo/odoo lint
 npx @wpmoo/odoo pot sale devel i18n/sale.pot
 ```
 
+The doctor command must be run from a generated environment root containing
+`.wpmoo/odoo.json`. It checks metadata, selected compose files, daily scripts,
+source repo paths, `.env` ports, and Docker CLI access.
+
 Daily actions require `.wpmoo/odoo.json` in the current directory and delegate to
 fixed scripts under `./scripts`; they do not search parent directories or accept
 arbitrary script names.
 
 Generated environments also include a local `./moo` shortcut for Doodba-style
 daily commands such as `./moo start`, `./moo restart`, and `./moo stop`. The
-shortcut supports the same daily action arguments as `npx @wpmoo/odoo`.
+shortcut supports the same daily action arguments as `npx @wpmoo/odoo`. It also
+falls back to `npx @wpmoo/odoo@latest doctor` for `./moo doctor`.
 
 ## Defaults
 

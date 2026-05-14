@@ -1,0 +1,155 @@
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import { dailyActionScripts } from '../src/daily-actions.js';
+import { runDoctor, type DoctorCommandRunner } from '../src/doctor.js';
+import { markerPath } from '../src/environment.js';
+
+const baseMetadata = {
+  tool: '@wpmoo/odoo',
+  version: '0.8.35',
+  product: 'odoo_sample_module',
+  odooVersion: '19.0',
+  devRepo: 'odoo_sample_module_dev',
+  devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+  sourceRepos: [
+    {
+      url: 'https://github.com/example-org/odoo_sample_module.git',
+      path: 'odoo_sample_module',
+      addons: ['odoo_sample_module'],
+    },
+  ],
+};
+
+async function makeEnvironment(options: {
+  metadata?: unknown;
+  composeVersions?: string[];
+  env?: string;
+  scripts?: string[];
+  sourcePaths?: string[];
+} = {}): Promise<string> {
+  const target = await mkdtemp(join(tmpdir(), 'wpmoo-doctor-'));
+  await mkdir(join(target, '.wpmoo'), { recursive: true });
+  await writeFile(join(target, markerPath), JSON.stringify(options.metadata ?? baseMetadata, null, 2));
+
+  for (const version of options.composeVersions ?? ['19.0']) {
+    await writeFile(join(target, `docker-compose_${version}.yml`), 'services:\n  odoo:\n    image: odoo\n');
+  }
+
+  if (options.env !== undefined) {
+    await writeFile(join(target, '.env'), options.env);
+  }
+
+  await mkdir(join(target, 'scripts'), { recursive: true });
+  for (const script of options.scripts ?? Object.values(dailyActionScripts)) {
+    await writeFile(join(target, 'scripts', script), '#!/usr/bin/env bash\n');
+  }
+
+  for (const sourcePath of options.sourcePaths ?? ['odoo_sample_module']) {
+    await mkdir(join(target, 'odoo/custom/src/private', sourcePath), { recursive: true });
+  }
+
+  return target;
+}
+
+function passingDockerRunner(calls: string[][] = []): DoctorCommandRunner {
+  return async (command, args) => {
+    calls.push([command, ...args]);
+    return { stdout: 'Docker version 27.0.0\n', stderr: '' };
+  };
+}
+
+describe('doctor', () => {
+  it('passes a generated compose environment with defaulted engine metadata', async () => {
+    const calls: string[][] = [];
+    const target = await makeEnvironment({
+      env: 'ODOO_VERSION=19.0\nHTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+
+    await expect(runDoctor(target, passingDockerRunner(calls))).resolves.toBe(
+      [
+        'WPMoo doctor',
+        'OK metadata .wpmoo/odoo.json',
+        'OK engine compose',
+        'OK Odoo version 19.0',
+        'OK compose docker-compose_19.0.yml',
+        'OK scripts 14 checked',
+        'OK source repos 1 checked',
+        'OK .env ports HTTP_PORT=10019 GEVENT_PORT=20019',
+        'OK docker CLI',
+        'Doctor checks passed.',
+      ].join('\n'),
+    );
+    expect(calls).toEqual([['docker', 'version']]);
+  });
+
+  it('requires the metadata file to exist and parse', async () => {
+    const missingMetadata = await mkdtemp(join(tmpdir(), 'wpmoo-doctor-missing-'));
+    await expect(runDoctor(missingMetadata, passingDockerRunner())).rejects.toThrow(
+      'Missing metadata file: .wpmoo/odoo.json',
+    );
+
+    const invalidMetadata = await mkdtemp(join(tmpdir(), 'wpmoo-doctor-invalid-'));
+    await mkdir(join(invalidMetadata, '.wpmoo'), { recursive: true });
+    await writeFile(join(invalidMetadata, markerPath), '{invalid');
+    await expect(runDoctor(invalidMetadata, passingDockerRunner())).rejects.toThrow(
+      'Invalid metadata JSON in .wpmoo/odoo.json',
+    );
+  });
+
+  it('checks metadata and .env selected compose files', async () => {
+    const target = await makeEnvironment({
+      composeVersions: ['19.0'],
+      env: 'ODOO_VERSION=18.0\nHTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      'Missing compose file: docker-compose_18.0.yml',
+    );
+  });
+
+  it('requires every fixed daily action script including maintenance scripts', async () => {
+    const scripts = Object.values(dailyActionScripts).filter((script) => script !== 'pot.sh');
+    const target = await makeEnvironment({ scripts });
+
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      'Missing daily action script: scripts/pot.sh',
+    );
+  });
+
+  it('requires listed source repo paths to exist', async () => {
+    const target = await makeEnvironment({ sourcePaths: [] });
+
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      'Missing source repo path: odoo/custom/src/private/odoo_sample_module',
+    );
+  });
+
+  it('validates .env HTTP and gevent ports when .env exists', async () => {
+    const invalidNumber = await makeEnvironment({
+      env: 'HTTP_PORT=abc\nGEVENT_PORT=20019\n',
+    });
+    await expect(runDoctor(invalidNumber, passingDockerRunner())).rejects.toThrow(
+      'Invalid HTTP_PORT in .env: expected a non-empty numeric value',
+    );
+
+    const equalPorts = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=10019\n',
+    });
+    await expect(runDoctor(equalPorts, passingDockerRunner())).rejects.toThrow(
+      'HTTP_PORT and GEVENT_PORT in .env must not be equal',
+    );
+  });
+
+  it('fails when Docker cannot be called', async () => {
+    const target = await makeEnvironment();
+    const runner: DoctorCommandRunner = async () => {
+      throw new Error('docker unavailable');
+    };
+
+    await expect(runDoctor(target, runner)).rejects.toThrow('Docker CLI check failed: docker unavailable');
+  });
+});
