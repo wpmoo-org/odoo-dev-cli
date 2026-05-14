@@ -12,6 +12,8 @@
     "url": "https://github.com/wpmoo-org/wpmoo-odoo/issues"
   },
   "readmeFilename": "README.md",
+  "main": "./dist/cli.js",
+  "exports": "./dist/cli.js",
   "keywords": [
     "odoo",
     "odoo development",
