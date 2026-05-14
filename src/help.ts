@@ -63,7 +63,7 @@ Options:
 Daily actions:
   Daily actions must be run from a generated environment root containing .wpmoo/odoo.json.
   They delegate to the fixed scripts copied from the compose resource under ./scripts.
-  Generated environments also include ./moo for Doodba-style local commands such as ./moo start.
+  Generated environments also include ./moo for local compose commands such as ./moo start.
   Use ./moo or npx @wpmoo/odoo with the same daily action arguments.
 
 Doctor:

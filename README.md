@@ -210,7 +210,7 @@ Daily actions require `.wpmoo/odoo.json` in the current directory and delegate t
 fixed scripts under `./scripts`; they do not search parent directories or accept
 arbitrary script names.
 
-Generated environments also include a local `./moo` shortcut for Doodba-style
+Generated environments also include a local `./moo` shortcut for local compose
 daily commands such as `./moo start`, `./moo restart`, and `./moo stop`. The
 shortcut supports the same daily action arguments as `npx @wpmoo/odoo`. It also
 falls back to `npx @wpmoo/odoo@latest doctor` for `./moo doctor`.
