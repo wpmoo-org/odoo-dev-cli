@@ -40,6 +40,7 @@
     "release:check": "bash scripts/release-check.sh",
     "smoke:published": "bash scripts/smoke-published.sh",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -48,6 +49,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"
   },

@@ -4,8 +4,9 @@
 
 
 [![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml)
-[![GitHub Source](https://img.shields.io/badge/source-GitHub-181717?logo=github&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo)
 [![npm](https://img.shields.io/npm/v/@wpmoo/odoo?label=npm&logo=npm&style=flat-square&color=blue)](https://www.npmjs.com/package/@wpmoo/odoo)
+[![Coverage Status](https://img.shields.io/coverallsCoverage/github/wpmoo-org/wpmoo-odoo?branch=main&label=coverage&logo=coveralls&style=flat-square&color=blue)](https://coveralls.io/github/wpmoo-org/wpmoo-odoo?branch=main)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-cangir-FFDD00?logo=buymeacoffee&logoColor=000000&style=flat-square)](https://www.buymeacoffee.com/cangir)
 
