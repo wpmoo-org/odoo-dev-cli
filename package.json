@@ -39,6 +39,7 @@
     "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "tsc -p tsconfig.build.json",
     "release:check": "bash scripts/release-check.sh",
+    "smoke:published": "bash scripts/smoke-published.sh",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
