@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
 import { realpathSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { basename, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
@@ -142,6 +142,28 @@ function booleanOption(values: Record<string, string | boolean>, key: string, fa
   if (['false', '0', 'no', 'n'].includes(normalized)) return false;
 
   throw new Error(`Invalid boolean value for --${key}: ${value}`);
+}
+
+function yellow(value: string): string {
+  if (!process.stdout.isTTY || process.env.NO_COLOR !== undefined) return value;
+  return `\u001b[33m${value}\u001b[39m`;
+}
+
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_./:-]+$/.test(value)) return value;
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function renderPostCreateGuidance(target: string, cwd: string): string {
+  const relativeTarget = relative(cwd, target) || '.';
+  return yellow(
+    [
+      'Environment is ready. Enter the development folder, then run the local WPMoo cockpit:',
+      '',
+      `cd ${shellQuote(relativeTarget)}`,
+      './moo',
+    ].join('\n'),
+  );
 }
 
 function validateRepoName(value: string): string | undefined {
@@ -879,6 +901,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
       const resolvedOptions = await optionsFromPrompts();
       await ensureGitHubRepositories(resolvedOptions, true);
       await scaffold(resolvedOptions);
+      note(renderPostCreateGuidance(resolvedOptions.target, cwd), 'Next steps');
       outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
       return;
     }
@@ -1023,6 +1046,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     return;
   }
 
+  note(renderPostCreateGuidance(resolvedOptions.target, cwd), 'Next steps');
   outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
 }
 

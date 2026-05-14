@@ -373,6 +373,27 @@ describe('cli startup/create flow', () => {
     });
   });
 
+  it('shows next-step guidance after creating an environment from prompts', async () => {
+    mockCreatePrompts({
+      product: 'learn_module',
+      environmentFolder: './learn_module_dev',
+      connectGitHub: false,
+      installAgentSkills: false,
+    });
+    const { runCli } = await loadCli();
+
+    await runCli([], process.cwd());
+
+    expect(mocks.note).toHaveBeenCalledWith(
+      expect.stringContaining('cd learn_module_dev'),
+      'Next steps',
+    );
+    expect(mocks.note).toHaveBeenCalledWith(
+      expect.stringContaining('./moo'),
+      'Next steps',
+    );
+  });
+
   it('creates missing repositories for non-interactive direct args when --create-missing-repos is set', async () => {
     const missing = [
       {
