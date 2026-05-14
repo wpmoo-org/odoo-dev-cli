@@ -2,7 +2,7 @@
 
 ![WPMoo Odoo lifecycle tooling across development, staging, and production](docs/assets/wpmoo-banner.png)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-cangir-FFDD00?logo=buymeacoffee&logoColor=000000)](https://www.buymeacoffee.com/cangir)
 
 WPMoo Odoo lifecycle tooling for development, staging, and production workflows.
 
@@ -227,3 +227,12 @@ tool-owned development guideline files.
   `--create-missing-repos` is provided, or through the interactive wizard.
 - Legacy `--org`, `--community-repo`, and `--pro-repo` flags are still accepted
   when no `--source-repo-url` flags are provided.
+
+
+## Support
+
+If this project helps you, you can support the work here:
+
+<a href="https://www.buymeacoffee.com/cangir">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="250">
+</a>
