@@ -35,13 +35,15 @@ jobs:
       - name: Test with coverage
         run: npm run test:coverage
 
-      - name: Upload coverage to Coveralls
-        uses: coverallsapp/github-action@v2
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          file: coverage/lcov.info
-        env:
-          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: wpmoo-org/wpmoo-odoo
+          files: ./coverage/lcov.info
+          flags: unit
+          name: wpmoo-odoo
+          fail_ci_if_error: true
 
       - name: Build
         run: npm run build
