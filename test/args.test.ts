@@ -182,6 +182,11 @@ describe('args', () => {
     expect(renderHelp()).toContain('npx @wpmoo/odoo logs [service]');
     expect(renderHelp()).toContain('npx @wpmoo/odoo update <module[,module]> [db]');
     expect(renderHelp()).toContain('npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update]');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo resetdb [db] [module[,module]]');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo snapshot [db] [snapshot-name]');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo restore-snapshot <snapshot-name> [db]');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo lint');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo pot <module[,module]> [db] [output]');
   });
 
   it('routes explicit subcommands and create args', () => {
@@ -245,6 +250,26 @@ describe('args', () => {
     expect(commandFromArgs(['test', 'sale', '--db', 'devel', '--mode', 'update'])).toEqual({
       command: 'test',
       argv: ['sale', '--db', 'devel', '--mode', 'update'],
+    });
+    expect(commandFromArgs(['resetdb', 'devel', 'sale,stock'])).toEqual({
+      command: 'resetdb',
+      argv: ['devel', 'sale,stock'],
+    });
+    expect(commandFromArgs(['snapshot', 'devel', 'before-update'])).toEqual({
+      command: 'snapshot',
+      argv: ['devel', 'before-update'],
+    });
+    expect(commandFromArgs(['restore-snapshot', 'before-update', 'devel'])).toEqual({
+      command: 'restore-snapshot',
+      argv: ['before-update', 'devel'],
+    });
+    expect(commandFromArgs(['lint'])).toEqual({
+      command: 'lint',
+      argv: [],
+    });
+    expect(commandFromArgs(['pot', 'sale,stock', 'devel', 'i18n/sale.pot'])).toEqual({
+      command: 'pot',
+      argv: ['sale,stock', 'devel', 'i18n/sale.pot'],
     });
     expect(commandFromArgs(['--product', 'odoo_sample_module'])).toEqual({
       command: 'create',

@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   renderBanner,
   renderAddonsYaml,
+  renderAgents,
   renderGitignore,
   renderMooDelegationScript,
   renderReadme,
@@ -68,6 +69,11 @@ describe('template rendering', () => {
     expect(readme).toContain('./moo stop');
     expect(readme).toContain('./moo restart');
     expect(readme).toContain('./moo add-module');
+    expect(readme).toContain('./moo resetdb devel sale');
+    expect(readme).toContain('./moo snapshot devel before-update');
+    expect(readme).toContain('./moo restore-snapshot before-update devel');
+    expect(readme).toContain('./moo lint');
+    expect(readme).toContain('./moo pot sale devel i18n/sale.pot');
   });
 
   it('renders an executable bash dispatcher for the local moo shortcut', () => {
@@ -80,6 +86,16 @@ describe('template rendering', () => {
     expect(script).toContain('./scripts/up.sh');
     expect(script).toContain('"stop")');
     expect(script).toContain('./scripts/down.sh');
+    expect(script).toContain('"resetdb")');
+    expect(script).toContain('./scripts/resetdb.sh');
+    expect(script).toContain('"snapshot")');
+    expect(script).toContain('./scripts/snapshot.sh');
+    expect(script).toContain('"restore-snapshot")');
+    expect(script).toContain('./scripts/restore-snapshot.sh');
+    expect(script).toContain('"lint")');
+    expect(script).toContain('./scripts/lint.sh');
+    expect(script).toContain('"pot")');
+    expect(script).toContain('./scripts/pot.sh');
     expect(script).toContain('exec npx --yes @wpmoo/odoo@latest "$@"');
   });
 
@@ -100,21 +116,42 @@ describe('template rendering', () => {
       'utf8',
     );
     await writeFile(
+      join(target, 'scripts/restore-snapshot.sh'),
+      '#!/usr/bin/env bash\nprintf "restore-snapshot:%s\\n" "$*" >> "$PWD/calls.log"\n',
+      'utf8',
+    );
+    await writeFile(
+      join(target, 'scripts/pot.sh'),
+      '#!/usr/bin/env bash\nprintf "pot:%s\\n" "$*" >> "$PWD/calls.log"\n',
+      'utf8',
+    );
+    await writeFile(
       join(target, 'bin/npx'),
       '#!/usr/bin/env bash\nprintf "npx:%s\\n" "$*" >> "$PWD/calls.log"\n',
       'utf8',
     );
     await chmod(join(target, 'scripts/up.sh'), 0o755);
     await chmod(join(target, 'scripts/restart.sh'), 0o755);
+    await chmod(join(target, 'scripts/restore-snapshot.sh'), 0o755);
+    await chmod(join(target, 'scripts/pot.sh'), 0o755);
     await chmod(join(target, 'bin/npx'), 0o755);
 
     const env = { ...process.env, PATH: `${join(target, 'bin')}:${process.env.PATH ?? ''}` };
     await execa(join(target, 'moo'), ['start'], { env });
     await execa(join(target, 'moo'), ['restart'], { env });
+    await execa(join(target, 'moo'), ['restore-snapshot', 'before-update', 'devel'], { env });
+    await execa(join(target, 'moo'), ['pot', 'sale,stock', 'devel', 'i18n/sale.pot'], { env });
     await execa(join(target, 'moo'), ['add-module'], { env });
 
     await expect(readFile(join(target, 'calls.log'), 'utf8')).resolves.toBe(
-      'up:\nrestart:\nnpx:--yes @wpmoo/odoo@latest add-module\n',
+      [
+        'up:',
+        'restart:',
+        'restore-snapshot:before-update devel',
+        'pot:sale,stock devel i18n/sale.pot',
+        'npx:--yes @wpmoo/odoo@latest add-module',
+        '',
+      ].join('\n'),
     );
   });
 
@@ -127,6 +164,17 @@ describe('template rendering', () => {
     expect(readme).toContain('odoo/custom/src/private/odoo_sample_module');
     expect(readme).not.toContain('Pro repository');
     expect(readme).not.toContain('private paid/pro modules');
+  });
+
+  it('renders generated AGENTS guidance with daily maintenance commands', () => {
+    const agents = renderAgents(options);
+
+    expect(agents).toContain('./moo test odoo_sample_module');
+    expect(agents).toContain('./moo lint');
+    expect(agents).toContain('./moo resetdb [db] [module[,module]]');
+    expect(agents).toContain('./moo snapshot [db] [snapshot-name]');
+    expect(agents).toContain('./moo restore-snapshot <snapshot-name> [db]');
+    expect(agents).toContain('./moo pot <module[,module]> [db] [output]');
   });
 
   it('renders optional Agent Skills instructions when a skills resource is configured', () => {

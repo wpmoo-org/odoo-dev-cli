@@ -146,6 +146,11 @@ cp .env.example .env
 ./moo logs
 ./moo shell
 ./moo stop
+./moo resetdb devel sale
+./moo snapshot devel before-update
+./moo restore-snapshot before-update devel
+./moo lint
+./moo pot sale devel i18n/sale.pot
 \`\`\`
 
 Run tests for one planned product addon:
@@ -265,6 +270,11 @@ usage() {
     "install") echo "Usage: ./moo install <module[,module]> [db]" ;;
     "update") echo "Usage: ./moo update <module[,module]> [db]" ;;
     "test") echo "Usage: ./moo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]" ;;
+    "resetdb") echo "Usage: ./moo resetdb [db] [module[,module]]" ;;
+    "snapshot") echo "Usage: ./moo snapshot [db] [snapshot-name]" ;;
+    "restore-snapshot") echo "Usage: ./moo restore-snapshot <snapshot-name> [db]" ;;
+    "lint") echo "Usage: ./moo lint" ;;
+    "pot") echo "Usage: ./moo pot <module[,module]> [db] [output]" ;;
   esac
 }
 
@@ -297,6 +307,21 @@ require_module_args() {
   if [[ "$#" -lt 1 || "\${1:-}" == -* || "$#" -gt 2 ]]; then
     fail_usage "$command"
   fi
+}
+
+positional_args() {
+  local command="$1"
+  local min="$2"
+  local max="$3"
+  shift 3
+  if [[ "$#" -lt "$min" || "$#" -gt "$max" ]]; then
+    fail_usage "$command"
+  fi
+  for arg in "$@"; do
+    if [[ "$arg" == -* ]]; then
+      fail_usage "$command"
+    fi
+  done
 }
 
 validate_test_args() {
@@ -389,6 +414,31 @@ case "$command" in
     shift
     validate_test_args "$@"
     run_script ./scripts/test.sh "$@"
+    ;;
+  "resetdb")
+    shift
+    positional_args "$command" 0 2 "$@"
+    run_script ./scripts/resetdb.sh "$@"
+    ;;
+  "snapshot")
+    shift
+    positional_args "$command" 0 2 "$@"
+    run_script ./scripts/snapshot.sh "$@"
+    ;;
+  "restore-snapshot")
+    shift
+    positional_args "$command" 1 2 "$@"
+    run_script ./scripts/restore-snapshot.sh "$@"
+    ;;
+  "lint")
+    shift
+    require_no_args "$command" "$@"
+    run_script ./scripts/lint.sh
+    ;;
+  "pot")
+    shift
+    positional_args "$command" 1 3 "$@"
+    run_script ./scripts/pot.sh "$@"
     ;;
   *)
     exec npx --yes @wpmoo/odoo@latest "$@"
@@ -547,7 +597,17 @@ Use the environment's addon test/update command:
 ${verificationCommand(options)}
 \`\`\`
 
-Only report completion after the relevant update/test command exits cleanly.
+Useful maintenance commands:
+
+\`\`\`bash
+./moo lint
+./moo resetdb [db] [module[,module]]
+./moo snapshot [db] [snapshot-name]
+./moo restore-snapshot <snapshot-name> [db]
+./moo pot <module[,module]> [db] [output]
+\`\`\`
+
+Only report completion after the relevant update/test/lint command exits cleanly.
 `;
 }
 

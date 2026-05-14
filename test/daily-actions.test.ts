@@ -86,6 +86,33 @@ describe('daily actions', () => {
     });
   });
 
+  it('maps compose maintenance commands to fixed scripts with positional arguments', async () => {
+    const target = await makeEnvironment({
+      scripts: ['resetdb.sh', 'snapshot.sh', 'restore-snapshot.sh', 'lint.sh', 'pot.sh'],
+    });
+
+    await expect(dailyActionPlan('resetdb', ['devel', 'sale,stock'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/resetdb.sh'),
+      args: ['devel', 'sale,stock'],
+    });
+    await expect(dailyActionPlan('snapshot', ['devel', 'before-update'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/snapshot.sh'),
+      args: ['devel', 'before-update'],
+    });
+    await expect(dailyActionPlan('restore-snapshot', ['before-update', 'devel'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/restore-snapshot.sh'),
+      args: ['before-update', 'devel'],
+    });
+    await expect(dailyActionPlan('lint', [], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/lint.sh'),
+      args: [],
+    });
+    await expect(dailyActionPlan('pot', ['sale,stock', 'devel', 'i18n/sale.pot'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/pot.sh'),
+      args: ['sale,stock', 'devel', 'i18n/sale.pot'],
+    });
+  });
+
   it('requires module arguments for module lifecycle commands', async () => {
     const target = await makeEnvironment({ scripts: ['install.sh', 'update.sh', 'test.sh'] });
 
@@ -97,6 +124,26 @@ describe('daily actions', () => {
     );
     await expect(dailyActionPlan('test', ['--db', 'devel'], target)).rejects.toThrow(
       'Usage: wpmoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]',
+    );
+  });
+
+  it('validates compose maintenance command arguments conservatively', async () => {
+    const target = await makeEnvironment({
+      scripts: ['resetdb.sh', 'snapshot.sh', 'restore-snapshot.sh', 'lint.sh', 'pot.sh'],
+    });
+
+    await expect(dailyActionPlan('resetdb', ['devel', 'sale', 'extra'], target)).rejects.toThrow(
+      'Usage: wpmoo resetdb [db] [module[,module]]',
+    );
+    await expect(dailyActionPlan('snapshot', ['devel', 'before-update', 'extra'], target)).rejects.toThrow(
+      'Usage: wpmoo snapshot [db] [snapshot-name]',
+    );
+    await expect(dailyActionPlan('restore-snapshot', [], target)).rejects.toThrow(
+      'Usage: wpmoo restore-snapshot <snapshot-name> [db]',
+    );
+    await expect(dailyActionPlan('lint', ['sale'], target)).rejects.toThrow('Usage: wpmoo lint');
+    await expect(dailyActionPlan('pot', [], target)).rejects.toThrow(
+      'Usage: wpmoo pot <module[,module]> [db] [output]',
     );
   });
 

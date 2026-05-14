@@ -189,6 +189,11 @@ npx @wpmoo/odoo psql devel
 npx @wpmoo/odoo install sale devel
 npx @wpmoo/odoo update sale devel
 npx @wpmoo/odoo test sale --db devel --mode update --tags /sale
+npx @wpmoo/odoo resetdb devel sale
+npx @wpmoo/odoo snapshot devel before-update
+npx @wpmoo/odoo restore-snapshot before-update devel
+npx @wpmoo/odoo lint
+npx @wpmoo/odoo pot sale devel i18n/sale.pot
 ```
 
 Daily actions require `.wpmoo/odoo.json` in the current directory and delegate to
@@ -196,7 +201,8 @@ fixed scripts under `./scripts`; they do not search parent directories or accept
 arbitrary script names.
 
 Generated environments also include a local `./moo` shortcut for Doodba-style
-daily commands such as `./moo start`, `./moo restart`, and `./moo stop`.
+daily commands such as `./moo start`, `./moo restart`, and `./moo stop`. The
+shortcut supports the same daily action arguments as `npx @wpmoo/odoo`.
 
 ## Defaults
 

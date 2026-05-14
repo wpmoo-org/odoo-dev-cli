@@ -20,6 +20,11 @@ Usage:
   npx @wpmoo/odoo install <module[,module]> [db]
   npx @wpmoo/odoo update <module[,module]> [db]
   npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
+  npx @wpmoo/odoo resetdb [db] [module[,module]]
+  npx @wpmoo/odoo snapshot [db] [snapshot-name]
+  npx @wpmoo/odoo restore-snapshot <snapshot-name> [db]
+  npx @wpmoo/odoo lint
+  npx @wpmoo/odoo pot <module[,module]> [db] [output]
 
 Options:
   --product <slug>             Product slug, for example my_odoo_module.
@@ -58,6 +63,7 @@ Daily actions:
   Daily actions must be run from a generated environment root containing .wpmoo/odoo.json.
   They delegate to the fixed scripts copied from the compose resource under ./scripts.
   Generated environments also include ./moo for Doodba-style local commands such as ./moo start.
+  Use ./moo or npx @wpmoo/odoo with the same daily action arguments.
 
 Example:
   npx @wpmoo/odoo create \\
