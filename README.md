@@ -183,23 +183,24 @@ Refresh generated environment files without deleting module source code:
 npx @wpmoo/odoo reset
 ```
 
-Run daily local development actions from a generated environment root:
+Run local compose daily actions from a generated environment root with the
+generated `./moo` dispatcher:
 
 ```bash
-npx @wpmoo/odoo start
-npx @wpmoo/odoo logs odoo
-npx @wpmoo/odoo restart
-npx @wpmoo/odoo stop
-npx @wpmoo/odoo shell
-npx @wpmoo/odoo psql devel
-npx @wpmoo/odoo install sale devel
-npx @wpmoo/odoo update sale devel
-npx @wpmoo/odoo test sale --db devel --mode update --tags /sale
-npx @wpmoo/odoo resetdb devel sale
-npx @wpmoo/odoo snapshot devel before-update
-npx @wpmoo/odoo restore-snapshot before-update devel
-npx @wpmoo/odoo lint
-npx @wpmoo/odoo pot sale devel i18n/sale.pot
+./moo start
+./moo logs odoo
+./moo restart
+./moo stop
+./moo shell
+./moo psql devel
+./moo install sale devel
+./moo update sale devel
+./moo test sale --db devel --mode update --tags /sale
+./moo resetdb devel sale
+./moo snapshot devel before-update
+./moo restore-snapshot before-update devel
+./moo lint
+./moo pot sale devel i18n/sale.pot
 ```
 
 The doctor command must be run from a generated environment root containing
@@ -210,10 +211,10 @@ Daily actions require `.wpmoo/odoo.json` in the current directory and delegate t
 fixed scripts under `./scripts`; they do not search parent directories or accept
 arbitrary script names.
 
-Generated environments also include a local `./moo` shortcut for local compose
-daily commands such as `./moo start`, `./moo restart`, and `./moo stop`. The
-shortcut supports the same daily action arguments as `npx @wpmoo/odoo`. It also
-falls back to `npx @wpmoo/odoo@latest doctor` for `./moo doctor`.
+Use `npx @wpmoo/odoo ...` for package/operator commands such as create,
+add/remove repo, add/remove module, `doctor`, and `reset`. Generated
+environments include `./moo` for local daily commands; it also falls back to
+`npx @wpmoo/odoo@latest` for package commands such as `./moo doctor`.
 
 ## Defaults
 
@@ -276,14 +277,22 @@ npm run release:check
 
 The script checks whether the current package version already exists on npm. If
 it does, it runs a patch version bump without creating a git tag, then stops so
-you can commit and push `package.json` and `package-lock.json` before publishing.
+you can commit and push `package.json` and `package-lock.json` before tagging.
 If the version is not published yet, it keeps the current version and runs
 `npm test -- test/package.test.ts` and `npm pack --dry-run`. Actual publishing
 is handled by the GitHub Actions workflow.
 
+Before tagging, run the full local verification:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
 For GitHub Actions publishing, configure npm Trusted Publishing for
-`wpmoo-org/wpmoo-odoo` with workflow filename `publish.yml`, then run the
-`Publish` workflow manually from GitHub Actions or push a matching release tag:
+`wpmoo-org/wpmoo-odoo` with workflow filename `publish.yml`, then push a
+matching release tag:
 
 ```bash
 VERSION="$(node -p "require('./package.json').version")"
@@ -294,6 +303,7 @@ git push origin "v$VERSION"
 The workflow uses OIDC instead of an npm token, verifies typecheck/tests/build,
 fails if a pushed tag does not match the package version, fails if the package
 version already exists on npm, runs `npm pack --dry-run`, and publishes to npm.
+Do not run `npm publish` for the normal release path.
 
 ## Support
 
