@@ -63,6 +63,18 @@ describe('cockpit category menus', () => {
     await expect(selectCockpitCategoryCommand('modules', { select: prompt })).resolves.toBe(installCommand);
   });
 
+  it('does not show Exit inside category menus', async () => {
+    const safeResetCommand = cockpitCommands.find((command) => command.id === 'safe-reset');
+    expect(safeResetCommand).toBeDefined();
+
+    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
+      expect(options.options.map((option) => option.label)).toEqual(['Safe reset environment', 'Back']);
+      return safeResetCommand;
+    });
+
+    await expect(selectCockpitCategoryCommand('maintenance', { select: prompt })).resolves.toBe(safeResetCommand);
+  });
+
   it('throws MenuBackSignal when Back is selected in a category menu', async () => {
     const prompt: CockpitMenuSelectPrompt = vi.fn(async () => cockpitMenuBackValue);
 

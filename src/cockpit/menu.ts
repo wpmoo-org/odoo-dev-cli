@@ -120,7 +120,7 @@ export async function selectCockpitCategoryCommand(
   options: CockpitMenuDeps = {},
 ): Promise<CockpitCommand> {
   const deps = menuDeps(options);
-  const commands = cockpitCommands.filter((command) => command.category === category);
+  const commands = cockpitCommands.filter((command) => command.category === category && command.id !== 'exit');
   const selected = await deps.select({
     message: menuPromptMessage(categoryLabels[category], 'back'),
     options: [
