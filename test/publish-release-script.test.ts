@@ -98,11 +98,22 @@ function runReleaseScript(root: string, npmStub: string) {
   });
 }
 
+function runReleaseScriptExpectFailure(root: string, npmStub: string) {
+  try {
+    runReleaseScript(root, npmStub);
+    throw new Error('Expected publish release script to fail');
+  } catch (error) {
+    const failure = error as { stdout?: Buffer; stderr?: Buffer; status?: number };
+    expect(failure.status).not.toBe(0);
+    return `${failure.stdout?.toString() ?? ''}${failure.stderr?.toString() ?? ''}`;
+  }
+}
+
 describe('publish release script', () => {
-  it('bumps patch version before publish when the current version already exists on npm', async () => {
+  it('bumps patch version and stops before publishing when the current version already exists on npm', async () => {
     const { root, logPath, stubPath } = await createReleaseFixture('0.8.36', ['0.8.36']);
 
-    runReleaseScript(root, stubPath);
+    const output = runReleaseScriptExpectFailure(root, stubPath);
 
     const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
     const commands = readFileSync(logPath, 'utf8').trim().split('\n');
@@ -111,10 +122,9 @@ describe('publish release script', () => {
       'view @wpmoo/odoo@0.8.36 version',
       'version patch --no-git-tag-version',
       'view @wpmoo/odoo@0.8.37 version',
-      'test -- test/package.test.ts',
-      'pack --dry-run',
-      'publish --access public',
     ]);
+    expect(output).toContain('Version was bumped to 0.8.37.');
+    expect(output).toContain('Commit package.json and package-lock.json, push them, then rerun this script.');
   });
 
   it('keeps the current version when it is not published yet', async () => {

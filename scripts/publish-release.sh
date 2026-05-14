@@ -56,6 +56,10 @@ if npm_version_exists "$PACKAGE_NAME@$current_version"; then
     echo "Bump the version manually and rerun this script." >&2
     exit 1
   fi
+
+  echo "Version was bumped to $current_version."
+  echo "Commit package.json and package-lock.json, push them, then rerun this script."
+  exit 1
 else
   echo "$PACKAGE_NAME@$current_version is not published yet; keeping current version."
 fi
