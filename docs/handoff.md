@@ -1,126 +1,29 @@
-# Handoff Notes
+# Historical Handoff Notes
 
-## Current status
+This file is an archive pointer for pre-0.8.37 handoff notes. Those notes
+included a stale direct publish attempt and must not be used as current release
+guidance.
 
-- Package version was bumped from `0.8.25` to `0.8.26`.
-- Latest commit:
-  - `dd2e1e8 Use standalone compose resources by default`
-- NPM publish was attempted but did not complete because this machine is not authenticated with npm.
-
-## What changed
-
-- Docker Compose is now the environment engine.
-- The previous alternate engine option has been removed from the CLI surface.
-- `wpmoo-odoo` no longer reads compose/skill resources from its own `templates/` directory.
-- External resources are copied from standalone repositories by default:
-  - `gh:wpmoo-org/odoo-docker-compose`
-  - `gh:wpmoo-org/odoo-skills`
-- The local `templates/` directory was removed from this repo.
-- New external resource copy logic was added:
-  - `src/external-assets.ts`
-  - `src/external-templates.ts`
-- Project-local Odoo skills are copied from the `skills/` subdirectory into:
-  - `.agents/skills/`
-- Compose resources are copied into the generated environment, while their README is preserved as:
-  - `docs/compose.md`
-
-## Created GitHub repositories
-
-- `https://github.com/wpmoo-org/odoo-skills`
-  - Public
-  - Intended package name: `@wpmoo/odoo-skills`
-  - Topics: `agent-skills`, `oca`, `odoo`, `pi-package`, `wpmoo`
-- `https://github.com/wpmoo-org/odoo-docker-compose`
-  - Public
-  - Standalone Docker Compose files for Odoo 17, 18, and 19
-  - Topics: `docker-compose`, `odoo`, `odoo-lifecycle`, `wpmoo`
-
-## Test environment created
-
-A test environment was generated at:
-
-```text
-/Users/cng/wpmoo-org/wpmoo-test/moo_test_dev
-```
-
-The command used was:
+Current release path:
 
 ```bash
-npx @wpmoo/odoo create \
-  --product moo_test \
-  --dev-repo-url https://github.com/wpmoo-org/moo_test_dev.git \
-  --source-repo-url https://github.com/wpmoo-org/moo_test.git \
-  --agent-skills-template \
-  --init-empty-repos \
-  --stage=true \
-  --no-update-check
-```
-
-Validation run there:
-
-```bash
-docker compose -f docker-compose_19.0.yml config
-```
-
-Result: passed.
-
-Note: the existing `moo_test_dev` repo had an old `moo_test_pro` submodule. It was removed from the working tree during the test. Changes are staged in that test repo but were not committed/pushed.
-
-## Checks already run
-
-From this repository:
-
-```bash
-npm test
+npm run release:check
 npm run typecheck
+npm test
 npm run build
-npm pack --dry-run --json
+VERSION="$(node -p "require('./package.json').version")"
+git tag -a "v$VERSION" -m "Release v$VERSION"
+git push origin "v$VERSION"
 ```
 
-Result: all passed.
+If `npm run release:check` bumps `package.json` and `package-lock.json`, commit
+and push that version bump first, then rerun the release check before tagging.
 
-## Publish status
+Publishing is handled by the `Publish` GitHub Actions workflow through npm
+Trusted Publishing after the tag is pushed. Do not run `npm publish` manually
+unless a coordinator explicitly requests a fallback.
 
-Publish command attempted:
+Current command standard:
 
-```bash
-npm publish --access public
-```
-
-It failed with:
-
-```text
-npm error ENEEDAUTH
-You need to authorize this machine using `npm adduser`
-```
-
-Next step:
-
-```bash
-npm login
-npm publish --access public
-```
-
-## Suggested next steps
-
-1. Authenticate npm on this machine:
-
-   ```bash
-   npm login
-   ```
-
-2. Publish `@wpmoo/odoo@0.8.26`:
-
-   ```bash
-   npm publish --access public
-   ```
-
-3. Optionally commit/push the test environment in:
-
-   ```text
-   /Users/cng/wpmoo-org/wpmoo-test/moo_test_dev
-   ```
-
-4. Consider publishing `@wpmoo/odoo-skills` from the standalone `odoo-skills` repo later.
-
-5. Continue improving `wpmoo-org/odoo-docker-compose`, especially future Traefik/reverse-proxy overlays.
+- Use `npx @wpmoo/odoo ...` for package/operator commands.
+- Use generated environment `./moo ...` for local compose daily commands.

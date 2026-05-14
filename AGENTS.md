@@ -53,6 +53,11 @@ npx vitest run test/<file>.test.ts
 - Product source repositories live under `odoo/custom/src/private` and are exposed through `/mnt/wpmoo-addons`.
 - Compose resources are copied by the CLI and provide the Docker/Odoo helper scripts.
 - Maintenance commands rely on `.wpmoo/odoo.json` inside generated environments.
+- User-facing package/operator examples should use `npx @wpmoo/odoo ...`;
+  generated environment daily command examples should use `./moo ...`.
+- Normal releases use `npm run release:check`, then an annotated version tag
+  that triggers GitHub Actions Trusted Publishing. Do not document manual
+  `npm publish` except as an explicit fallback.
 
 ## Agent workflow
 
