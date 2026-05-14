@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkForUpdate,
   compareVersions,
+  installLatestPackage,
   isUpdateCheckSkipped,
   packageSpec,
   restartEnvironment,
@@ -30,6 +31,7 @@ describe('update check', () => {
     expect(compareVersions('0.4.9', '0.4.10')).toBeLessThan(0);
     expect(compareVersions('0.5.0', '0.4.10')).toBeGreaterThan(0);
     expect(compareVersions('0.4.1', '0.4.1')).toBe(0);
+    expect(compareVersions('v1.2.3-beta.1', '1.2.3')).toBe(0);
   });
 
   it('detects an available npm update', async () => {
@@ -49,6 +51,26 @@ describe('update check', () => {
 
   it('continues quietly when the npm registry cannot be checked', async () => {
     await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', npmRunner('', true))).resolves.toEqual({
+      status: 'unavailable',
+      currentVersion: '0.4.1',
+    });
+  });
+
+  it('treats dotted tarball metadata as valid and current when versions match', async () => {
+    const runner = npmRunner(
+      '{"version":"0.5.0","dist.tarball":"https://registry.npmjs.org/@wpmoo/odoo/-/odoo-0.5.0.tgz"}\n',
+    );
+
+    await expect(checkForUpdate('@wpmoo/odoo', '0.5.0', runner)).resolves.toEqual({
+      status: 'current',
+      currentVersion: '0.5.0',
+      latestVersion: '0.5.0',
+    });
+    expect(runner.calls).toEqual([['view', '@wpmoo/odoo@latest', 'version', 'dist.tarball', '--json']]);
+  });
+
+  it('treats empty npm metadata output as unavailable', async () => {
+    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', npmRunner('\n'))).resolves.toEqual({
       status: 'unavailable',
       currentVersion: '0.4.1',
     });
@@ -91,6 +113,14 @@ describe('update check', () => {
       'wpmoo',
       '--foo',
     ]);
+  });
+
+  it('installs a specific package version globally', async () => {
+    const runner = npmRunner('');
+
+    await installLatestPackage('@wpmoo/odoo', '0.8.44', runner);
+
+    expect(runner.calls).toEqual([['install', '-g', '@wpmoo/odoo@0.8.44']]);
   });
 
   it('skips update checks only for explicit opt outs and updater restarts', () => {

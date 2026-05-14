@@ -6,6 +6,7 @@ import {
   getGitHubAccounts,
   getGitHubRepositoryStatus,
   githubRepositoryUrl,
+  isGitHubCliAvailable,
   isGitHubAuthenticated,
   listGitHubOrganizations,
   parseGitHubRepoUrl,
@@ -106,5 +107,51 @@ describe('github helpers', () => {
     const runner = outputRunner({}, ['api user --jq .login']);
 
     await expect(isGitHubAuthenticated(runner)).resolves.toBe(false);
+  });
+
+  it('treats missing gh binary as unavailable', async () => {
+    const runner: GitHubRunner = {
+      async run() {
+        throw new Error('spawn gh ENOENT');
+      },
+    };
+
+    await expect(isGitHubCliAvailable(runner)).resolves.toBe(false);
+  });
+
+  it('treats thrown authentication checks as unauthenticated', async () => {
+    const runner: GitHubRunner = {
+      async run() {
+        throw new Error('gh auth error');
+      },
+    };
+
+    await expect(isGitHubAuthenticated(runner)).resolves.toBe(false);
+  });
+
+  it('rejects login reads that only return whitespace', async () => {
+    const runner = outputRunner({
+      'api user --jq .login': '   \n\t',
+    });
+
+    await expect(getAuthenticatedGitHubLogin(runner)).rejects.toThrow('GitHub CLI is not authenticated');
+  });
+
+  it('returns unsupported status for non-github repository urls', async () => {
+    const runner = fakeRunner();
+
+    await expect(getGitHubRepositoryStatus(runner, 'https://not-github.example/repo.git')).resolves.toEqual({
+      status: 'unsupported',
+    });
+    expect(runner.calls).toEqual([]);
+  });
+
+  it('rejects create requests for non-github repository urls', async () => {
+    const runner = fakeRunner();
+
+    await expect(createGitHubRepository(runner, 'https://not-github.example/repo.git', 'private')).rejects.toThrow(
+      'Only GitHub repository URLs can be created automatically',
+    );
+    expect(runner.calls).toEqual([]);
   });
 });

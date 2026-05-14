@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import {
   commandFromArgs,
@@ -708,9 +709,9 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
   await createGitHubRepositories(missing, visibility as RepositoryVisibility);
 }
 
-async function main(): Promise<void> {
+export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd()): Promise<void> {
   installPromptCancelKeyTracker();
-  const rawArgv = process.argv.slice(2);
+  const rawArgv = cliArgv;
   const skipUpdateCheck = isUpdateCheckSkipped(rawArgv);
   const argv = stripInternalFlags(rawArgv);
   if (isHelpRequested(argv)) {
@@ -725,7 +726,7 @@ async function main(): Promise<void> {
   const route = commandFromArgs(argv);
   if (route.command === 'menu') {
     await showStartup(argv, skipUpdateCheck);
-    const detection = await detectDevelopmentEnvironment(process.cwd());
+    const detection = await detectDevelopmentEnvironment(cwd);
 
     if (!detection.isEnvironment) {
       const resolvedOptions = await optionsFromPrompts();
@@ -772,10 +773,10 @@ async function main(): Promise<void> {
           return;
         }
 
-        const options = { target: process.cwd(), stage: true };
+        const options = { target: cwd, stage: true };
         await confirmSafeResetFromMenu(options);
         await safeResetEnvironment(options);
-        outro(`Safe reset refreshed generated environment files in ${process.cwd()}.`);
+        outro(`Safe reset refreshed generated environment files in ${cwd}.`);
         return;
       } catch (error) {
         if (isMenuBackSignal(error)) {
@@ -864,13 +865,13 @@ async function main(): Promise<void> {
       throw new Error('Usage: wpmoo doctor');
     }
     console.log(renderBanner());
-    console.log(await runDoctor(process.cwd()));
+    console.log(await runDoctor(cwd));
     return;
   }
 
   if (isDailyActionCommand(route.command)) {
     console.log(renderBanner());
-    await runDailyAction(route.command, route.argv);
+    await runDailyAction(route.command, route.argv, cwd);
     return;
   }
 
@@ -896,8 +897,10 @@ async function main(): Promise<void> {
   outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(message);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runCli().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(message);
+    process.exit(1);
+  });
+}

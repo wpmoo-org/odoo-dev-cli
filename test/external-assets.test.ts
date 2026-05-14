@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -15,6 +15,7 @@ import {
   defaultPostgresVersion,
   renderComposeEnvExample,
 } from '../src/external-templates.js';
+import type { GitRunner } from '../src/git.js';
 import type { ScaffoldOptions } from '../src/types.js';
 
 const baseOptions: ScaffoldOptions = {
@@ -72,6 +73,96 @@ describe('external assets', () => {
 
     await expect(readFile(join(destination, '.agents/skills/odoo-oca/SKILL.md'), 'utf8')).resolves.toBe('# Skill\n');
     await expect(readFile(join(destination, '.agents/skills/node_modules/ignored/file.txt'), 'utf8')).rejects.toThrow();
+  });
+
+  it('skips explicitly excluded paths while copying local assets', async () => {
+    const source = await mkdtemp(join(tmpdir(), 'wpmoo-source-explicit-exclude-'));
+    const destination = await mkdtemp(join(tmpdir(), 'wpmoo-dest-explicit-exclude-'));
+
+    await mkdir(join(source, 'skills/include-me'), { recursive: true });
+    await mkdir(join(source, 'skills/skip-me/nested'), { recursive: true });
+    await writeFile(join(source, 'skills/include-me/SKILL.md'), '# Include\n');
+    await writeFile(join(source, 'skills/skip-me/nested/SKILL.md'), '# Skip\n');
+
+    await applyExternalAsset({
+      label: 'agent-skills',
+      source,
+      sourceSubdir: 'skills',
+      destination,
+      destinationSubdir: '.agents/skills',
+      exclude: ['skip-me'],
+    });
+
+    await expect(readFile(join(destination, '.agents/skills/include-me/SKILL.md'), 'utf8')).resolves.toBe('# Include\n');
+    await expect(readFile(join(destination, '.agents/skills/skip-me/nested/SKILL.md'), 'utf8')).rejects.toThrow();
+  });
+
+  it('preserves executable mode on copied files', async () => {
+    const source = await mkdtemp(join(tmpdir(), 'wpmoo-source-mode-'));
+    const destination = await mkdtemp(join(tmpdir(), 'wpmoo-dest-mode-'));
+
+    await mkdir(join(source, 'scripts'), { recursive: true });
+    await writeFile(join(source, 'scripts/tool.sh'), '#!/usr/bin/env bash\necho tool\n');
+    await chmod(join(source, 'scripts/tool.sh'), 0o755);
+
+    await applyExternalAsset({
+      label: 'compose',
+      source,
+      sourceSubdir: 'scripts',
+      destination,
+      destinationSubdir: 'scripts',
+    });
+
+    expect((await stat(join(destination, 'scripts/tool.sh'))).mode & 0o111).not.toBe(0);
+  });
+
+  it('handles gh: sources with ref by cloning resolved GitHub URL and branch', async () => {
+    const sourceFixture = await mkdtemp(join(tmpdir(), 'wpmoo-gh-source-fixture-'));
+    const destination = await mkdtemp(join(tmpdir(), 'wpmoo-gh-destination-'));
+    const cloneCalls: string[][] = [];
+    const git: GitRunner = {
+      async run(cwd, args) {
+        cloneCalls.push(args);
+        if (args[0] !== 'clone') {
+          return { stdout: '', stderr: '' };
+        }
+
+        const cloneTarget = args.at(-1);
+        if (!cloneTarget) {
+          throw new Error('Missing clone target');
+        }
+
+        await cp(sourceFixture, cloneTarget, { recursive: true });
+        return { stdout: cwd, stderr: '' };
+      },
+    };
+
+    await mkdir(join(sourceFixture, 'skills/odoo-oca'), { recursive: true });
+    await writeFile(join(sourceFixture, 'skills/odoo-oca/SKILL.md'), '# GH Skill\n');
+
+    await applyExternalAsset(
+      {
+        label: 'agent-skills',
+        source: 'gh:example-org/odoo-skills',
+        ref: 'v1.2.3',
+        sourceSubdir: 'skills',
+        destination,
+        destinationSubdir: '.agents/skills',
+      },
+      git,
+    );
+
+    await expect(readFile(join(destination, '.agents/skills/odoo-oca/SKILL.md'), 'utf8')).resolves.toBe('# GH Skill\n');
+    expect(cloneCalls).toHaveLength(1);
+    expect(cloneCalls[0]).toEqual([
+      'clone',
+      '--depth',
+      '1',
+      '--branch',
+      'v1.2.3',
+      'https://github.com/example-org/odoo-skills.git',
+      expect.any(String),
+    ]);
   });
 
   it('plans the compose asset by default', () => {

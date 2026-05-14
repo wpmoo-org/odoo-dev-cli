@@ -74,6 +74,12 @@ describe('safe reset', () => {
     );
   });
 
+  it('shows non-staging preview copy when stage=false', () => {
+    expect(renderSafeResetPreview('/tmp/odoo_sample_module_dev', false)).toContain(
+      'Generated changes will not be staged.',
+    );
+  });
+
   it('refreshes generated overlay files without deleting module code', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-'));
     const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-fixtures-')));
@@ -124,6 +130,49 @@ describe('safe reset', () => {
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
       'private/odoo_sample_module:',
     );
+  });
+
+  it('does not stage files when safe reset runs with stage=false', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-no-stage-'));
+    const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-no-stage-fixtures-')));
+    const gitCalls: string[][] = [];
+    const git: GitRunner = {
+      async run(_cwd, args) {
+        gitCalls.push(args);
+        return { stdout: '', stderr: '' };
+      },
+    };
+
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/odoo',
+          version: '0.8.0',
+          product: 'odoo_sample_module',
+          odooVersion: '19.0',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          sourceRepos: [
+            {
+              url: 'https://github.com/example-org/odoo_sample_module.git',
+              path: 'odoo_sample_module',
+              addons: ['odoo_sample_module'],
+            },
+          ],
+          engine: 'compose',
+          composeTemplateUrl: fixtures.compose,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    await safeResetEnvironment({ target, stage: false }, git);
+
+    expect(gitCalls.some((args) => args[0] === 'add' && args[1] === '.')).toBe(false);
   });
 
   it('uses current addons.yaml module lists when metadata is stale', async () => {
@@ -253,5 +302,104 @@ describe('safe reset', () => {
       ['clone', '--depth', '1', '--branch', 'compose-v2'],
       ['clone', '--depth', '1', '--branch', 'skills-v3'],
     ]);
+  });
+
+  it('infers repo URLs from .gitmodules when metadata omits source repo URLs', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-gitmodules-url-'));
+    const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-gitmodules-fixtures-')));
+    const inferredUrl = 'https://github.com/example-org/odoo_sample_module.git';
+
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/private/odoo_sample_module"]',
+        '  path = odoo/custom/src/private/odoo_sample_module',
+        `  url = ${inferredUrl}`,
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(join(target, 'odoo/custom/src/addons.yaml'), 'private/odoo_sample_module:\n  - odoo_sample_module\n', 'utf8');
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/odoo',
+          version: '0.8.0',
+          product: 'odoo_sample_module',
+          odooVersion: '19.0',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          sourceRepos: [
+            {
+              path: 'odoo_sample_module',
+              addons: ['odoo_sample_module'],
+            },
+          ],
+          engine: 'compose',
+          composeTemplateUrl: fixtures.compose,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    await safeResetEnvironment({ target, stage: false });
+
+    const regenerated = JSON.parse(await readFile(join(target, '.wpmoo/odoo.json'), 'utf8')) as {
+      sourceRepos: Array<{ path: string; url: string; addons: string[] }>;
+    };
+    expect(regenerated.sourceRepos).toContainEqual({
+      path: 'odoo_sample_module',
+      url: inferredUrl,
+      addons: ['odoo_sample_module'],
+    });
+  });
+
+  it('falls back to source path when .gitmodules is missing and metadata URL is omitted', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-gitmodules-missing-'));
+    const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-gitmodules-missing-fixtures-')));
+
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(join(target, 'odoo/custom/src/addons.yaml'), 'private/odoo_sample_module:\n  - odoo_sample_module\n', 'utf8');
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/odoo',
+          version: '0.8.0',
+          product: 'odoo_sample_module',
+          odooVersion: '19.0',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          sourceRepos: [
+            {
+              path: 'odoo_sample_module',
+              addons: ['odoo_sample_module'],
+            },
+          ],
+          engine: 'compose',
+          composeTemplateUrl: fixtures.compose,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    await safeResetEnvironment({ target, stage: false });
+
+    const regenerated = JSON.parse(await readFile(join(target, '.wpmoo/odoo.json'), 'utf8')) as {
+      sourceRepos: Array<{ path: string; url: string; addons: string[] }>;
+    };
+    expect(regenerated.sourceRepos).toContainEqual({
+      path: 'odoo_sample_module',
+      url: 'odoo/custom/src/private/odoo_sample_module',
+      addons: ['odoo_sample_module'],
+    });
   });
 });

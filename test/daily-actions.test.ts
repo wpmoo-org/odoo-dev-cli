@@ -179,4 +179,54 @@ describe('daily actions', () => {
       },
     ]);
   });
+
+  it('delegates logs, test, and restore-snapshot arguments through runDailyAction', async () => {
+    const target = await makeEnvironment({ scripts: ['logs.sh', 'test.sh', 'restore-snapshot.sh'] });
+    const calls: unknown[] = [];
+
+    await runDailyAction('logs', ['web'], target, async (plan) => {
+      calls.push(plan);
+    });
+    await runDailyAction(
+      'test',
+      ['module_a', '--db', 'custom', '--mode', 'update', '--tags', 'tag'],
+      target,
+      async (plan) => {
+        calls.push(plan);
+      },
+    );
+    await runDailyAction('restore-snapshot', ['snapshot-name', 'customdb'], target, async (plan) => {
+      calls.push(plan);
+    });
+
+    expect(calls).toEqual([
+      {
+        cwd: target,
+        scriptPath: join(target, 'scripts/logs.sh'),
+        args: ['web'],
+      },
+      {
+        cwd: target,
+        scriptPath: join(target, 'scripts/test.sh'),
+        args: ['module_a', '--db', 'custom', '--mode', 'update', '--tags', 'tag'],
+      },
+      {
+        cwd: target,
+        scriptPath: join(target, 'scripts/restore-snapshot.sh'),
+        args: ['snapshot-name', 'customdb'],
+      },
+    ]);
+  });
+
+  it('rejects invalid test arguments with existing error wording', async () => {
+    const target = await makeEnvironment({ scripts: ['test.sh'] });
+
+    await expect(dailyActionPlan('test', ['module_a', '--mode', 'broken'], target)).rejects.toThrow(
+      'Invalid value for --mode: expected init or update',
+    );
+    await expect(dailyActionPlan('test', ['module_a', '--db'], target)).rejects.toThrow('Missing value for --db');
+    await expect(dailyActionPlan('test', ['module_a', '--unknown', 'value'], target)).rejects.toThrow(
+      'Unknown option for wpmoo test: --unknown',
+    );
+  });
 });

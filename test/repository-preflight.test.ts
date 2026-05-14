@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { checkGitHubRepositories, repositoryRequirements } from '../src/repository-preflight.js';
+import {
+  checkGitHubRepositories,
+  createGitHubRepositories,
+  findInaccessibleGitHubRepositories,
+  repositoryPreflightAvailable,
+  repositoryRequirements,
+} from '../src/repository-preflight.js';
 import type { GitHubRunner } from '../src/github.js';
 
 describe('repository preflight', () => {
@@ -65,5 +71,82 @@ describe('repository preflight', () => {
         },
       ],
     });
+  });
+
+  it('returns only inaccessible repositories from preflight checks', async () => {
+    const runner: GitHubRunner = {
+      async run(args) {
+        if (args.includes('example-org/odoo_sample_module')) {
+          throw new Error('not found');
+        }
+        return { stdout: 'ok', stderr: '' };
+      },
+    };
+
+    await expect(findInaccessibleGitHubRepositories(options, runner)).resolves.toEqual([
+      {
+        label: 'Source repo: odoo_sample_module',
+        url: 'https://github.com/example-org/odoo_sample_module.git',
+        defaultVisibility: 'private',
+        slug: 'example-org/odoo_sample_module',
+      },
+    ]);
+  });
+
+  it('creates each missing repository with selected visibility', async () => {
+    const calls: string[][] = [];
+    const runner: GitHubRunner = {
+      async run(args) {
+        calls.push(args);
+        return { stdout: 'ok', stderr: '' };
+      },
+    };
+
+    await createGitHubRepositories(
+      [
+        {
+          label: 'Dev environment repo',
+          url: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module_dev',
+        },
+        {
+          label: 'Source repo: odoo_sample_module',
+          url: 'https://github.com/example-org/odoo_sample_module.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module',
+        },
+      ],
+      'public',
+      runner,
+    );
+
+    expect(calls).toEqual([
+      ['repo', 'create', 'example-org/odoo_sample_module_dev', '--public'],
+      ['repo', 'create', 'example-org/odoo_sample_module', '--public'],
+    ]);
+  });
+
+  it('reports unavailable when gh cli is missing', async () => {
+    const runner: GitHubRunner = {
+      async run() {
+        throw new Error('spawn gh ENOENT');
+      },
+    };
+
+    await expect(repositoryPreflightAvailable(runner)).resolves.toBe(false);
+  });
+
+  it('reports unavailable when gh is present but unauthenticated', async () => {
+    const runner: GitHubRunner = {
+      async run(args) {
+        if (args[0] === '--version') {
+          return { stdout: 'gh version 2.0.0', stderr: '' };
+        }
+        throw new Error('gh api auth failed');
+      },
+    };
+
+    await expect(repositoryPreflightAvailable(runner)).resolves.toBe(false);
   });
 });
