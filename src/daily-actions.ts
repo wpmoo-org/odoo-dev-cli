@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { markerPath } from './environment.js';
 
-export const dailyActionCommands = ['logs', 'restart', 'shell', 'psql', 'install', 'update', 'test'] as const;
+export const dailyActionCommands = ['start', 'stop', 'logs', 'restart', 'shell', 'psql', 'install', 'update', 'test'] as const;
 
 export type DailyActionCommand = (typeof dailyActionCommands)[number];
 
@@ -19,6 +19,8 @@ export type DailyActionRunner = (plan: DailyActionPlan) => Promise<void>;
 const dailyActionCommandSet = new Set<string>(dailyActionCommands);
 
 const scripts: Record<DailyActionCommand, string> = {
+  start: 'up.sh',
+  stop: 'down.sh',
   logs: 'logs.sh',
   restart: 'restart.sh',
   shell: 'shell.sh',
@@ -33,6 +35,8 @@ export function isDailyActionCommand(command: string): command is DailyActionCom
 }
 
 function usage(command: DailyActionCommand): string {
+  if (command === 'start') return 'Usage: wpmoo start';
+  if (command === 'stop') return 'Usage: wpmoo stop';
   if (command === 'logs') return 'Usage: wpmoo logs [service]';
   if (command === 'restart') return 'Usage: wpmoo restart';
   if (command === 'shell') return 'Usage: wpmoo shell';
@@ -78,6 +82,8 @@ function testArgs(argv: string[]): string[] {
 }
 
 function scriptArgs(command: DailyActionCommand, argv: string[]): string[] {
+  if (command === 'start') return ensureNoArgs(command, argv);
+  if (command === 'stop') return ensureNoArgs(command, argv);
   if (command === 'logs') return optionalSingleArg(command, argv, 'odoo');
   if (command === 'restart') return ensureNoArgs(command, argv);
   if (command === 'shell') return ensureNoArgs(command, argv);

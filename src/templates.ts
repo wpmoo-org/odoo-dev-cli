@@ -29,6 +29,7 @@ function repositoryLayout(options: CreateOptions): string {
 ├── docker-compose_17.0.yml
 ├── docker-compose_18.0.yml
 ├── docker-compose_19.0.yml
+├── moo
 ├── scripts/
 ├── etc/
 ├── odoo/
@@ -115,7 +116,7 @@ function repoDuplicationNote(): string {
 
 function verificationCommand(options: CreateOptions): string {
   const firstAddon = allAddons(options)[0] ?? options.product;
-  return `./scripts/test.sh ${firstAddon}`;
+  return `./moo test ${firstAddon}`;
 }
 
 function environmentUsageDocs(options: CreateOptions): string {
@@ -141,16 +142,16 @@ Source repositories stay under \`odoo/custom/src/private\`. At container startup
 
 \`\`\`bash
 cp .env.example .env
-./scripts/up.sh
-./scripts/logs.sh
-./scripts/shell.sh
-./scripts/down.sh
+./moo start
+./moo logs
+./moo shell
+./moo stop
 \`\`\`
 
 Run tests for one planned product addon:
 
 \`\`\`bash
-./scripts/test.sh ${allAddons(options)[0] ?? options.product}
+./moo test ${allAddons(options)[0] ?? options.product}
 \`\`\`
 `;
 }
@@ -253,7 +254,146 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")" && pwd)"
 cd "$script_dir"
 
-exec npx --yes @wpmoo/odoo@latest "$@"
+usage() {
+  case "$1" in
+    "start") echo "Usage: ./moo start" ;;
+    "stop") echo "Usage: ./moo stop" ;;
+    "logs") echo "Usage: ./moo logs [service]" ;;
+    "restart") echo "Usage: ./moo restart" ;;
+    "shell") echo "Usage: ./moo shell" ;;
+    "psql") echo "Usage: ./moo psql [db]" ;;
+    "install") echo "Usage: ./moo install <module[,module]> [db]" ;;
+    "update") echo "Usage: ./moo update <module[,module]> [db]" ;;
+    "test") echo "Usage: ./moo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]" ;;
+  esac
+}
+
+fail_usage() {
+  usage "$1" >&2
+  exit 2
+}
+
+require_no_args() {
+  local command="$1"
+  shift
+  if [[ "$#" -ne 0 ]]; then
+    fail_usage "$command"
+  fi
+}
+
+optional_single_arg() {
+  local command="$1"
+  local fallback="$2"
+  shift 2
+  if [[ "$#" -gt 1 ]]; then
+    fail_usage "$command"
+  fi
+  printf '%s\\n' "\${1:-$fallback}"
+}
+
+require_module_args() {
+  local command="$1"
+  shift
+  if [[ "$#" -lt 1 || "\${1:-}" == -* || "$#" -gt 2 ]]; then
+    fail_usage "$command"
+  fi
+}
+
+validate_test_args() {
+  if [[ "$#" -lt 1 || "\${1:-}" == -* ]]; then
+    fail_usage "test"
+  fi
+
+  shift
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--db"|"--tags")
+        if [[ "$#" -lt 2 || "\${2:-}" == --* ]]; then
+          echo "Missing value for $1" >&2
+          exit 2
+        fi
+        shift 2
+        ;;
+      "--mode")
+        if [[ "$#" -lt 2 || "\${2:-}" == --* ]]; then
+          echo "Missing value for --mode" >&2
+          exit 2
+        fi
+        if [[ "$2" != "init" && "$2" != "update" ]]; then
+          echo "Invalid value for --mode: expected init or update" >&2
+          exit 2
+        fi
+        shift 2
+        ;;
+      *)
+        echo "Unknown option for ./moo test: $1" >&2
+        exit 2
+        ;;
+    esac
+  done
+}
+
+run_script() {
+  local script="$1"
+  shift
+  if [[ ! -x "$script" ]]; then
+    echo "Missing daily action script: \${script#./}" >&2
+    exit 1
+  fi
+  exec "$script" "$@"
+}
+
+command="\${1:-}"
+case "$command" in
+  "start")
+    shift
+    require_no_args "$command" "$@"
+    run_script ./scripts/up.sh
+    ;;
+  "stop")
+    shift
+    require_no_args "$command" "$@"
+    run_script ./scripts/down.sh
+    ;;
+  "logs")
+    shift
+    service="$(optional_single_arg "$command" "odoo" "$@")"
+    run_script ./scripts/logs.sh "$service"
+    ;;
+  "restart")
+    shift
+    require_no_args "$command" "$@"
+    run_script ./scripts/restart.sh
+    ;;
+  "shell")
+    shift
+    require_no_args "$command" "$@"
+    run_script ./scripts/shell.sh
+    ;;
+  "psql")
+    shift
+    db="$(optional_single_arg "$command" "postgres" "$@")"
+    run_script ./scripts/psql.sh "$db"
+    ;;
+  "install")
+    shift
+    require_module_args "$command" "$@"
+    run_script ./scripts/install.sh "$@"
+    ;;
+  "update")
+    shift
+    require_module_args "$command" "$@"
+    run_script ./scripts/update.sh "$@"
+    ;;
+  "test")
+    shift
+    validate_test_args "$@"
+    run_script ./scripts/test.sh "$@"
+    ;;
+  *)
+    exec npx --yes @wpmoo/odoo@latest "$@"
+    ;;
+esac
 `;
 }
 
@@ -322,16 +462,19 @@ git submodule update --init --recursive
 
 ## WPMoo CLI Shortcut
 
-This environment includes a local \`moo\` delegation script. From the repository
+This environment includes a local \`moo\` shortcut script. From the repository
 root:
 
 \`\`\`bash
 ./moo
+./moo start
+./moo stop
+./moo restart
 ./moo add-module
 \`\`\`
 
-If this repository root is on your \`PATH\`, you can run \`moo ...\` from
-anywhere and the script will delegate back to this environment.
+Optionally, if this repository root is on your \`PATH\`, you can run \`moo ...\`
+from anywhere and the script will return to this environment root first.
 ${optionalAgentSkillsReadme(options)}
 ## Source Repositories
 
