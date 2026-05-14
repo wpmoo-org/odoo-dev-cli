@@ -67,14 +67,27 @@ describe('template rendering', () => {
     expect(readme).toContain('odoo/custom/src/private/odoo_sample_module_reports');
     expect(readme).toContain('./moo start');
     expect(readme).toContain('./moo stop');
-    expect(readme).toContain('./moo restart');
+    expect(readme).toContain('./moo logs odoo');
+    expect(readme).toContain('./moo psql postgres');
+    expect(readme).toContain('./moo install odoo_sample_module');
+    expect(readme).toContain('./moo update odoo_sample_module');
+    expect(readme).toContain('./moo test odoo_sample_module');
     expect(readme).toContain('./moo doctor');
+    expect(readme).toContain('./moo status');
     expect(readme).toContain('./moo add-module');
-    expect(readme).toContain('./moo resetdb devel sale');
+    expect(readme).toContain('./moo resetdb devel odoo_sample_module');
     expect(readme).toContain('./moo snapshot devel before-update');
     expect(readme).toContain('./moo restore-snapshot before-update devel');
     expect(readme).toContain('./moo lint');
-    expect(readme).toContain('./moo pot sale devel i18n/sale.pot');
+    expect(readme).toContain('./moo pot odoo_sample_module devel i18n/odoo_sample_module.pot');
+    expect(readme).toContain('### Start And Inspect Services');
+    expect(readme).toContain('### Run, Update, And Test Modules');
+    expect(readme).toContain('### Snapshot And Restore');
+    expect(readme).toContain('### Lint');
+    expect(readme).toContain('### Export Translations');
+    expect(readme).toContain('### Recover / Reset');
+    expect(readme).toContain('`./moo status` and `./moo doctor` are package fallback commands');
+    expect(readme).toContain('routes day-to-day service and module workflows to local scripts');
   });
 
   it('renders an executable bash dispatcher for the local moo shortcut', () => {
@@ -178,6 +191,8 @@ describe('template rendering', () => {
     expect(agents).toContain('./moo snapshot [db] [snapshot-name]');
     expect(agents).toContain('./moo restore-snapshot <snapshot-name> [db]');
     expect(agents).toContain('./moo pot <module[,module]> [db] [output]');
+    expect(agents).toContain('`./moo status` and `./moo doctor` are package fallback commands');
+    expect(agents).toContain('delegate to local `./scripts/*.sh`');
   });
 
   it('renders optional Agent Skills instructions when a skills resource is configured', () => {

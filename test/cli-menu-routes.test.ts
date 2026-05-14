@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   renderBanner: vi.fn(() => 'mock banner'),
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
   repositoryPreflightAvailable: vi.fn(async () => true),
+  renderEnvironmentStatusSummary: vi.fn(() => 'Status summary'),
+  getEnvironmentStatus: vi.fn(async () => ({ mock: true })),
   safeResetEnvironment: vi.fn(async () => undefined),
 }));
 
@@ -118,6 +120,15 @@ vi.mock('../src/update-check.js', async (importOriginal) => {
   };
 });
 
+vi.mock('../src/status.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/status.js')>();
+  return {
+    ...actual,
+    getEnvironmentStatus: mocks.getEnvironmentStatus,
+    renderEnvironmentStatusSummary: mocks.renderEnvironmentStatusSummary,
+  };
+});
+
 async function loadCli() {
   vi.resetModules();
   return import('../src/cli.js');
@@ -143,6 +154,12 @@ describe('cli menu environment routes', () => {
     expect(mocks.addModuleToSourceRepo).not.toHaveBeenCalled();
     expect(mocks.removeModuleFromSourceRepo).not.toHaveBeenCalled();
     expect(mocks.safeResetEnvironment).not.toHaveBeenCalled();
+    expect(mocks.getEnvironmentStatus).toHaveBeenCalledWith('/tmp/environment');
+    expect(mocks.renderEnvironmentStatusSummary).toHaveBeenCalledWith({ mock: true });
+    expect(vi.mocked(prompts.note)).toHaveBeenCalledWith('Status summary', 'Environment status');
+    const noteOrder = vi.mocked(prompts.note).mock.invocationCallOrder[0] ?? 0;
+    const selectOrder = vi.mocked(prompts.select).mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER;
+    expect(noteOrder).toBeLessThan(selectOrder);
   });
 
   it('routes add-repo through prompts, repository preflight, and addModuleRepo', async () => {

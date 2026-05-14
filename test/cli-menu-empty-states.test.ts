@@ -31,9 +31,13 @@ vi.mock('@clack/prompts', () => ({
   text: vi.fn(),
 }));
 
-vi.mock('../src/environment.js', () => ({
-  detectDevelopmentEnvironment: mocks.detectDevelopmentEnvironment,
-}));
+vi.mock('../src/environment.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/environment.js')>();
+  return {
+    ...actual,
+    detectDevelopmentEnvironment: mocks.detectDevelopmentEnvironment,
+  };
+});
 
 vi.mock('../src/repo-actions.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/repo-actions.js')>();
@@ -140,7 +144,7 @@ describe('cli menu empty and cancel states', () => {
     await runCli([], '/tmp/environment');
 
     expect(prompts.note).toHaveBeenCalledWith(
-      'No module submodules found under /tmp/environment/odoo/custom/src/private.',
+      'No module submodules found under /tmp/environment/odoo/custom/src/private.\nNext: choose "Add source repo" first.',
       'Nothing to remove',
     );
     expect(prompts.select).toHaveBeenCalledTimes(2);
@@ -157,7 +161,7 @@ describe('cli menu empty and cancel states', () => {
     await runCli([], '/tmp/environment');
 
     expect(prompts.note).toHaveBeenCalledWith(
-      'No source repos found under /tmp/environment/odoo/custom/src/private.',
+      'No source repos found under /tmp/environment/odoo/custom/src/private.\nNext: choose "Add source repo" first.',
       'Nothing to select',
     );
     expect(prompts.select).toHaveBeenCalledTimes(2);
@@ -178,7 +182,7 @@ describe('cli menu empty and cancel states', () => {
     await runCli([], '/tmp/environment');
 
     expect(prompts.note).toHaveBeenCalledWith(
-      'No Odoo modules found under /tmp/environment/odoo/custom/src/private/odoo_source_repo.',
+      'No Odoo modules found under /tmp/environment/odoo/custom/src/private/odoo_source_repo.\nNext: choose "Add module to source repo" first.',
       'Nothing to remove',
     );
     expect(prompts.select).toHaveBeenCalledTimes(3);

@@ -227,6 +227,10 @@ describe('args', () => {
       command: 'doctor',
       argv: [],
     });
+    expect(commandFromArgs(['status'])).toEqual({
+      command: 'status',
+      argv: [],
+    });
     expect(commandFromArgs(['logs', 'db'])).toEqual({
       command: 'logs',
       argv: ['db'],

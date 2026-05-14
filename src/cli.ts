@@ -44,6 +44,11 @@ import type { ScaffoldOptions, SourceRepo } from './types.js';
 import { checkForUpdate, installLatestPackage, isUpdateCheckSkipped, restartCli } from './update-check.js';
 import { packageName, packageVersion, renderVersion, renderVersionTag } from './version.js';
 import {
+  getEnvironmentStatus,
+  renderEnvironmentStatusForTarget,
+  renderEnvironmentStatusSummary,
+} from './status.js';
+import {
   getGitHubAccounts,
   getGitHubRepositoryStatus,
   githubRepositoryUrl,
@@ -424,7 +429,10 @@ async function selectSourceRepo(target: string, cancelAction: PromptCancelAction
   const repos = await listModuleRepos(target);
   if (repos.length === 0) {
     if (cancelAction === 'back') {
-      note(`No source repos found under ${target}/odoo/custom/src/private.`, 'Nothing to select');
+      note(
+        `No source repos found under ${target}/odoo/custom/src/private.\nNext: choose "Add source repo" first.`,
+        'Nothing to select',
+      );
       handleUnavailableMenuChoice(cancelAction);
     }
     throw new Error(`No source repos found under ${target}/odoo/custom/src/private`);
@@ -538,7 +546,10 @@ async function removeRepoOptionsFromPrompts(
   const repos = await listModuleRepos(target);
   if (repos.length === 0) {
     if (cancelAction === 'back') {
-      note(`No module submodules found under ${target}/odoo/custom/src/private.`, 'Nothing to remove');
+      note(
+        `No module submodules found under ${target}/odoo/custom/src/private.\nNext: choose "Add source repo" first.`,
+        'Nothing to remove',
+      );
       handleUnavailableMenuChoice(cancelAction);
     }
     throw new Error(`No module submodules found under ${target}/odoo/custom/src/private`);
@@ -586,7 +597,10 @@ async function removeModuleOptionsFromPrompts(
   const modules = await listModulesInSourceRepo(target, repoPath);
   if (modules.length === 0) {
     if (cancelAction === 'back') {
-      note(`No Odoo modules found under ${target}/odoo/custom/src/private/${repoPath}.`, 'Nothing to remove');
+      note(
+        `No Odoo modules found under ${target}/odoo/custom/src/private/${repoPath}.\nNext: choose "Add module to source repo" first.`,
+        'Nothing to remove',
+      );
       handleUnavailableMenuChoice(cancelAction);
     }
     throw new Error(`No Odoo modules found under ${target}/odoo/custom/src/private/${repoPath}`);
@@ -738,6 +752,8 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
 
     while (true) {
       try {
+        const status = await getEnvironmentStatus(cwd);
+        note(renderEnvironmentStatusSummary(status), 'Environment status');
         const action = await selectEnvironmentActionFromMenu();
 
         if (action === 'exit') {
@@ -866,6 +882,15 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     }
     console.log(renderBanner());
     console.log(await runDoctor(cwd));
+    return;
+  }
+
+  if (route.command === 'status') {
+    if (route.argv.length > 0) {
+      throw new Error('Usage: wpmoo status');
+    }
+    console.log(renderBanner());
+    console.log(await renderEnvironmentStatusForTarget(cwd));
     return;
   }
 

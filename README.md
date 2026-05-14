@@ -179,8 +179,17 @@ npx @wpmoo/odoo remove-module \
 Check that a generated environment is structurally ready:
 
 ```bash
+npx @wpmoo/odoo status
+```
+
+Run the deeper environment health check:
+
+```bash
 npx @wpmoo/odoo doctor
 ```
+
+`status` is fast and offline, and reads local metadata/files only.
+`doctor` is a deeper health check and may check Docker CLI access and GitHub workflows.
 
 Refresh generated environment files without deleting module source code:
 
@@ -215,6 +224,32 @@ source repo paths, `.env` ports, and Docker CLI access.
 Daily actions require `.wpmoo/odoo.json` in the current directory and delegate to
 fixed scripts under `./scripts`; they do not search parent directories or accept
 arbitrary script names.
+
+Task-oriented quick recipes:
+
+```bash
+# create environment
+npx @wpmoo/odoo create --product odoo_sample_module --dev-repo-url <dev-repo-url> --source-repo-url <source-repo-url>
+
+# add source repo
+npx @wpmoo/odoo add-repo --repo-url https://github.com/example-org/odoo_sample_module_reports.git
+
+# add module
+npx @wpmoo/odoo add-module --repo odoo_sample_module --module odoo_sample_module_base
+
+# run tests
+npx @wpmoo/odoo test sale --db devel --mode update --tags /sale
+
+# safe reset / recover
+npx @wpmoo/odoo snapshot devel before-reset
+npx @wpmoo/odoo reset
+npx @wpmoo/odoo restore-snapshot before-reset devel
+
+# daily checks
+npx @wpmoo/odoo status
+npx @wpmoo/odoo doctor
+./moo logs odoo
+```
 
 Use `npx @wpmoo/odoo ...` for package/operator commands such as create,
 add/remove repo, add/remove module, `doctor`, and `reset`. Generated

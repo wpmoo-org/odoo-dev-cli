@@ -6,6 +6,7 @@ WPMoo Odoo lifecycle tooling.
 Usage:
   npx @wpmoo/odoo
   npx @wpmoo/odoo create --product <slug> --dev-repo-url <url> --source-repo-url <url>
+  npx @wpmoo/odoo status
   npx @wpmoo/odoo add-repo --repo-url <url>
   npx @wpmoo/odoo remove-repo --repo <name>
   npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
@@ -66,9 +67,28 @@ Daily actions:
   Generated environments also include ./moo for local compose commands such as ./moo start.
   Use ./moo or npx @wpmoo/odoo with the same daily action arguments.
 
-Doctor:
-  Run npx @wpmoo/odoo doctor from a generated environment root to check metadata,
-  compose files, daily scripts, source repo paths, .env ports, and Docker CLI access.
+Status and doctor:
+  status: fast and offline. Reads local environment metadata and files only.
+  doctor: deeper health check. May check Docker CLI access and GitHub workflows.
+
+Task recipes:
+  Create environment:
+    npx @wpmoo/odoo create --product <slug> --dev-repo-url <url> --source-repo-url <url>
+  Add source repo:
+    npx @wpmoo/odoo add-repo --repo-url <url>
+  Add module:
+    npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
+  Run tests:
+    npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
+  Safe reset and recover:
+    npx @wpmoo/odoo snapshot [db] [snapshot-name]
+    npx @wpmoo/odoo reset
+    npx @wpmoo/odoo restore-snapshot <snapshot-name> [db]
+  Daily command checks:
+    npx @wpmoo/odoo status
+    npx @wpmoo/odoo doctor
+    npx @wpmoo/odoo logs [service]
+    npx @wpmoo/odoo restart
 
 Example:
   npx @wpmoo/odoo create \\

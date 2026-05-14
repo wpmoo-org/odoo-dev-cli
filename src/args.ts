@@ -16,6 +16,7 @@ type ParsedArgs = {
 export type CliCommand =
   | 'menu'
   | 'create'
+  | 'status'
   | 'add-repo'
   | 'remove-repo'
   | 'add-module'
@@ -30,6 +31,7 @@ export type CommandRoute = {
 };
 
 const commandNames = new Set<CliCommand>([
+  'status',
   'create',
   'add-repo',
   'remove-repo',

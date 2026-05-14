@@ -138,26 +138,57 @@ Source repositories stay under \`odoo/custom/src/private\`. At container startup
 \`entrypoint.sh\` scans those repositories for addons and exposes them through
 \`/mnt/wpmoo-addons\`.
 
-## Common Commands
+## Daily Command Hub (\`./moo\`)
+
+\`./moo\` routes day-to-day service and module workflows to local scripts in
+\`./scripts/\` (for example \`start\`, \`logs\`, \`update\`, \`test\`, \`snapshot\`).
+\`./moo status\` and \`./moo doctor\` are package fallback commands that run via
+\`npx --yes @wpmoo/odoo@latest ...\`.
+
+### Start And Inspect Services
 
 \`\`\`bash
 cp .env.example .env
 ./moo start
-./moo logs
+./moo logs odoo
 ./moo shell
+./moo psql postgres
 ./moo stop
-./moo doctor
-./moo resetdb devel sale
-./moo snapshot devel before-update
-./moo restore-snapshot before-update devel
-./moo lint
-./moo pot sale devel i18n/sale.pot
 \`\`\`
 
-Run tests for one planned product addon:
+### Run, Update, And Test Modules
 
 \`\`\`bash
+./moo install ${allAddons(options)[0] ?? options.product}
+./moo update ${allAddons(options)[0] ?? options.product}
 ./moo test ${allAddons(options)[0] ?? options.product}
+\`\`\`
+
+### Snapshot And Restore
+
+\`\`\`bash
+./moo snapshot devel before-update
+./moo restore-snapshot before-update devel
+\`\`\`
+
+### Lint
+
+\`\`\`bash
+./moo lint
+\`\`\`
+
+### Export Translations
+
+\`\`\`bash
+./moo pot ${allAddons(options)[0] ?? options.product} devel i18n/${allAddons(options)[0] ?? options.product}.pot
+\`\`\`
+
+### Recover / Reset
+
+\`\`\`bash
+./moo doctor
+./moo status
+./moo resetdb devel ${allAddons(options)[0] ?? options.product}
 \`\`\`
 `;
 }
@@ -608,6 +639,10 @@ Useful maintenance commands:
 ./moo restore-snapshot <snapshot-name> [db]
 ./moo pot <module[,module]> [db] [output]
 \`\`\`
+
+Daily script delegation vs package fallback:
+- \`./moo start\`, \`logs\`, \`install\`, \`update\`, \`test\`, \`snapshot\`, and related runtime tasks delegate to local \`./scripts/*.sh\`.
+- \`./moo status\` and \`./moo doctor\` are package fallback commands routed to \`npx --yes @wpmoo/odoo@latest ...\`.
 
 Only report completion after the relevant update/test/lint command exits cleanly.
 `;
