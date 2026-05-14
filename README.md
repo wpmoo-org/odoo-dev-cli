@@ -2,7 +2,12 @@
 
 ![WPMoo Odoo lifecycle tooling across development, staging, and production](docs/assets/wpmoo-banner.png)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-cangir-FFDD00?logo=buymeacoffee&logoColor=000000)](https://www.buymeacoffee.com/cangir)
+[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml)
+[![GitHub Source](https://img.shields.io/badge/source-GitHub-181717?logo=github)](https://github.com/wpmoo-org/wpmoo-odoo)
+[![npm](https://img.shields.io/npm/v/@wpmoo/odoo?label=npm&logo=npm)](https://www.npmjs.com/package/@wpmoo/odoo)
+[![Socket](https://socket.dev/api/badge/npm/package/@wpmoo/odoo)](https://socket.dev/npm/package/@wpmoo/odoo)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-cangir-FFDD00?logo=buymeacoffee&logoColor=000000)](https://www.buymeacoffee.com/cangir)
 
 WPMoo Odoo lifecycle tooling for development, staging, and production workflows.
 

@@ -1,6 +1,6 @@
 {
   "name": "@wpmoo/odoo",
-  "version": "0.8.40",
+  "version": "0.8.41",
   "description": "WPMoo Odoo lifecycle tooling for development, staging, and production workflows.",
   "type": "module",
   "repository": {
@@ -12,7 +12,6 @@
     "url": "https://github.com/wpmoo-org/wpmoo-odoo/issues"
   },
   "readmeFilename": "README.md",
-  "fundingUrl": "https://buymeacoffee.com/cangir",
   "keywords": [
     "odoo",
     "odoo development",
