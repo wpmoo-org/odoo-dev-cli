@@ -31,6 +31,19 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function commandErrorText(error: unknown): string {
+  const parts = [errorMessage(error)];
+  if (isRecord(error)) {
+    for (const key of ['stderr', 'stdout']) {
+      const value = error[key];
+      if (typeof value === 'string' && value.trim()) {
+        parts.push(value.trim());
+      }
+    }
+  }
+  return parts.join('\n');
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -118,12 +131,46 @@ function renderFailure(errors: string[]): string {
   return ['WPMoo doctor failed:', ...errors.map((error) => `- ${error}`)].join('\n');
 }
 
+function isNotGitCheckoutError(error: unknown): boolean {
+  return commandErrorText(error).toLowerCase().includes('not a git repository');
+}
+
+function isSourceRepoSubmodule(path: string, sourceRepos: SourceRepo[]): boolean {
+  return sourceRepos.some((repo) => {
+    const sourcePath = `odoo/custom/src/private/${repo.path}`;
+    return path === sourcePath || path.startsWith(`${sourcePath}/`);
+  });
+}
+
+function sourceSubmoduleStatusErrors(output: string, sourceRepos: SourceRepo[]): string[] {
+  const errors: string[] = [];
+
+  for (const rawLine of output.split(/\r?\n/)) {
+    const line = rawLine.trimEnd();
+    if (!line) continue;
+
+    const status = line[0];
+    const parts = line.slice(1).trim().split(/\s+/);
+    const path = parts[1];
+    if (!path || !isSourceRepoSubmodule(path, sourceRepos)) continue;
+
+    if (status === '-') {
+      errors.push(`Uninitialized Git submodule: ${path}`);
+    } else if (status === 'U') {
+      errors.push(`Conflicted Git submodule: ${path}`);
+    }
+  }
+
+  return errors;
+}
+
 export async function runDoctor(
   target = process.cwd(),
   runner: DoctorCommandRunner = realCommandRunner,
 ): Promise<string> {
   const lines = ['WPMoo doctor'];
   const errors: string[] = [];
+  const warnings: string[] = [];
   const metadata = await readMetadata(target);
   lines.push(`OK metadata ${markerPath}`);
 
@@ -192,10 +239,42 @@ export async function runDoctor(
     errors.push(`Docker CLI check failed: ${errorMessage(error)}`);
   }
 
+  try {
+    await runner('docker', ['compose', 'version'], { cwd: target });
+    lines.push('OK docker compose');
+  } catch (error) {
+    errors.push(`Docker Compose check failed: ${errorMessage(error)}`);
+  }
+
+  if (sourceRepos.length > 0) {
+    try {
+      const result = await runner('git', ['submodule', 'status', '--recursive'], { cwd: target });
+      const submoduleErrors = sourceSubmoduleStatusErrors(result.stdout, sourceRepos);
+      errors.push(...submoduleErrors);
+      if (submoduleErrors.length === 0) {
+        lines.push(`OK git submodules ${sourceRepos.length} checked`);
+      }
+    } catch (error) {
+      if (isNotGitCheckoutError(error)) {
+        lines.push('OK git submodules skipped (not a git checkout)');
+      } else {
+        errors.push(`Git submodule status check failed: ${errorMessage(error)}`);
+      }
+    }
+  }
+
+  try {
+    await runner('gh', ['auth', 'status'], { cwd: target });
+    lines.push('OK GitHub CLI auth');
+  } catch (error) {
+    warnings.push(`WARN GitHub CLI auth: ${errorMessage(error)}`);
+  }
+
   if (errors.length > 0) {
     throw new Error(renderFailure(errors));
   }
 
+  lines.push(...warnings);
   lines.push('Doctor checks passed.');
   return lines.join('\n');
 }

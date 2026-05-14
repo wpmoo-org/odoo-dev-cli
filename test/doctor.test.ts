@@ -55,11 +55,40 @@ async function makeEnvironment(options: {
   return target;
 }
 
-function passingDockerRunner(calls: string[][] = []): DoctorCommandRunner {
-  return async (command, args) => {
-    calls.push([command, ...args]);
-    return { stdout: 'Docker version 27.0.0\n', stderr: '' };
+type RunnerResponse =
+  | { stdout: string; stderr?: string }
+  | Error;
+
+function doctorRunner(
+  options: {
+    calls?: string[][];
+    responses?: Record<string, RunnerResponse>;
+  } = {},
+): DoctorCommandRunner {
+  const responses: Record<string, RunnerResponse> = {
+    'docker version': { stdout: 'Docker version 27.0.0\n' },
+    'docker compose version': { stdout: 'Docker Compose version v2.30.0\n' },
+    'git submodule status --recursive': new Error('fatal: not a git repository'),
+    'gh auth status': { stdout: 'github.com\n  Logged in\n' },
+    ...options.responses,
   };
+
+  return async (command, args) => {
+    options.calls?.push([command, ...args]);
+
+    const response = responses[[command, ...args].join(' ')];
+    if (response instanceof Error) {
+      throw response;
+    }
+    if (!response) {
+      throw new Error(`unexpected command: ${command} ${args.join(' ')}`);
+    }
+    return { stdout: response.stdout, stderr: response.stderr ?? '' };
+  };
+}
+
+function passingDockerRunner(calls: string[][] = []): DoctorCommandRunner {
+  return doctorRunner({ calls });
 }
 
 describe('doctor', () => {
@@ -80,10 +109,18 @@ describe('doctor', () => {
         'OK source repos 1 checked',
         'OK .env ports HTTP_PORT=10019 GEVENT_PORT=20019',
         'OK docker CLI',
+        'OK docker compose',
+        'OK git submodules skipped (not a git checkout)',
+        'OK GitHub CLI auth',
         'Doctor checks passed.',
       ].join('\n'),
     );
-    expect(calls).toEqual([['docker', 'version']]);
+    expect(calls).toEqual([
+      ['docker', 'version'],
+      ['docker', 'compose', 'version'],
+      ['git', 'submodule', 'status', '--recursive'],
+      ['gh', 'auth', 'status'],
+    ]);
   });
 
   it('requires the metadata file to exist and parse', async () => {
@@ -151,5 +188,63 @@ describe('doctor', () => {
     };
 
     await expect(runDoctor(target, runner)).rejects.toThrow('Docker CLI check failed: docker unavailable');
+  });
+
+  it('fails when Docker Compose cannot be called', async () => {
+    const target = await makeEnvironment();
+    const runner = doctorRunner({
+      responses: {
+        'docker compose version': new Error('compose unavailable'),
+      },
+    });
+
+    await expect(runDoctor(target, runner)).rejects.toThrow('Docker Compose check failed: compose unavailable');
+  });
+
+  it('fails when git reports uninitialized or conflicted source submodules', async () => {
+    const sha = 'a'.repeat(40);
+    const metadata = {
+      ...baseMetadata,
+      sourceRepos: [
+        ...baseMetadata.sourceRepos,
+        {
+          url: 'https://github.com/example-org/odoo_sample_module_extra.git',
+          path: 'odoo_sample_module_extra',
+          addons: ['odoo_sample_module_extra'],
+        },
+      ],
+    };
+    const target = await makeEnvironment({
+      metadata,
+      sourcePaths: ['odoo_sample_module', 'odoo_sample_module_extra'],
+    });
+    const runner = doctorRunner({
+      responses: {
+        'git submodule status --recursive': {
+          stdout: [
+            `-${sha} odoo/custom/src/private/odoo_sample_module`,
+            `U${sha} odoo/custom/src/private/odoo_sample_module_extra`,
+          ].join('\n'),
+        },
+      },
+    });
+
+    await expect(runDoctor(target, runner)).rejects.toThrow(
+      'Uninitialized Git submodule: odoo/custom/src/private/odoo_sample_module',
+    );
+    await expect(runDoctor(target, runner)).rejects.toThrow(
+      'Conflicted Git submodule: odoo/custom/src/private/odoo_sample_module_extra',
+    );
+  });
+
+  it('warns without failing when GitHub CLI auth is unavailable', async () => {
+    const target = await makeEnvironment();
+    const runner = doctorRunner({
+      responses: {
+        'gh auth status': new Error('not logged in'),
+      },
+    });
+
+    await expect(runDoctor(target, runner)).resolves.toContain('WARN GitHub CLI auth: not logged in');
   });
 });
