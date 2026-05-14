@@ -283,9 +283,17 @@ is handled by the GitHub Actions workflow.
 
 For GitHub Actions publishing, configure npm Trusted Publishing for
 `wpmoo-org/wpmoo-odoo` with workflow filename `publish.yml`, then run the
-`Publish` workflow manually from GitHub Actions. The workflow uses OIDC instead
-of an npm token, verifies typecheck/tests/build, fails if the package version
-already exists on npm, runs `npm pack --dry-run`, and publishes to npm.
+`Publish` workflow manually from GitHub Actions or push a matching release tag:
+
+```bash
+VERSION="$(node -p "require('./package.json').version")"
+git tag -a "v$VERSION" -m "Release v$VERSION"
+git push origin "v$VERSION"
+```
+
+The workflow uses OIDC instead of an npm token, verifies typecheck/tests/build,
+fails if a pushed tag does not match the package version, fails if the package
+version already exists on npm, runs `npm pack --dry-run`, and publishes to npm.
 
 ## Support
 
