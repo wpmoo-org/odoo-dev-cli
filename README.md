@@ -268,18 +268,18 @@ tool-owned development guideline files.
 
 ## Release
 
-For local publishing from the repository root, run:
+For local release checks from the repository root, run:
 
 ```bash
-./scripts/publish-release.sh
+npm run release:check
 ```
 
 The script checks whether the current package version already exists on npm. If
 it does, it runs a patch version bump without creating a git tag, then stops so
 you can commit and push `package.json` and `package-lock.json` before publishing.
 If the version is not published yet, it keeps the current version and runs
-`npm test -- test/package.test.ts`, `npm pack --dry-run`, and
-`npm publish --access public`.
+`npm test -- test/package.test.ts` and `npm pack --dry-run`. Actual publishing
+is handled by the GitHub Actions workflow.
 
 For GitHub Actions publishing, configure npm Trusted Publishing for
 `wpmoo-org/wpmoo-odoo` with workflow filename `publish.yml`, then run the

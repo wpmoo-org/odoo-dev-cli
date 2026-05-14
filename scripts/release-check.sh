@@ -69,6 +69,3 @@ echo "Running package metadata test..."
 
 echo "Running npm pack --dry-run..."
 "$NPM_BIN" pack --dry-run
-
-echo "Publishing $PACKAGE_NAME@$current_version..."
-"$NPM_BIN" publish --access public

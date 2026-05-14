@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-const scriptPath = new URL('../scripts/publish-release.sh', import.meta.url);
+const scriptPath = new URL('../scripts/release-check.sh', import.meta.url);
 
 async function createReleaseFixture(version: string, existingVersions: string[]) {
   const root = mkdtempSync(join(tmpdir(), 'wpmoo-publish-release-'));
@@ -86,7 +86,7 @@ esac
   return { root, logPath, stubPath };
 }
 
-function runReleaseScript(root: string, npmStub: string) {
+function runReleaseCheck(root: string, npmStub: string) {
   execFileSync('bash', [scriptPath.pathname], {
     cwd: root,
     env: {
@@ -98,10 +98,10 @@ function runReleaseScript(root: string, npmStub: string) {
   });
 }
 
-function runReleaseScriptExpectFailure(root: string, npmStub: string) {
+function runReleaseCheckExpectFailure(root: string, npmStub: string) {
   try {
-    runReleaseScript(root, npmStub);
-    throw new Error('Expected publish release script to fail');
+    runReleaseCheck(root, npmStub);
+    throw new Error('Expected release check script to fail');
   } catch (error) {
     const failure = error as { stdout?: Buffer; stderr?: Buffer; status?: number };
     expect(failure.status).not.toBe(0);
@@ -109,11 +109,11 @@ function runReleaseScriptExpectFailure(root: string, npmStub: string) {
   }
 }
 
-describe('publish release script', () => {
+describe('release check script', () => {
   it('bumps patch version and stops before publishing when the current version already exists on npm', async () => {
     const { root, logPath, stubPath } = await createReleaseFixture('0.8.36', ['0.8.36']);
 
-    const output = runReleaseScriptExpectFailure(root, stubPath);
+    const output = runReleaseCheckExpectFailure(root, stubPath);
 
     const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
     const commands = readFileSync(logPath, 'utf8').trim().split('\n');
@@ -130,7 +130,7 @@ describe('publish release script', () => {
   it('keeps the current version when it is not published yet', async () => {
     const { root, logPath, stubPath } = await createReleaseFixture('0.8.37', []);
 
-    runReleaseScript(root, stubPath);
+    runReleaseCheck(root, stubPath);
 
     const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
     const commands = readFileSync(logPath, 'utf8').trim().split('\n');
@@ -139,7 +139,6 @@ describe('publish release script', () => {
       'view @wpmoo/odoo@0.8.37 version',
       'test -- test/package.test.ts',
       'pack --dry-run',
-      'publish --access public',
     ]);
   });
 });

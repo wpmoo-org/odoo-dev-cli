@@ -11,6 +11,7 @@ describe('package metadata', () => {
       repository: { type: string; url: string };
       files: string[];
       bin: Record<string, string>;
+      scripts: Record<string, string>;
     };
 
     expect(packageJson.name).toBe('@wpmoo/odoo');
@@ -25,5 +26,6 @@ describe('package metadata', () => {
       wpmoo: 'dist/cli.js',
     });
     expect(Object.keys(packageJson.bin)).toEqual(['wpmoo']);
+    expect(packageJson.scripts['release:check']).toBe('bash scripts/release-check.sh');
   });
 });
