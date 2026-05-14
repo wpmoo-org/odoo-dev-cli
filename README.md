@@ -30,8 +30,8 @@ files without touching product source code.
 - Node.js `>=20.17`
 - Git
 - Docker and Docker Compose for generated environment runtime commands
-- GitHub CLI (`gh`) for repository discovery, repository creation, and deeper
-  diagnostics
+- Optional: GitHub CLI (`gh`) for repository discovery, repository creation, and
+  deeper diagnostics
 
 The wizard currently offers Odoo `19.0`, `18.0`, `17.0`, and `16.0`. The copied
 Compose resource must include the matching `docker-compose_<version>.yml` file
@@ -140,7 +140,8 @@ The UI is intentionally practical rather than decorative:
 | Repositories | `add-repo`, `remove-repo` |
 | Maintenance | `safe-reset` |
 
-Every cockpit action also has a direct command for scripting and repeatable
+Every cockpit action maps to a direct command, or to an equivalent management
+command such as `/safe-reset` mapping to `reset`, for scripting and repeatable
 terminal workflows.
 
 ## Direct Commands
@@ -151,6 +152,11 @@ npx @wpmoo/odoo --version
 
 npx @wpmoo/odoo status
 npx @wpmoo/odoo doctor
+npx @wpmoo/odoo add-repo --repo-url https://github.com/example-org/odoo_sample_module_reports.git
+npx @wpmoo/odoo remove-repo --repo odoo_sample_module_reports
+npx @wpmoo/odoo add-module --repo odoo_sample_module --module odoo_sample_module_base
+npx @wpmoo/odoo remove-module --repo odoo_sample_module --module odoo_sample_module_base
+npx @wpmoo/odoo reset
 
 npx @wpmoo/odoo start
 npx @wpmoo/odoo stop
