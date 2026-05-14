@@ -8,7 +8,7 @@
 [![npm](https://img.shields.io/npm/v/@wpmoo/odoo?label=npm&logo=npm&style=flat-square&color=blue)](https://www.npmjs.com/package/@wpmoo/odoo)
 [![Coverage Status](https://img.shields.io/coverallsCoverage/github/wpmoo-org/wpmoo-odoo?branch=main&label=coverage&logo=coveralls&style=flat-square&color=blue)](https://coveralls.io/github/wpmoo-org/wpmoo-odoo?branch=main)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-cangir-FFDD00?logo=buymeacoffee&logoColor=000000&style=flat-square)](https://www.buymeacoffee.com/cangir)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=000000&style=flat-square)](https://www.buymeacoffee.com/cangir)
 
 WPMoo Odoo lifecycle tooling for development, staging, and production workflows.
 
