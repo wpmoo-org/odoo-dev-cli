@@ -1,6 +1,6 @@
 ![WPMoo Odoo development workflow tooling](docs/assets/wpmoo-banner.png)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml) [![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![npm](https://img.shields.io/npm/v/@wpmoo/odoo?label=npm&logo=npm&style=flat-square&color=blue)](https://www.npmjs.com/package/@wpmoo/odoo) [![Coverage Status](https://img.shields.io/coverallsCoverage/github/wpmoo-org/wpmoo-odoo?branch=main&label=coverage&logo=coveralls&style=flat-square&color=blue)](https://coveralls.io/github/wpmoo-org/wpmoo-odoo?branch=main) [![codecov](https://img.shields.io/codecov/c/github/wpmoo-org/wpmoo-odoo?branch=main&label=codecov&logo=codecov&style=flat-square&color=blue)](https://codecov.io/gh/wpmoo-org/wpmoo-odoo) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE) [![Odoo Tool](https://img.shields.io/badge/Odoo-Tool-714B67?style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=000000&style=flat-square)](https://www.buymeacoffee.com/cangir)
+[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml) [![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![npm](https://img.shields.io/npm/v/@wpmoo/odoo?label=npm&logo=npm&style=flat-square&color=blue)](https://www.npmjs.com/package/@wpmoo/odoo) [![Coverage Status](https://img.shields.io/coverallsCoverage/github/wpmoo-org/wpmoo-odoo?branch=main&label=coverage&logo=coveralls&style=flat-square&color=blue)](https://coveralls.io/github/wpmoo-org/wpmoo-odoo?branch=main) [![codecov](https://img.shields.io/codecov/c/github/wpmoo-org/wpmoo-odoo?branch=main&label=codecov&logo=codecov&style=flat-square&color=blue)](https://codecov.io/gh/wpmoo-org/wpmoo-odoo) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE) [![Odoo Tool](https://img.shields.io/badge/Odoo-Tool-714B67?style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=000000&style=flat-square)](https://www.buymeacoffee.com/cangir) [![Patreon](https://img.shields.io/badge/Patreon-Support-F96854?logo=patreon&logoColor=white&style=flat-square)](https://www.patreon.com/wpmoo)
 
 # WPMoo Odoo
 
@@ -33,6 +33,10 @@ files without touching product source code.
 - GitHub CLI (`gh`) for repository discovery, repository creation, and deeper
   diagnostics
 
+The wizard currently offers Odoo `19.0`, `18.0`, `17.0`, and `16.0`. The copied
+Compose resource must include the matching `docker-compose_<version>.yml` file
+for the selected branch.
+
 Install GitHub CLI when you want WPMoo to discover your personal account and
 organizations or create missing repositories from the interactive wizard:
 
@@ -49,7 +53,7 @@ Run the guided wizard from a workspace directory:
 npx @wpmoo/odoo
 ```
 
-If the current directory is not already a WPMoo Odoo Development environment, the CLI opens the
+If the current directory is not already a WPMoo environment, the CLI opens the
 create flow. It asks for the product slug, Odoo version, dev environment repo,
 source repo URLs, optional extra source repos, project-local Agent Skills, and
 empty repository initialization behavior.
@@ -232,7 +236,7 @@ Use `npx @wpmoo/odoo ...` for package/operator commands such as `create`,
 and `reset`. Use `./moo ...` inside a generated environment for local daily
 Compose commands.
 
-## Repository And Module Management
+## Repository and Module Management
 
 Add a source repository from the cockpit or direct command:
 
@@ -284,7 +288,7 @@ npx @wpmoo/odoo remove-repo --repo odoo_sample_module_reports
 WPMoo refuses to remove a source repo submodule when that submodule has
 uncommitted changes.
 
-## Status, Doctor, And Recovery
+## Status, Doctor, and Recovery
 
 `status` is fast and offline. It reads local metadata and files only:
 
@@ -408,10 +412,13 @@ If `npm run release:check` bumps `package.json` and `package-lock.json`, commit
 and push that version bump first, then rerun the release check before tagging.
 Publishing is handled by the `Publish` workflow after the tag is pushed.
 
-## Support
+## Sponsoring
 
-If this project helps you, you can support the work here:
+Support ongoing WPMoo development through recurring or one-time sponsorship:
 
 <a href="https://www.buymeacoffee.com/cangir">
   <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="250">
+</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://www.patreon.com/wpmoo">
+  <img src="docs/assets/patreon-donate.png" alt="Support WPMoo on Patreon" width="250">
 </a>
