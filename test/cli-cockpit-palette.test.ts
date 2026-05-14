@@ -1,0 +1,52 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { cockpitCommands, searchCockpitCommands } from '../src/cockpit/command-registry.js';
+import { selectCockpitCommandFromPalette, type CockpitSearchPrompt } from '../src/cockpit/command-palette.js';
+
+describe('cockpit command palette search', () => {
+  it('ranks exact /test slash alias match first', () => {
+    expect(searchCockpitCommands('/test')[0]?.id).toBe('test');
+  });
+
+  it('ranks exact test id match first', () => {
+    expect(searchCockpitCommands('test')[0]?.id).toBe('test');
+  });
+
+  it('matches partial terms against command metadata', () => {
+    expect(searchCockpitCommands('log').map((command) => command.id)).toContain('logs');
+  });
+
+  it('matches category terms against command metadata', () => {
+    expect(searchCockpitCommands('database').map((command) => command.id)).toEqual(
+      expect.arrayContaining(['psql', 'snapshot', 'resetdb']),
+    );
+  });
+
+  it('returns no commands for unknown terms', () => {
+    expect(searchCockpitCommands('not-a-real-command')).toEqual([]);
+  });
+
+  it('returns curated defaults for an empty term', () => {
+    expect(searchCockpitCommands('').map((command) => command.id)).toEqual(
+      expect.arrayContaining(['start', 'logs', 'test', 'status', 'doctor', 'exit']),
+    );
+  });
+});
+
+describe('selectCockpitCommandFromPalette', () => {
+  it('calls the injected search prompt with a source that returns matches and resolves the selected command', async () => {
+    const selected = cockpitCommands.find((command) => command.id === 'logs');
+    expect(selected).toBeDefined();
+
+    const prompt: CockpitSearchPrompt = vi.fn(async (config: Parameters<CockpitSearchPrompt>[0]) => {
+      const choices = await config.source('log', { signal: new AbortController().signal });
+      expect(choices.map((choice) => choice.value.id)).toContain('logs');
+      return selected!;
+    });
+
+    const command = await selectCockpitCommandFromPalette({ prompt });
+
+    expect(prompt).toHaveBeenCalledOnce();
+    expect(command.id).toBe('logs');
+  });
+});

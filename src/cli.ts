@@ -13,6 +13,11 @@ import {
   parseArgs,
   stripInternalFlags,
 } from './args.js';
+import type { CockpitCommand } from './cockpit/command-registry.js';
+import { selectCockpitCommandFromPalette } from './cockpit/command-palette.js';
+import { collectDailyActionArgs } from './cockpit/daily-prompts.js';
+import { selectCockpitCategoryCommand, selectCockpitTopLevelMenu } from './cockpit/menu.js';
+import { confirmCockpitCommandRisk } from './cockpit/safety.js';
 import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
 import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
@@ -182,25 +187,18 @@ async function showStartup(argv: string[], skipUpdateCheck: boolean): Promise<vo
   console.log();
 }
 
-type EnvironmentMenuAction = 'add-repo' | 'remove-repo' | 'add-module' | 'remove-module' | 'reset' | 'exit';
+async function selectCockpitCommandFromMenu(): Promise<CockpitCommand | 'exit'> {
+  const selection = await selectCockpitTopLevelMenu();
 
-async function selectEnvironmentActionFromMenu(): Promise<EnvironmentMenuAction> {
-  intro('WPMoo Odoo Dev');
-  const action = await select({
-    message: 'What do you want to do?',
-    options: [
-      { value: 'add-repo', label: 'Add source repo' },
-      { value: 'remove-repo', label: 'Remove source repo' },
-      { value: 'add-module', label: 'Add module to source repo' },
-      { value: 'remove-module', label: 'Remove module from source repo' },
-      { value: 'reset', label: 'Safe reset environment' },
-      { value: 'exit', label: 'Exit' },
-    ],
-    initialValue: 'add-module',
-  });
-  handleCancel(action, 'back');
+  if (selection.kind === 'exit') {
+    return 'exit';
+  }
 
-  return action as EnvironmentMenuAction;
+  if (selection.kind === 'command-palette') {
+    return selectCockpitCommandFromPalette();
+  }
+
+  return selectCockpitCategoryCommand(selection.category);
 }
 
 async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAction = 'exit'): Promise<ScaffoldOptions> {
@@ -724,6 +722,84 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
   await createGitHubRepositories(missing, visibility as RepositoryVisibility);
 }
 
+async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<'continue' | 'exit'> {
+  if (command.id === 'exit') {
+    return 'exit';
+  }
+
+  if (command.target.kind === 'daily') {
+    const argv = await collectDailyActionArgs(command.target.command, cwd);
+    if (!(await confirmCockpitCommandRisk(command))) {
+      note(`${command.slashAlias} was not run.`, 'Action skipped');
+      return 'continue';
+    }
+
+    await runDailyAction(command.target.command, argv, cwd);
+    note(`${command.slashAlias} completed.`, 'Done');
+    return 'continue';
+  }
+
+  if (command.id === 'status') {
+    note(await renderEnvironmentStatusForTarget(cwd), 'Environment status');
+    return 'continue';
+  }
+
+  if (command.id === 'doctor') {
+    note(await runDoctor(cwd), 'Doctor');
+    return 'continue';
+  }
+
+  if (command.id === 'add-repo') {
+    const options = await addRepoOptionsFromPrompts(false, 'back');
+    await ensureAddRepoGitHubRepository(options, 'back');
+    await addModuleRepo(options);
+    note(`Added source repo under ${options.target}/odoo/custom/src/private.`, 'Done');
+    return 'continue';
+  }
+
+  if (command.id === 'remove-repo') {
+    const options = await removeRepoOptionsFromPrompts([], false, 'back');
+    if (!(await confirmCockpitCommandRisk(command))) {
+      note(`Source repo ${options.repoPath} was not removed.`, 'Action skipped');
+      return 'continue';
+    }
+
+    await removeModuleRepo(options);
+    note(`Removed source repo ${options.repoPath} from ${options.target}.`, 'Done');
+    return 'continue';
+  }
+
+  if (command.id === 'add-module') {
+    const options = await addModuleOptionsFromPrompts(false, 'back');
+    await addModuleToSourceRepo(options);
+    note(`Added module ${options.moduleName} under source repo ${options.repoPath}.`, 'Done');
+    return 'continue';
+  }
+
+  if (command.id === 'remove-module') {
+    const options = await removeModuleOptionsFromPrompts(false, 'back');
+    if (!(await confirmCockpitCommandRisk(command))) {
+      note(`Module ${options.moduleName} was not removed.`, 'Action skipped');
+      return 'continue';
+    }
+
+    await removeModuleFromSourceRepo(options);
+    note(`Removed module ${options.moduleName} from source repo ${options.repoPath}.`, 'Done');
+    return 'continue';
+  }
+
+  if (command.id === 'safe-reset') {
+    const options = { target: cwd, stage: true };
+    await confirmSafeResetFromMenu(options);
+    await safeResetEnvironment(options);
+    note(`Safe reset refreshed generated environment files in ${cwd}.`, 'Done');
+    return 'continue';
+  }
+
+  note(`Unknown cockpit command: ${command.slashAlias}`, 'No action');
+  return 'continue';
+}
+
 export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd()): Promise<void> {
   installPromptCancelKeyTracker();
   const rawArgv = cliArgv;
@@ -751,50 +827,21 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
       return;
     }
 
+    intro('WPMoo Odoo Dev');
     while (true) {
       try {
         const status = await getEnvironmentStatus(cwd);
         note(renderEnvironmentStatusSummary(status), 'Environment status');
-        const action = await selectEnvironmentActionFromMenu();
+        const command = await selectCockpitCommandFromMenu();
 
-        if (action === 'exit') {
+        if (command === 'exit') {
           return;
         }
 
-        if (action === 'add-repo') {
-          const options = await addRepoOptionsFromPrompts(false, 'back');
-          await ensureAddRepoGitHubRepository(options, 'back');
-          await addModuleRepo(options);
-          outro(`Added source repo under ${options.target}/odoo/custom/src/private.`);
+        const outcome = await runCockpitCommand(command, cwd);
+        if (outcome === 'exit') {
           return;
         }
-
-        if (action === 'remove-repo') {
-          const options = await removeRepoOptionsFromPrompts([], false, 'back');
-          await removeModuleRepo(options);
-          outro(`Removed source repo ${options.repoPath} from ${options.target}.`);
-          return;
-        }
-
-        if (action === 'add-module') {
-          const options = await addModuleOptionsFromPrompts(false, 'back');
-          await addModuleToSourceRepo(options);
-          outro(`Added module ${options.moduleName} under source repo ${options.repoPath}.`);
-          return;
-        }
-
-        if (action === 'remove-module') {
-          const options = await removeModuleOptionsFromPrompts(false, 'back');
-          await removeModuleFromSourceRepo(options);
-          outro(`Removed module ${options.moduleName} from source repo ${options.repoPath}.`);
-          return;
-        }
-
-        const options = { target: cwd, stage: true };
-        await confirmSafeResetFromMenu(options);
-        await safeResetEnvironment(options);
-        outro(`Safe reset refreshed generated environment files in ${cwd}.`);
-        return;
       } catch (error) {
         if (isMenuBackSignal(error)) {
           continue;

@@ -67,6 +67,12 @@ Daily actions:
   Generated environments also include ./moo for local compose commands such as ./moo start.
   Use ./moo or npx @wpmoo/odoo with the same daily action arguments.
 
+Cockpit:
+  Run npx @wpmoo/odoo inside a generated environment to open the cockpit.
+  Use Command palette / to search slash commands across services, modules, database,
+  diagnostics, repositories, and maintenance categories.
+  Direct commands such as npx @wpmoo/odoo status and npx @wpmoo/odoo test remain available.
+
 Status and doctor:
   status: fast and offline. Reads local environment metadata and files only.
   doctor: deeper health check. May check Docker CLI access and GitHub workflows.

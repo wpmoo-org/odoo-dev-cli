@@ -18,6 +18,15 @@ describe('help', () => {
     expect(output).toContain('May check Docker CLI access and GitHub workflows.');
   });
 
+  it('documents the interactive cockpit', () => {
+    const output = renderHelp();
+
+    expect(output).toContain('Cockpit:');
+    expect(output).toContain('Run npx @wpmoo/odoo inside a generated environment to open the cockpit.');
+    expect(output).toContain('Use Command palette / to search slash commands');
+    expect(output).toContain('Direct commands such as npx @wpmoo/odoo status');
+  });
+
   it('includes task-oriented recipes', () => {
     const output = renderHelp();
 

@@ -14,6 +14,8 @@ describe('package metadata', () => {
       exports: string;
       main: string;
       scripts: Record<string, string>;
+      engines: Record<string, string>;
+      dependencies: Record<string, string>;
     };
 
     expect(packageJson.name).toBe('@wpmoo/odoo');
@@ -31,5 +33,10 @@ describe('package metadata', () => {
     expect(packageJson.main).toBe('./dist/cli.js');
     expect(packageJson.exports).toBe('./dist/cli.js');
     expect(packageJson.scripts['release:check']).toBe('bash scripts/release-check.sh');
+    expect(packageJson.engines.node).toBe('>=20.17');
+    expect(packageJson.dependencies).toMatchObject({
+      '@clack/prompts': expect.any(String),
+      '@inquirer/search': expect.any(String),
+    });
   });
 });

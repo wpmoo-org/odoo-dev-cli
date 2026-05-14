@@ -52,15 +52,25 @@ npx @wpmoo/odoo
 The wizard is context-aware. If the current directory is not already a WPMoo
 Odoo development environment, it starts the create flow directly.
 
-Inside an existing environment, it shows maintenance actions:
+Inside an existing environment, it opens the cockpit. The cockpit includes
+`Command palette /` for slash-style search across services, modules, database,
+diagnostics, repositories, and maintenance categories, plus guided category
+menus for common workflows.
 
 ```text
-Add source repo
-Remove source repo
-Add module to source repo
-Remove module from source repo
-Safe reset environment
+Command palette /
+Services
+Modules
+Database
+Diagnostics
+Repositories
+Maintenance
+Exit
 ```
+
+Direct commands remain available for scripts and repeatable terminal workflows,
+such as `npx @wpmoo/odoo status`, `npx @wpmoo/odoo test sale --db devel`, and
+`npx @wpmoo/odoo logs odoo`.
 
 Non-interactive:
 
