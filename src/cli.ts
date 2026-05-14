@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
+import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   commandFromArgs,
@@ -922,7 +923,19 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
   outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+export function isCliEntrypoint(metaUrl: string, argvPath = process.argv[1]): boolean {
+  if (!argvPath) return false;
+
+  try {
+    const entrypointUrl = pathToFileURL(realpathSync(fileURLToPath(metaUrl))).href;
+    const argvUrl = pathToFileURL(realpathSync(argvPath)).href;
+    return entrypointUrl === argvUrl;
+  } catch {
+    return metaUrl === pathToFileURL(argvPath).href;
+  }
+}
+
+if (isCliEntrypoint(import.meta.url)) {
   runCli().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error(message);
