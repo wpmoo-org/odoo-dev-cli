@@ -2,9 +2,7 @@
 
 ![WPMoo Odoo lifecycle tooling across development, staging, and production](docs/assets/wpmoo-banner.png)
 
-[![CI](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml)
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 WPMoo Odoo lifecycle tooling for development, staging, and production workflows.
 
