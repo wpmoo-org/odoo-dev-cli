@@ -24,7 +24,15 @@ function allAddons(options: CreateOptions): string[] {
   return options.sourceRepos.flatMap((repo) => repo.addons);
 }
 
+function hasSourceRepos(options: CreateOptions): boolean {
+  return options.sourceRepos.length > 0;
+}
+
 function repositoryLayout(options: CreateOptions): string {
+  const sourceRepoRows = hasSourceRepos(options)
+    ? options.sourceRepos.map((repo) => `│               ├── ${repo.path}/`).join('\n')
+    : '│               └── README.md';
+
   return `${options.devRepo}/
 ├── docker-compose_17.0.yml
 ├── docker-compose_18.0.yml
@@ -36,13 +44,19 @@ function repositoryLayout(options: CreateOptions): string {
 │   └── custom/
 │       └── src/
 │           └── private/
-${options.sourceRepos.map((repo) => `│               ├── ${repo.path}/`).join('\n')}
+${sourceRepoRows}
 ├── docs/
 ├── README.md
 └── AGENTS.md`;
 }
 
 function sourceRepoDocs(options: CreateOptions): string {
+  if (!hasSourceRepos(options)) {
+    return `This environment was scaffolded without source repository submodules.
+Add source repositories later from the cockpit or with \`npx @wpmoo/odoo add-repo\`.
+They will be added under \`odoo/custom/src/private\`.`;
+  }
+
   return options.sourceRepos
     .map(
       (repo) => `### ${repo.path}
@@ -67,6 +81,37 @@ ${repo.addons.map((addon) => `├── ${addon}/`).join('\n')}
 \`\`\``,
     )
     .join('\n\n');
+}
+
+function cloneDocs(options: CreateOptions): string {
+  if (!hasSourceRepos(options)) {
+    return `## Local Folder
+
+This environment is ready in this folder:
+
+\`\`\`bash
+cd ${options.devRepo}
+\`\`\`
+
+If you later connect it to Git, commit the generated files after reviewing them.
+`;
+  }
+
+  return `## Clone
+
+Clone with submodules:
+
+\`\`\`bash
+git clone --recurse-submodules ${options.devRepoUrl}
+cd ${options.devRepo}
+\`\`\`
+
+If already cloned:
+
+\`\`\`bash
+git submodule update --init --recursive
+\`\`\`
+`;
 }
 
 function optionalAgentSkillsReadme(options: CreateOptions): string {
@@ -134,9 +179,9 @@ docker-compose_19.0.yml
 If copied from the standalone resource, additional compose documentation is kept
 in \`docs/compose.md\`.
 
-Source repositories stay under \`odoo/custom/src/private\`. At container startup,
-\`entrypoint.sh\` scans those repositories for addons and exposes them through
-\`/mnt/wpmoo-addons\`.
+Source repositories stay under \`odoo/custom/src/private\` when configured. At
+container startup, \`entrypoint.sh\` scans those repositories for addons and
+exposes them through \`/mnt/wpmoo-addons\`.
 
 ## Daily Command Hub (\`./moo\`)
 
@@ -518,8 +563,9 @@ export function renderReadme(options: CreateOptions): string {
 
 Private ${environmentKind()} development environment for the ${title} product.
 
-This repository owns the development environment only. Product source code lives
-in source repository submodules under \`odoo/custom/src/private\`.
+This folder owns the development environment only. Product source code lives
+in source repository submodules under \`odoo/custom/src/private\` when source
+repositories are connected.
 
 ## Repository Layout
 
@@ -527,20 +573,7 @@ in source repository submodules under \`odoo/custom/src/private\`.
 ${repositoryLayout(options)}
 \`\`\`
 
-## Clone
-
-Clone with submodules:
-
-\`\`\`bash
-git clone --recurse-submodules ${options.devRepoUrl}
-cd ${options.devRepo}
-\`\`\`
-
-If already cloned:
-
-\`\`\`bash
-git submodule update --init --recursive
-\`\`\`
+${cloneDocs(options)}
 
 ## WPMoo CLI Shortcut
 
@@ -566,24 +599,35 @@ ${sourceRepoDocs(options)}
 ${environmentUsageDocs(options)}
 ## Branching
 
-Use Odoo major-version branches in source repositories:
+Use Odoo major-version branches in source repositories when you add them:
 
 \`\`\`text
 ${options.odooVersion}
 \`\`\`
 
-This dev repository can stay on \`main\` and pin exact source commits through
-submodule references.
+If this environment is connected to Git, the dev repository can stay on \`main\`
+and pin exact source commits through submodule references.
 `;
 }
 
 export function renderAgents(options: CreateOptions): string {
-  const repoList = options.sourceRepos
-    .map((repo) => `- \`${repo.path}\`: \`${repo.url}\``)
-    .join('\n');
-  const addonList = options.sourceRepos
-    .map((repo) => `\`${repo.path}\` addons:\n${repo.addons.map((addon) => `- \`${addon}\``).join('\n')}`)
-    .join('\n\n');
+  const repoList = hasSourceRepos(options)
+    ? options.sourceRepos.map((repo) => `- \`${repo.path}\`: \`${repo.url}\``).join('\n')
+    : '- No source repositories are configured yet.';
+  const sourceLayout = hasSourceRepos(options)
+    ? `Product repositories are Git submodules:
+
+\`\`\`text
+${options.sourceRepos.map((repo) => `odoo/custom/src/private/${repo.path}`).join('\n')}
+\`\`\`
+
+${repoDuplicationNote()}`
+    : 'No source repositories are configured yet. Use `./moo add-repo` or the cockpit Repositories menu before module-specific work.';
+  const addonList = hasSourceRepos(options)
+    ? options.sourceRepos
+        .map((repo) => `\`${repo.path}\` addons:\n${repo.addons.map((addon) => `- \`${addon}\``).join('\n')}`)
+        .join('\n\n')
+    : 'No addon boundaries are known yet. Add source repositories before module-specific implementation.';
 
   return `# AGENTS.md
 
@@ -598,13 +642,7 @@ ${repoList}
 
 ## Source Layout
 
-Product repositories are Git submodules:
-
-\`\`\`text
-${options.sourceRepos.map((repo) => `odoo/custom/src/private/${repo.path}`).join('\n')}
-\`\`\`
-
-${repoDuplicationNote()}
+${sourceLayout}
 ${optionalAgentSkillsAgentsSection(options)}
 ## Addon Boundaries
 

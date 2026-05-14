@@ -90,6 +90,19 @@ describe('template rendering', () => {
     expect(readme).toContain('routes day-to-day service and module workflows to local scripts');
   });
 
+  it('renders local-only README guidance when no source repos are configured yet', () => {
+    const readme = renderReadme({
+      ...options,
+      devRepo: 'custom_local_env',
+      devRepoUrl: '/tmp/custom_local_env',
+      sourceRepos: [],
+    });
+
+    expect(readme).toContain('This environment was scaffolded without source repository submodules.');
+    expect(readme).toContain('Add source repositories later from the cockpit or with `npx @wpmoo/odoo add-repo`.');
+    expect(readme).not.toContain('git clone --recurse-submodules /tmp/custom_local_env');
+  });
+
   it('renders an executable bash dispatcher for the local moo shortcut', () => {
     const script = renderMooDelegationScript();
 
@@ -193,6 +206,19 @@ describe('template rendering', () => {
     expect(agents).toContain('./moo pot <module[,module]> [db] [output]');
     expect(agents).toContain('`./moo status` and `./moo doctor` are package fallback commands');
     expect(agents).toContain('delegate to local `./scripts/*.sh`');
+  });
+
+  it('renders generated AGENTS guidance for local-only environments without empty repo lists', () => {
+    const agents = renderAgents({
+      ...options,
+      devRepo: 'custom_local_env',
+      devRepoUrl: '/tmp/custom_local_env',
+      sourceRepos: [],
+    });
+
+    expect(agents).toContain('No source repositories are configured yet.');
+    expect(agents).toContain('Use `./moo add-repo` or the cockpit Repositories menu before module-specific work.');
+    expect(agents).not.toContain('undefined');
   });
 
   it('renders optional Agent Skills instructions when a skills resource is configured', () => {

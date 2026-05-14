@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
 import { realpathSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   commandFromArgs,
-  defaultTargetForProduct,
   isHelpRequested,
   isVersionRequested,
   optionsFromArgs,
@@ -216,9 +215,35 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
     cancelAction,
   );
 
-  const target = defaultTargetForProduct(product);
-  note(renderRepositorySetupNote(product), 'Repository setup');
-  const selectedGitHubOwner = await selectDefaultGitHubOwner(cancelAction);
+  const defaultTarget = `./${product}_dev`;
+  const target = resolve(
+    asString(
+      await text({
+        message: 'Environment folder',
+        placeholder: defaultTarget,
+        defaultValue: defaultTarget,
+        initialValue: defaultTarget,
+      }),
+      defaultTarget,
+      cancelAction,
+    ),
+  );
+
+  const connectGitHub = await select({
+    message: 'Connect this environment to Git/GitHub now?',
+    options: [
+      { value: true, label: 'Yes, connect Git/GitHub repositories' },
+      { value: false, label: 'No, scaffold local-only' },
+    ],
+    initialValue: true,
+  });
+  handleCancel(connectGitHub, cancelAction);
+
+  let selectedGitHubOwner: string | undefined;
+  if (connectGitHub) {
+    note(renderRepositorySetupNote(product), 'Repository setup');
+    selectedGitHubOwner = await selectDefaultGitHubOwner(cancelAction);
+  }
 
   const selectedVersion = await select({
     message: menuPromptMessage('Odoo version', cancelAction),
@@ -227,6 +252,41 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   });
   handleCancel(selectedVersion, cancelAction);
   const odooVersion = String(selectedVersion);
+
+  async function promptInstallAgentSkills(): Promise<boolean> {
+    const installAgentSkills = await select({
+      message: 'Install project-local Odoo Agent Skills?',
+      options: [
+        { value: true, label: 'Yes, install latest default skills' },
+        { value: false, label: 'No' },
+      ],
+      initialValue: false,
+    });
+    handleCancel(installAgentSkills, cancelAction);
+
+    return Boolean(installAgentSkills);
+  }
+
+  if (!connectGitHub) {
+    const installAgentSkills = await promptInstallAgentSkills();
+
+    return {
+      product,
+      odooVersion,
+      engine: 'compose',
+      devRepo: basename(target),
+      devRepoUrl: target,
+      sourceRepos: [],
+      target,
+      dryRun: false,
+      initEmptyRepos: false,
+      stage: false,
+      agentSkillsTemplateUrl: installAgentSkills ? defaultAgentSkillsTemplateUrl : undefined,
+      createMissingRepos: false,
+      repoVisibility: 'private',
+      skipSubmodules: true,
+    };
+  }
 
   const detectedDevRepoUrl = await getOriginUrl(realGit, target);
   const defaultDevRepoUrl = selectedGitHubOwner
@@ -279,15 +339,7 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
     addAnother = Boolean(shouldAddAnother);
   }
 
-  const installAgentSkills = await select({
-    message: 'Install project-local Odoo Agent Skills?',
-    options: [
-      { value: true, label: 'Yes, install latest default skills' },
-      { value: false, label: 'No' },
-    ],
-    initialValue: false,
-  });
-  handleCancel(installAgentSkills, cancelAction);
+  const installAgentSkills = await promptInstallAgentSkills();
 
   const initEmpty = await select({
     message: 'Initialize repositories that exist but have no commits?',
@@ -631,6 +683,10 @@ async function removeModuleOptionsFromPrompts(
 
 async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: boolean): Promise<void> {
   if (options.dryRun) {
+    return;
+  }
+
+  if (options.skipSubmodules) {
     return;
   }
 

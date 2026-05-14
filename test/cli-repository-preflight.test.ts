@@ -146,19 +146,49 @@ async function loadCli() {
   return import('../src/cli.js');
 }
 
-function mockCreatePrompts(options?: { product?: string; odooVersion?: string; initEmptyRepos?: boolean }) {
+function mockCreatePrompts(options?: {
+  product?: string;
+  environmentFolder?: string;
+  connectGitHub?: boolean;
+  odooVersion?: string;
+  initEmptyRepos?: boolean;
+  createMissingRepositories?: boolean;
+  repoVisibility?: 'private' | 'public';
+}) {
   const product = options?.product ?? 'odoo_sample_module';
+  const environmentFolder = options?.environmentFolder ?? `./${product}_dev`;
+  const connectGitHub = options?.connectGitHub ?? true;
   const odooVersion = options?.odooVersion ?? '19.0';
   const initEmptyRepos = options?.initEmptyRepos ?? true;
   const devRepoUrl = `https://github.com/example-org/${product}_dev.git`;
   const sourceRepoUrl = `https://github.com/example-org/${product}.git`;
 
-  mocks.text.mockResolvedValueOnce(product);
-  mocks.select.mockResolvedValueOnce(odooVersion);
-  mocks.promptRepositoryUrl.mockResolvedValueOnce(devRepoUrl);
-  mocks.promptRepositoryUrl.mockResolvedValueOnce(sourceRepoUrl);
-  mocks.select.mockResolvedValueOnce(false);
-  mocks.select.mockResolvedValueOnce(initEmptyRepos);
+  mocks.text.mockImplementation(async (prompt: { message?: string }) => {
+    const message = prompt?.message ?? '';
+    if (message.includes('Product slug')) return product;
+    if (message.includes('Environment folder')) return environmentFolder;
+    return '';
+  });
+  mocks.promptRepositoryUrl.mockImplementation(async (prompt: { label?: string }) => {
+    const label = prompt?.label ?? '';
+    if (label.includes('Dev environment repo URL')) return devRepoUrl;
+    return sourceRepoUrl;
+  });
+  mocks.select.mockImplementation(async (prompt: { message?: string; initialValue?: unknown }) => {
+    const message = prompt?.message ?? '';
+    if (message.includes('Connect this environment to Git/GitHub now')) return connectGitHub;
+    if (message.includes('Odoo version')) return odooVersion;
+    if (message.includes('Add another source repo')) return false;
+    if (message.includes('Install project-local Odoo Agent Skills')) return false;
+    if (message.includes('Initialize repositories that exist but have no commits')) return initEmptyRepos;
+    if (message.includes('Create the inaccessible repositories with GitHub CLI')) {
+      return options?.createMissingRepositories ?? prompt.initialValue;
+    }
+    if (message.includes('Visibility for new repositories')) {
+      return options?.repoVisibility ?? prompt.initialValue;
+    }
+    return prompt.initialValue;
+  });
 }
 
 describe('cli repository preflight in create flow', () => {
@@ -223,12 +253,11 @@ describe('cli repository preflight in create flow', () => {
         defaultVisibility: 'private' as const,
       },
     ];
-    mockCreatePrompts();
+    mockCreatePrompts({ createMissingRepositories: false });
     mocks.checkGitHubRepositories.mockResolvedValueOnce({
       accessible: [],
       inaccessible: missing,
     });
-    mocks.select.mockResolvedValueOnce(false);
     mocks.manualCreateCommands.mockReturnValueOnce(['gh repo create example-org/odoo_sample_module --private']);
     const { runCli } = await loadCli();
 
@@ -250,19 +279,7 @@ describe('cli repository preflight in create flow', () => {
         defaultVisibility: 'private' as const,
       },
     ];
-    mocks.text.mockResolvedValueOnce('odoo_sample_module');
-    mocks.promptRepositoryUrl.mockResolvedValueOnce('https://github.com/example-org/odoo_sample_module_dev.git');
-    mocks.promptRepositoryUrl.mockResolvedValueOnce('https://github.com/example-org/odoo_sample_module.git');
-    mocks.select.mockImplementation(async (value: { message?: string; initialValue?: unknown }) => {
-      const message = value?.message ?? '';
-      if (message.includes('Odoo version')) return '19.0';
-      if (message.includes('Add another source repo')) return false;
-      if (message.includes('Install project-local Odoo Agent Skills')) return false;
-      if (message.includes('Initialize repositories that exist but have no commits')) return true;
-      if (message.includes('Create the inaccessible repositories with GitHub CLI')) return true;
-      if (message.includes('Visibility for new repositories')) return 'public';
-      return value?.initialValue;
-    });
+    mockCreatePrompts({ createMissingRepositories: true, repoVisibility: 'public' });
     mocks.checkGitHubRepositories.mockResolvedValueOnce({
       accessible: [],
       inaccessible: missing,

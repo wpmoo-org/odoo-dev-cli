@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolve } from 'node:path';
 
 import type { MissingRepository, RepositoryCheckResult } from '../src/repository-preflight.js';
 import type { UpdateCheckResult } from '../src/update-check.js';
@@ -148,26 +149,51 @@ async function loadCli() {
 
 function mockCreatePrompts(options?: {
   product?: string;
+  environmentFolder?: string;
+  connectGitHub?: boolean;
   odooVersion?: string;
   devRepoUrl?: string;
   sourceRepoUrl?: string;
   installAgentSkills?: boolean;
   initEmptyRepos?: boolean;
+  createMissingRepositories?: boolean;
+  repoVisibility?: 'private' | 'public';
 }) {
   const product = options?.product ?? 'odoo_sample_module';
+  const environmentFolder = options?.environmentFolder ?? `./${product}_dev`;
+  const connectGitHub = options?.connectGitHub ?? true;
   const odooVersion = options?.odooVersion ?? '19.0';
   const devRepoUrl = options?.devRepoUrl ?? `https://github.com/example-org/${product}_dev.git`;
   const sourceRepoUrl = options?.sourceRepoUrl ?? `https://github.com/example-org/${product}.git`;
   const installAgentSkills = options?.installAgentSkills ?? false;
   const initEmptyRepos = options?.initEmptyRepos ?? true;
 
-  mocks.text.mockResolvedValueOnce(product);
-  mocks.select.mockResolvedValueOnce(odooVersion);
-  mocks.promptRepositoryUrl.mockResolvedValueOnce(devRepoUrl);
-  mocks.promptRepositoryUrl.mockResolvedValueOnce(sourceRepoUrl);
-  mocks.select.mockResolvedValueOnce(false);
-  mocks.select.mockResolvedValueOnce(installAgentSkills);
-  mocks.select.mockResolvedValueOnce(initEmptyRepos);
+  mocks.text.mockImplementation(async (prompt: { message?: string }) => {
+    const message = prompt?.message ?? '';
+    if (message.includes('Product slug')) return product;
+    if (message.includes('Environment folder')) return environmentFolder;
+    return '';
+  });
+  mocks.promptRepositoryUrl.mockImplementation(async (prompt: { label?: string }) => {
+    const label = prompt?.label ?? '';
+    if (label.includes('Dev environment repo URL')) return devRepoUrl;
+    return sourceRepoUrl;
+  });
+  mocks.select.mockImplementation(async (prompt: { message?: string; initialValue?: unknown }) => {
+    const message = prompt?.message ?? '';
+    if (message.includes('Connect this environment to Git/GitHub now')) return connectGitHub;
+    if (message.includes('Odoo version')) return odooVersion;
+    if (message.includes('Add another source repo')) return false;
+    if (message.includes('Install project-local Odoo Agent Skills')) return installAgentSkills;
+    if (message.includes('Initialize repositories that exist but have no commits')) return initEmptyRepos;
+    if (message.includes('Create the inaccessible repositories with GitHub CLI')) {
+      return options?.createMissingRepositories ?? prompt.initialValue;
+    }
+    if (message.includes('Visibility for new repositories')) {
+      return options?.repoVisibility ?? prompt.initialValue;
+    }
+    return prompt.initialValue;
+  });
 }
 
 describe('cli startup/create flow', () => {
@@ -243,6 +269,8 @@ describe('cli startup/create flow', () => {
   it('collects prompt-based create options in menu mode and runs repository preflight + scaffold', async () => {
     mockCreatePrompts({
       product: 'cool_module',
+      environmentFolder: './custom_cool_env',
+      connectGitHub: true,
       odooVersion: '18.0',
       devRepoUrl: 'https://github.com/example-org/cool_module_dev.git',
       sourceRepoUrl: 'https://github.com/example-org/cool_module.git',
@@ -278,13 +306,70 @@ describe('cli startup/create flow', () => {
           addons: ['cool_module'],
         },
       ],
-      target: `${process.cwd()}/cool_module_dev`,
+      target: resolve('./custom_cool_env'),
       dryRun: false,
       initEmptyRepos: false,
       stage: true,
       agentSkillsTemplateUrl: 'https://example.com/agent-skills.tar.gz',
       createMissingRepos: false,
       repoVisibility: 'private',
+    });
+  });
+
+  it('asks for a custom environment folder and passes it as scaffold target', async () => {
+    mockCreatePrompts({
+      product: 'folder_module',
+      environmentFolder: './custom_folder_env',
+      connectGitHub: true,
+    });
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/workspace');
+
+    expect(mocks.text).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Environment folder',
+        initialValue: './folder_module_dev',
+      }),
+    );
+    expect(mocks.scaffold).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: resolve('./custom_folder_env'),
+      }),
+    );
+  });
+
+  it('scaffolds local-only when the user skips Git/GitHub connection', async () => {
+    mockCreatePrompts({
+      product: 'local_module',
+      environmentFolder: './local_only_env',
+      connectGitHub: false,
+      odooVersion: '19.0',
+      installAgentSkills: false,
+    });
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/workspace');
+
+    expect(mocks.promptRepositoryUrl).not.toHaveBeenCalled();
+    expect(mocks.getGitHubAccounts).not.toHaveBeenCalled();
+    expect(mocks.checkGitHubRepositories).not.toHaveBeenCalled();
+    expect(mocks.createGitHubRepositories).not.toHaveBeenCalled();
+    expect(mocks.scaffold).toHaveBeenCalledWith({
+      product: 'local_module',
+      odooVersion: '19.0',
+      engine: 'compose',
+      devRepo: 'local_only_env',
+      devRepoUrl: resolve('./local_only_env'),
+      sourceRepos: [],
+      target: resolve('./local_only_env'),
+      dryRun: false,
+      initEmptyRepos: false,
+      stage: false,
+      agentSkillsTemplateUrl: undefined,
+      createMissingRepos: false,
+      repoVisibility: 'private',
+      skipSubmodules: true,
     });
   });
 

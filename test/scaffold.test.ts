@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { scaffold } from '../src/scaffold.js';
+import type { GitRunner } from '../src/git.js';
 
 async function writeStandaloneResourceFixtures(root: string): Promise<{ compose: string; skills: string }> {
   const compose = join(root, 'odoo-docker-compose');
@@ -21,6 +22,49 @@ async function writeStandaloneResourceFixtures(root: string): Promise<{ compose:
 }
 
 describe('scaffold', () => {
+  it('creates a local-only target without cloning the dev repo or adding submodules', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wpmoo-local-only-root-'));
+    const target = join(root, 'custom-local-env');
+    const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-local-only-assets-')));
+    const gitCalls: Array<{ cwd: string; args: string[] }> = [];
+    const git: GitRunner = {
+      run: async (cwd, args) => {
+        gitCalls.push({ cwd, args });
+        throw new Error(`Unexpected git call: ${args.join(' ')}`);
+      },
+    };
+
+    await scaffold(
+      {
+        product: 'odoo_sample_module',
+        odooVersion: '18.0',
+        engine: 'compose',
+        composeTemplateUrl: fixtures.compose,
+        devRepo: 'odoo_sample_module_dev',
+        devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+        sourceRepos: [],
+        target,
+        dryRun: false,
+        initEmptyRepos: false,
+        stage: false,
+        skipSubmodules: true,
+      },
+      git,
+    );
+
+    await expect(stat(target)).resolves.toBeTruthy();
+    await expect(readFile(join(target, '.wpmoo/odoo.json'), 'utf8')).resolves.toContain(
+      '"product": "odoo_sample_module"',
+    );
+    await expect(readFile(join(target, '.wpmoo/odoo.json'), 'utf8')).resolves.toContain(
+      '"sourceRepos": []',
+    );
+    await expect(readFile(join(target, 'odoo/custom/src/private/README.md'), 'utf8')).resolves.toContain(
+      'WPMoo source repositories',
+    );
+    expect(gitCalls).toEqual([]);
+  });
+
   it('dry-run reports planned files without writing them', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-dry-run-'));
 

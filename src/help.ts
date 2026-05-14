@@ -5,7 +5,7 @@ WPMoo Odoo lifecycle tooling.
 
 Usage:
   npx @wpmoo/odoo
-  npx @wpmoo/odoo create --product <slug> --dev-repo-url <url> --source-repo-url <url>
+  npx @wpmoo/odoo create --product <slug> [--target <path>] --dev-repo-url <url> --source-repo-url <url>
   npx @wpmoo/odoo status
   npx @wpmoo/odoo add-repo --repo-url <url>
   npx @wpmoo/odoo remove-repo --repo <name>
@@ -31,7 +31,7 @@ Usage:
 Options:
   --product <slug>             Product slug, for example my_odoo_module.
   --odoo-version <branch>      Odoo branch to pin submodules to. Default: 19.0.
-  --dev-repo-url <url>         Development environment repository URL for docs.
+  --dev-repo-url <url>         Optional development environment repository URL for docs.
   --target <path>              Target dev repo directory. Default: ./<product>_dev.
   --engine <value>             Environment engine: compose. Default: compose.
   --compose-template-url <url> Standalone compose resource source. Default: gh:wpmoo-org/odoo-docker-compose.
@@ -73,13 +73,22 @@ Cockpit:
   diagnostics, repositories, and maintenance categories.
   Direct commands such as npx @wpmoo/odoo status and npx @wpmoo/odoo test remain available.
 
+Wizard local-only path:
+  Run npx @wpmoo/odoo from a workspace directory to open the create wizard.
+  Choose any environment folder; the default is ./<product>_dev.
+  Skip Git/GitHub connection to create a local-only environment.
+  Add source repos later from the cockpit or with add-repo.
+
 Status and doctor:
   status: fast and offline. Reads local environment metadata and files only.
   doctor: deeper health check. May check Docker CLI access and GitHub workflows.
 
 Task recipes:
   Create environment:
+    npx @wpmoo/odoo
     npx @wpmoo/odoo create --product <slug> --dev-repo-url <url> --source-repo-url <url>
+  Create local-only environment:
+    npx @wpmoo/odoo
   Add source repo:
     npx @wpmoo/odoo add-repo --repo-url <url>
   Add module:
@@ -100,6 +109,7 @@ Example:
   npx @wpmoo/odoo create \\
     --product odoo_sample_module \\
     --odoo-version 19.0 \\
+    --target ./custom_odoo_dev \\
     --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \\
     --source-repo-url https://github.com/example-org/odoo_sample_module.git
 

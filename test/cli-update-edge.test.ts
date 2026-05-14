@@ -148,20 +148,37 @@ async function loadCli() {
 
 function mockCreatePrompts(options?: {
   product?: string;
+  environmentFolder?: string;
   devRepoUrl?: string;
   sourceRepoUrl?: string;
+  selectedOwner?: string;
 }) {
   const product = options?.product ?? 'odoo_sample_module';
+  const environmentFolder = options?.environmentFolder ?? `./${product}_dev`;
   const devRepoUrl = options?.devRepoUrl ?? `https://github.com/example-org/${product}_dev.git`;
   const sourceRepoUrl = options?.sourceRepoUrl ?? `https://github.com/example-org/${product}.git`;
 
-  mocks.text.mockResolvedValueOnce(product);
-  mocks.select.mockResolvedValueOnce('19.0');
-  mocks.promptRepositoryUrl.mockResolvedValueOnce(devRepoUrl);
-  mocks.promptRepositoryUrl.mockResolvedValueOnce(sourceRepoUrl);
-  mocks.select.mockResolvedValueOnce(false);
-  mocks.select.mockResolvedValueOnce(false);
-  mocks.select.mockResolvedValueOnce(true);
+  mocks.text.mockImplementation(async (prompt: { message?: string }) => {
+    const message = prompt?.message ?? '';
+    if (message.includes('Product slug')) return product;
+    if (message.includes('Environment folder')) return environmentFolder;
+    return '';
+  });
+  mocks.select.mockImplementation(async (prompt: { message?: string; initialValue?: unknown }) => {
+    const message = prompt?.message ?? '';
+    if (message.includes('Connect this environment to Git/GitHub now')) return true;
+    if (message.includes('GitHub account/organization')) return options?.selectedOwner ?? prompt.initialValue;
+    if (message.includes('Odoo version')) return '19.0';
+    if (message.includes('Add another source repo')) return false;
+    if (message.includes('Install project-local Odoo Agent Skills')) return false;
+    if (message.includes('Initialize repositories that exist but have no commits')) return true;
+    return prompt.initialValue;
+  });
+  mocks.promptRepositoryUrl.mockImplementation(async (prompt: { label?: string }) => {
+    const label = prompt?.label ?? '';
+    if (label.includes('Dev environment repo URL')) return devRepoUrl;
+    return sourceRepoUrl;
+  });
 }
 
 describe('cli startup update edge branches', () => {
@@ -283,22 +300,17 @@ describe('cli startup github owner selection edges', () => {
       { login: 'acct-one', type: 'user' },
       { login: 'team-two', type: 'organization' },
     ]);
-    mocks.text.mockResolvedValueOnce('multi_mod');
-    mocks.select
-      .mockResolvedValueOnce('team-two')
-      .mockResolvedValueOnce('19.0')
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
-    mocks.promptRepositoryUrl
-      .mockResolvedValueOnce('https://github.com/team-two/multi_mod_dev.git')
-      .mockResolvedValueOnce('https://github.com/team-two/multi_mod.git');
+    mockCreatePrompts({
+      product: 'multi_mod',
+      selectedOwner: 'team-two',
+      devRepoUrl: 'https://github.com/team-two/multi_mod_dev.git',
+      sourceRepoUrl: 'https://github.com/team-two/multi_mod.git',
+    });
     const { runCli } = await loadCli();
 
     await runCli([], '/tmp/workspace');
 
-    expect(mocks.select).toHaveBeenNthCalledWith(
-      1,
+    expect(mocks.select).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'GitHub account/organization',
         initialValue: 'acct-one',

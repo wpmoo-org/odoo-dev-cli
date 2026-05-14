@@ -30,14 +30,14 @@ files without touching product source code.
 - Node.js `>=20.17`
 - Git
 - Docker and Docker Compose for generated environment runtime commands
-- Optional: GitHub CLI (`gh`) for repository discovery, repository creation, and
-  deeper diagnostics
+- GitHub CLI (`gh`) is optional. Use it for repository discovery, repository
+  creation, and deeper diagnostics.
 
 The wizard currently offers Odoo `19.0`, `18.0`, `17.0`, and `16.0`. The copied
 Compose resource must include the matching `docker-compose_<version>.yml` file
 for the selected branch.
 
-Install GitHub CLI when you want WPMoo to discover your personal account and
+Set up GitHub CLI only when you want WPMoo to discover your personal account and
 organizations or create missing repositories from the interactive wizard:
 
 ```bash
@@ -54,11 +54,18 @@ npx @wpmoo/odoo
 ```
 
 If the current directory is not already a WPMoo environment, the CLI opens the
-create flow. It asks for the product slug, Odoo version, dev environment repo,
-source repo URLs, optional extra source repos, project-local Agent Skills, and
-empty repository initialization behavior.
+create flow. It asks for the product slug, Odoo version, and environment folder.
+Choose any environment folder; the default is `./<product>_dev`.
 
-For non-interactive usage:
+After folder selection, connect Git/GitHub to use repository URLs. Choose
+local-only setup to skip Git/GitHub connection and source repo prompts. Add
+source repositories later from the cockpit (`Repositories` -> `add-repo`) or
+`npx @wpmoo/odoo add-repo`.
+
+For non-interactive usage with repository URLs:
+
+Direct `create` commands keep the existing repo URL options; use
+`--target <path>` to choose a custom folder.
 
 ```bash
 npx @wpmoo/odoo create \
@@ -183,7 +190,8 @@ not search parent directories or run arbitrary script names.
 ## Generated Environment Layout
 
 A generated environment is a separate Git repository, usually named
-`<product>_dev`. Product source code stays in child source repositories.
+`<product>_dev`, but the wizard and `--target` can use any folder. Product
+source code stays in child source repositories.
 
 ```text
 odoo_sample_module_dev/
@@ -244,7 +252,8 @@ Compose commands.
 
 ## Repository and Module Management
 
-Add a source repository from the cockpit or direct command:
+Add a source repository after local-only setup from the cockpit or direct
+command:
 
 ```bash
 npx @wpmoo/odoo add-repo \
@@ -252,7 +261,8 @@ npx @wpmoo/odoo add-repo \
   --init-empty-repos
 ```
 
-When GitHub CLI is available and authenticated, the interactive flow can:
+GitHub CLI is optional for repository setup. When it is available and
+authenticated, the interactive flow can:
 
 - detect the owner or organization from the current environment;
 - suggest repository URLs;

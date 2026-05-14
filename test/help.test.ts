@@ -1,6 +1,11 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { renderHelp } from '../src/help.js';
+
+const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+const readmeText = readme.replace(/\s+/g, ' ');
 
 describe('help', () => {
   it('includes status in usage', () => {
@@ -37,5 +42,26 @@ describe('help', () => {
     expect(output).toContain('Run tests:');
     expect(output).toContain('Safe reset and recover:');
     expect(output).toContain('Daily command checks:');
+  });
+
+  it('documents local-only wizard setup and custom environment folder support', () => {
+    const output = renderHelp();
+
+    expect(output).toContain('Wizard local-only path:');
+    expect(output).toContain('Choose any environment folder; the default is ./<product>_dev.');
+    expect(output).toContain('Skip Git/GitHub connection to create a local-only environment.');
+    expect(output).toContain('Add source repos later from the cockpit or with add-repo.');
+  });
+
+  it('documents optional GitHub setup in the README quick start', () => {
+    expect(readme).toContain('GitHub CLI (`gh`) is optional.');
+    expect(readme).toContain('Choose any environment folder; the default is `./<product>_dev`.');
+    expect(readmeText).toContain('Choose local-only setup to skip Git/GitHub connection and source repo prompts.');
+    expect(readmeText).toContain(
+      'Add source repositories later from the cockpit (`Repositories` -> `add-repo`) or `npx @wpmoo/odoo add-repo`.',
+    );
+    expect(readmeText).toContain(
+      'Direct `create` commands keep the existing repo URL options; use `--target <path>` to choose a custom folder.',
+    );
   });
 });

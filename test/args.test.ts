@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   commandFromArgs,
+  defaultTargetForProduct,
   isHelpRequested,
   isUpdateCheckFlag,
   isVersionRequested,
@@ -13,6 +14,18 @@ import { supportedOdooVersions } from '../src/odoo-versions.js';
 import { inferRepoPath } from '../src/repo-url.js';
 
 describe('args', () => {
+  it('defaults target directory to product_dev under the supplied working directory', () => {
+    expect(defaultTargetForProduct('odoo_sample_module', '/tmp/wpmoo-work')).toBe(
+      '/tmp/wpmoo-work/odoo_sample_module_dev',
+    );
+  });
+
+  it('keeps the current working directory when it is already the product_dev directory', () => {
+    expect(defaultTargetForProduct('odoo_sample_module', '/tmp/wpmoo-work/odoo_sample_module_dev')).toBe(
+      '/tmp/wpmoo-work/odoo_sample_module_dev',
+    );
+  });
+
   it('defaults target directory to product_dev under the current directory', () => {
     const options = optionsFromArgs([
       '--product',
@@ -23,6 +36,19 @@ describe('args', () => {
 
     expect(options?.target).toMatch(/odoo_sample_module_dev$/);
     expect(options?.devRepoUrl).toBe('https://github.com/example-org/odoo_sample_module_dev.git');
+  });
+
+  it('uses a custom target directory when --target is provided', () => {
+    const options = optionsFromArgs([
+      '--product',
+      'odoo_sample_module',
+      '--target',
+      '/tmp/custom-odoo-dev',
+      '--source-repo-url',
+      'https://github.com/example-org/odoo_sample_module.git',
+    ]);
+
+    expect(options?.target).toBe('/tmp/custom-odoo-dev');
   });
 
   it('offers Odoo 19 as the default selectable version', () => {
