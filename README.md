@@ -1,6 +1,6 @@
 # @wpmoo/odoo
 
-![WPMoo Workflow Platform - Micro Object Oriented](https://cdn.jsdelivr.net/npm/@wpmoo/odoo/docs/assets/wpmoo-banner.png)
+![WPMoo Odoo lifecycle tooling across development, staging, and production](https://cdn.jsdelivr.net/npm/@wpmoo/odoo/docs/assets/wpmoo-banner.png)
 
 [![CI](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml)
 
