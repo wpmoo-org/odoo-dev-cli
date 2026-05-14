@@ -266,6 +266,19 @@ tool-owned development guideline files.
 - Legacy `--org`, `--community-repo`, and `--pro-repo` flags are still accepted
   when no `--source-repo-url` flags are provided.
 
+## Release
+
+To publish the package from the repository root, run:
+
+```bash
+./scripts/publish-release.sh
+```
+
+The script checks whether the current package version already exists on npm. If
+it does, it runs a patch version bump without creating a git tag; if the version
+is not published yet, it keeps the current version. It then runs
+`npm test -- test/package.test.ts`, `npm pack --dry-run`, and
+`npm publish --access public`.
 
 ## Support
 
