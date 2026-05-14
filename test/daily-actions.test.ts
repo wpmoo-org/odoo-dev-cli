@@ -1,10 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { dailyActionPlan, runDailyAction } from '../src/daily-actions.js';
+import { dailyActionPlan, isDailyActionCommand, runDailyAction } from '../src/daily-actions.js';
 import { markerPath } from '../src/environment.js';
 
 async function makeEnvironment(options: { scripts?: string[] } = {}): Promise<string> {
@@ -33,6 +33,11 @@ async function makeEnvironment(options: { scripts?: string[] } = {}): Promise<st
 }
 
 describe('daily actions', () => {
+  it('identifies known daily action commands', () => {
+    expect(isDailyActionCommand('test')).toBe(true);
+    expect(isDailyActionCommand('doctor')).toBe(false);
+  });
+
   it('maps logs and psql commands to their default script arguments', async () => {
     const target = await makeEnvironment({ scripts: ['logs.sh', 'psql.sh'] });
 
@@ -129,7 +134,7 @@ describe('daily actions', () => {
 
   it('validates compose maintenance command arguments conservatively', async () => {
     const target = await makeEnvironment({
-      scripts: ['resetdb.sh', 'snapshot.sh', 'restore-snapshot.sh', 'lint.sh', 'pot.sh'],
+      scripts: ['up.sh', 'logs.sh', 'resetdb.sh', 'snapshot.sh', 'restore-snapshot.sh', 'lint.sh', 'pot.sh'],
     });
 
     await expect(dailyActionPlan('resetdb', ['devel', 'sale', 'extra'], target)).rejects.toThrow(
@@ -145,6 +150,9 @@ describe('daily actions', () => {
     await expect(dailyActionPlan('pot', [], target)).rejects.toThrow(
       'Usage: wpmoo pot <module[,module]> [db] [output]',
     );
+
+    await expect(dailyActionPlan('start', ['--verbose'], target)).rejects.toThrow('Usage: wpmoo start');
+    await expect(dailyActionPlan('logs', ['web', 'db'], target)).rejects.toThrow('Usage: wpmoo logs [service]');
   });
 
   it('requires daily actions to run from an environment root', async () => {
@@ -225,8 +233,31 @@ describe('daily actions', () => {
       'Invalid value for --mode: expected init or update',
     );
     await expect(dailyActionPlan('test', ['module_a', '--db'], target)).rejects.toThrow('Missing value for --db');
+    await expect(dailyActionPlan('test', ['module_a', '--tags'], target)).rejects.toThrow('Missing value for --tags');
     await expect(dailyActionPlan('test', ['module_a', '--unknown', 'value'], target)).rejects.toThrow(
       'Unknown option for wpmoo test: --unknown',
+    );
+  });
+
+  it('runs daily action scripts through the default child process runner', async () => {
+    const target = await makeEnvironment({ scripts: ['restart.sh'] });
+    const scriptPath = join(target, 'scripts', 'restart.sh');
+
+    await writeFile(scriptPath, '#!/usr/bin/env bash\nexit 0\n');
+    await chmod(scriptPath, 0o755);
+
+    await expect(runDailyAction('restart', [], target)).resolves.toBeUndefined();
+  });
+
+  it('propagates non-zero script exits from the default runner', async () => {
+    const target = await makeEnvironment({ scripts: ['restart.sh'] });
+    const scriptPath = join(target, 'scripts', 'restart.sh');
+
+    await writeFile(scriptPath, '#!/usr/bin/env bash\nexit 7\n');
+    await chmod(scriptPath, 0o755);
+
+    await expect(runDailyAction('restart', [], target)).rejects.toThrow(
+      `Daily action script exited with code 7: ${scriptPath}`,
     );
   });
 });

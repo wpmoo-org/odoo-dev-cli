@@ -41,6 +41,9 @@ describe('external assets', () => {
     expect(gitUrlFromSource('gh:wpmoo-org/odoo-docker-compose')).toBe(
       'https://github.com/wpmoo-org/odoo-docker-compose.git',
     );
+    expect(gitUrlFromSource('git:github.com/wpmoo-org/odoo-docker-compose.git')).toBe(
+      'https://github.com/wpmoo-org/odoo-docker-compose.git',
+    );
     expect(gitUrlFromSource('../odoo-docker-compose')).toBeUndefined();
     expect(
       renderExternalAssetCommand({
@@ -163,6 +166,119 @@ describe('external assets', () => {
       'https://github.com/example-org/odoo-skills.git',
       expect.any(String),
     ]);
+  });
+
+  it('expands ~/ paths for local sources and copies README to configured destination', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'wpmoo-home-'));
+    const source = join(home, 'external-assets/source');
+    const destination = await mkdtemp(join(tmpdir(), 'wpmoo-dest-home-'));
+    const originalHome = process.env.HOME;
+
+    await mkdir(join(source, 'templates'), { recursive: true });
+    await writeFile(join(source, 'templates/docker-compose.yml'), 'services:\n  odoo:\n');
+    await writeFile(join(source, 'README.md'), '# Compose Template\n');
+
+    process.env.HOME = home;
+    try {
+      await applyExternalAsset({
+        label: 'compose',
+        source: '~/external-assets/source',
+        sourceSubdir: 'templates',
+        destination,
+        readmeDestination: 'docs/compose.md',
+      });
+    } finally {
+      process.env.HOME = originalHome;
+    }
+
+    await expect(readFile(join(destination, 'docker-compose.yml'), 'utf8')).resolves.toContain('services:');
+    await expect(readFile(join(destination, 'docs/compose.md'), 'utf8')).resolves.toBe('# Compose Template\n');
+  });
+
+  it('throws when the selected local source subdirectory is missing', async () => {
+    const source = await mkdtemp(join(tmpdir(), 'wpmoo-source-missing-subdir-'));
+    const destination = await mkdtemp(join(tmpdir(), 'wpmoo-dest-missing-subdir-'));
+
+    await expect(
+      applyExternalAsset({
+        label: 'agent-skills',
+        source,
+        sourceSubdir: 'skills',
+        destination,
+      }),
+    ).rejects.toThrow(`External asset source path does not exist: ${join(source, 'skills')}`);
+  });
+
+  it('falls back to a full clone and explicit checkout when shallow branch clone fails', async () => {
+    const sourceFixture = await mkdtemp(join(tmpdir(), 'wpmoo-gh-fallback-source-'));
+    const destination = await mkdtemp(join(tmpdir(), 'wpmoo-gh-fallback-destination-'));
+    const calls: string[][] = [];
+    const git: GitRunner = {
+      async run(_cwd, args) {
+        calls.push(args);
+        if (args[0] === 'clone' && args.includes('--depth') && args.includes('--branch')) {
+          throw new Error('unknown revision');
+        }
+        if (args[0] === 'clone') {
+          const cloneTarget = args.at(-1);
+          if (!cloneTarget) throw new Error('Missing clone target');
+          await cp(sourceFixture, cloneTarget, { recursive: true });
+        }
+        return { stdout: '', stderr: '' };
+      },
+    };
+
+    await mkdir(join(sourceFixture, 'skills/odoo-oca'), { recursive: true });
+    await writeFile(join(sourceFixture, 'skills/odoo-oca/SKILL.md'), '# Fallback Skill\n');
+
+    await applyExternalAsset(
+      {
+        label: 'agent-skills',
+        source: 'gh:example-org/odoo-skills',
+        ref: 'v9.9.9',
+        sourceSubdir: 'skills',
+        destination,
+        destinationSubdir: '.agents/skills',
+      },
+      git,
+    );
+
+    await expect(readFile(join(destination, '.agents/skills/odoo-oca/SKILL.md'), 'utf8')).resolves.toBe(
+      '# Fallback Skill\n',
+    );
+    expect(calls).toEqual([
+      [
+        'clone',
+        '--depth',
+        '1',
+        '--branch',
+        'v9.9.9',
+        'https://github.com/example-org/odoo-skills.git',
+        expect.any(String),
+      ],
+      ['clone', 'https://github.com/example-org/odoo-skills.git', expect.any(String)],
+      ['checkout', 'v9.9.9'],
+    ]);
+  });
+
+  it('propagates git clone errors when no ref is provided', async () => {
+    const destination = await mkdtemp(join(tmpdir(), 'wpmoo-gh-clone-fail-destination-'));
+    const git: GitRunner = {
+      async run() {
+        throw new Error('clone failed');
+      },
+    };
+
+    await expect(
+      applyExternalAsset(
+        {
+          label: 'compose',
+          source: 'gh:example-org/odoo-docker-compose',
+          destination,
+        },
+        git,
+      ),
+    ).rejects.toThrow('clone failed');
   });
 
   it('plans the compose asset by default', () => {

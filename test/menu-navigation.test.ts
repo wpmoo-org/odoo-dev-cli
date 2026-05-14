@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   consumePromptCancelKey,
   handlePromptCancel,
   handleUnavailableMenuChoice,
+  installPromptCancelKeyTracker,
   isMenuBackSignal,
   menuIntroTitle,
   menuPromptMessage,
@@ -57,5 +58,61 @@ describe('menu navigation', () => {
 
     recordPromptCancelKey({ name: 'escape', sequence: '\u001B' });
     expect(consumePromptCancelKey()).toBe('escape');
+  });
+
+  it('records non-escape non-interrupt cancellations as other', () => {
+    recordPromptCancelKey({ name: 'x', sequence: 'x' });
+    expect(consumePromptCancelKey()).toBe('other');
+  });
+
+  it('exits when a cancelled prompt uses exit behavior', () => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    try {
+      recordPromptCancelKey({ name: 'escape', sequence: '\u001B' });
+      handlePromptCancel(true, 'exit');
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    } finally {
+      exitSpy.mockRestore();
+    }
+  });
+
+  it('treats non-interrupt cancellation keys as back in back-enabled menus', () => {
+    recordPromptCancelKey({ name: 'x', sequence: 'x' });
+    expect(() => handlePromptCancel(true, 'back')).toThrow(MenuBackSignal);
+  });
+
+  it('tracks only escape or ctrl keypresses from the installed listener', () => {
+    const listeners = new Map<
+      string,
+      Array<(value: string, key: { ctrl?: boolean; name?: string; sequence?: string }) => void>
+    >();
+    const input = {
+      on(event: string, listener: (value: string, key: { ctrl?: boolean; name?: string; sequence?: string }) => void) {
+        listeners.set(event, [...(listeners.get(event) ?? []), listener]);
+        return this;
+      },
+      off(event: string, listener: (value: string, key: { ctrl?: boolean; name?: string; sequence?: string }) => void) {
+        listeners.set(
+          event,
+          (listeners.get(event) ?? []).filter((candidate) => candidate !== listener),
+        );
+        return this;
+      },
+      listenerCount(event: string) {
+        return (listeners.get(event) ?? []).length;
+      },
+    } as unknown as NodeJS.ReadStream;
+
+    const dispose = installPromptCancelKeyTracker(input);
+    const listener = (listeners.get('keypress') ?? [])[0];
+    expect(listener).toBeTypeOf('function');
+
+    listener?.('', { name: 'a', sequence: 'a' });
+    expect(consumePromptCancelKey()).toBeUndefined();
+    listener?.('', { ctrl: true, name: 'c', sequence: '\u0003' });
+    expect(consumePromptCancelKey()).toBe('interrupt');
+
+    dispose();
+    expect(listeners.get('keypress') ?? []).toHaveLength(0);
   });
 });

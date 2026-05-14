@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { commandFromArgs, isUpdateCheckFlag, isVersionRequested, optionsFromArgs, stripInternalFlags } from '../src/args.js';
+import {
+  commandFromArgs,
+  isHelpRequested,
+  isUpdateCheckFlag,
+  isVersionRequested,
+  optionsFromArgs,
+  stripInternalFlags,
+} from '../src/args.js';
 import { renderHelp } from '../src/help.js';
 import { supportedOdooVersions } from '../src/odoo-versions.js';
 import { inferRepoPath } from '../src/repo-url.js';
@@ -282,6 +289,16 @@ describe('args', () => {
     });
   });
 
+  it('rejects unknown commands', () => {
+    expect(() => commandFromArgs(['unknown-command'])).toThrow('Unknown command: unknown-command');
+  });
+
+  it('detects help requests', () => {
+    expect(isHelpRequested(['--help'])).toBe(true);
+    expect(isHelpRequested(['-h'])).toBe(true);
+    expect(isHelpRequested(['--product', 'odoo_sample_module'])).toBe(false);
+  });
+
   it('detects version requests', () => {
     expect(isVersionRequested(['--version'])).toBe(true);
     expect(isVersionRequested(['-v'])).toBe(true);
@@ -309,6 +326,19 @@ describe('args', () => {
 
     expect(options?.initEmptyRepos).toBe(false);
     expect(options?.stage).toBe(false);
+  });
+
+  it('rejects invalid boolean values', () => {
+    expect(() =>
+      optionsFromArgs([
+        '--product',
+        'odoo_sample_module',
+        '--source-repo-url',
+        'https://github.com/example-org/odoo_sample_module.git',
+        '--stage',
+        'later',
+      ]),
+    ).toThrow('Invalid boolean value for --stage: later');
   });
 
   it('parses external compose and agent skill template options', () => {
@@ -401,6 +431,19 @@ describe('args', () => {
     expect(options?.repoVisibility).toBe('public');
   });
 
+  it('rejects invalid repo visibility values', () => {
+    expect(() =>
+      optionsFromArgs([
+        '--product',
+        'odoo_sample_module',
+        '--source-repo-url',
+        'https://github.com/example-org/odoo_sample_module.git',
+        '--repo-visibility',
+        'internal',
+      ]),
+    ).toThrow('Invalid value for --repo-visibility: internal');
+  });
+
   it('rejects the removed optional development pack flags', () => {
     expect(() =>
       optionsFromArgs([
@@ -437,5 +480,60 @@ describe('args', () => {
     ]);
 
     expect(options?.sourceRepos[0]?.addons).toEqual(['odoo_sample_module']);
+  });
+
+  it('returns undefined when no product is provided', () => {
+    expect(
+      optionsFromArgs(['--source-repo-url', 'https://github.com/example-org/odoo_sample_module.git']),
+    ).toBeUndefined();
+  });
+
+  it('rejects unexpected positional arguments', () => {
+    expect(() =>
+      optionsFromArgs([
+        '--product',
+        'odoo_sample_module',
+        '--source-repo-url',
+        'https://github.com/example-org/odoo_sample_module.git',
+        'extra',
+      ]),
+    ).toThrow('Unexpected argument: extra');
+  });
+
+  it('rejects missing values for source repo options', () => {
+    expect(() =>
+      optionsFromArgs(['--product', 'odoo_sample_module', '--source-repo-url']),
+    ).toThrow('Missing value for --source-repo-url');
+
+    expect(() =>
+      optionsFromArgs([
+        '--product',
+        'odoo_sample_module',
+        '--source-repo-url',
+        'https://github.com/example-org/odoo_sample_module.git',
+        '--source-path',
+      ]),
+    ).toThrow('Missing value for --source-path');
+  });
+
+  it('rejects source path and addon flags before source repo flags', () => {
+    expect(() => optionsFromArgs(['--product', 'odoo_sample_module', '--source-path', 'community'])).toThrow(
+      '--source-path must follow --source-repo-url',
+    );
+    expect(() => optionsFromArgs(['--product', 'odoo_sample_module', '--source-addons', 'sale'])).toThrow(
+      '--source-addons must follow --source-repo-url',
+    );
+  });
+
+  it('allows legacy source aliases without explicit pro repo flags', () => {
+    const options = optionsFromArgs(['--product', 'odoo_sample_module', '--org', 'example-org']);
+
+    expect(options?.sourceRepos).toEqual([
+      {
+        url: 'https://github.com/example-org/odoo_sample_module.git',
+        path: 'odoo_sample_module',
+        addons: ['odoo_sample_module'],
+      },
+    ]);
   });
 });

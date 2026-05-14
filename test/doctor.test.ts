@@ -137,6 +137,25 @@ describe('doctor', () => {
     );
   });
 
+  it('rejects non-object metadata and invalid source repo entries', async () => {
+    const nonObjectMetadata = await makeEnvironment({ metadata: [] });
+    await expect(runDoctor(nonObjectMetadata, passingDockerRunner())).rejects.toThrow(
+      'Invalid metadata JSON in .wpmoo/odoo.json: metadata is not an object',
+    );
+
+    const invalidSourceRepoMetadata = {
+      ...baseMetadata,
+      sourceRepos: [{ url: 'https://github.com/example-org/repo.git', path: '   ', addons: [] }],
+    };
+    const invalidSourceRepoTarget = await makeEnvironment({
+      metadata: invalidSourceRepoMetadata,
+      sourcePaths: [],
+    });
+    await expect(runDoctor(invalidSourceRepoTarget, passingDockerRunner())).rejects.toThrow(
+      'Invalid sourceRepos entry in .wpmoo/odoo.json at index 0',
+    );
+  });
+
   it('checks metadata and .env selected compose files', async () => {
     const target = await makeEnvironment({
       composeVersions: ['19.0'],
@@ -178,6 +197,38 @@ describe('doctor', () => {
     });
     await expect(runDoctor(equalPorts, passingDockerRunner())).rejects.toThrow(
       'HTTP_PORT and GEVENT_PORT in .env must not be equal',
+    );
+  });
+
+  it('parses quoted .env values and ignores comments plus malformed lines', async () => {
+    const target = await makeEnvironment({
+      composeVersions: ['19.0', '18.0'],
+      env: [
+        '# comment',
+        'MALFORMED_LINE',
+        "ODOO_VERSION='18.0'",
+        'HTTP_PORT="10019"',
+        'GEVENT_PORT=20018',
+      ].join('\n'),
+    });
+
+    await expect(runDoctor(target, passingDockerRunner())).resolves.toContain(
+      'OK .env ports HTTP_PORT=10019 GEVENT_PORT=20018',
+    );
+  });
+
+  it('reports multiple missing files in one failure output', async () => {
+    const scripts = Object.values(dailyActionScripts).filter((script) => script !== 'pot.sh');
+    const target = await makeEnvironment({
+      composeVersions: [],
+      scripts,
+    });
+
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      'Missing compose file: docker-compose_19.0.yml',
+    );
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      'Missing daily action script: scripts/pot.sh',
     );
   });
 
@@ -235,6 +286,33 @@ describe('doctor', () => {
     await expect(runDoctor(target, runner)).rejects.toThrow(
       'Conflicted Git submodule: odoo/custom/src/private/odoo_sample_module_extra',
     );
+  });
+
+  it('fails when git submodule status errors for reasons other than non-checkout', async () => {
+    const target = await makeEnvironment();
+    const runner = doctorRunner({
+      responses: {
+        'git submodule status --recursive': new Error('submodule check failed'),
+      },
+    });
+
+    await expect(runDoctor(target, runner)).rejects.toThrow(
+      'Git submodule status check failed: submodule check failed',
+    );
+  });
+
+  it('skips git submodule checks when git reports not-a-repository in stderr text', async () => {
+    const target = await makeEnvironment();
+    const notRepoError = Object.assign(new Error('git exited with status 128'), {
+      stderr: 'fatal: not a git repository (or any of the parent directories): .git',
+    });
+    const runner = doctorRunner({
+      responses: {
+        'git submodule status --recursive': notRepoError,
+      },
+    });
+
+    await expect(runDoctor(target, runner)).resolves.toContain('OK git submodules skipped (not a git checkout)');
   });
 
   it('warns without failing when GitHub CLI auth is unavailable', async () => {

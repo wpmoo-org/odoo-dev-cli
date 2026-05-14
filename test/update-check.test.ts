@@ -102,6 +102,50 @@ describe('update check', () => {
     ]);
   });
 
+  it('treats malformed npm metadata as unavailable', async () => {
+    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', npmRunner('{not-json'))).resolves.toEqual({
+      status: 'unavailable',
+      currentVersion: '0.4.1',
+    });
+  });
+
+  it('treats latest metadata without version or tarball as unavailable', async () => {
+    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', npmRunner('{"dist":{}}\n'))).resolves.toEqual({
+      status: 'unavailable',
+      currentVersion: '0.4.1',
+    });
+  });
+
+  it('ignores update candidates when exact-version metadata does not match latest', async () => {
+    const calls: string[][] = [];
+    const runner: NpmRunner = {
+      async run(args) {
+        calls.push(args);
+        if (args[1] === '@wpmoo/odoo@latest') {
+          return {
+            stdout:
+              '{"version":"0.5.0","dist":{"tarball":"https://registry.npmjs.org/@wpmoo/odoo/-/odoo-0.5.0.tgz"}}',
+            stderr: '',
+          };
+        }
+        return {
+          stdout:
+            '{"version":"0.5.1","dist":{"tarball":"https://registry.npmjs.org/@wpmoo/odoo/-/odoo-0.5.1.tgz"}}',
+          stderr: '',
+        };
+      },
+    };
+
+    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', runner)).resolves.toEqual({
+      status: 'unavailable',
+      currentVersion: '0.4.1',
+    });
+    expect(calls).toEqual([
+      ['view', '@wpmoo/odoo@latest', 'version', 'dist.tarball', '--json'],
+      ['view', '@wpmoo/odoo@0.5.0', 'version', 'dist.tarball', '--json'],
+    ]);
+  });
+
   it('builds an exact package spec and restart args', () => {
     expect(packageSpec('@wpmoo/odoo', '0.5.0')).toBe('@wpmoo/odoo@0.5.0');
     expect(restartArgs('@wpmoo/odoo', '0.5.0', ['--foo'])).toEqual([
@@ -126,6 +170,9 @@ describe('update check', () => {
   it('skips update checks only for explicit opt outs and updater restarts', () => {
     expect(isUpdateCheckSkipped(['--no-update-check'], {})).toBe(true);
     expect(isUpdateCheckSkipped([], { WPMOO_SKIP_UPDATE_CHECK: '1' })).toBe(true);
+    expect(isUpdateCheckSkipped([], { WPMOO_SKIP_UPDATE_CHECK: ' true ' })).toBe(true);
+    expect(isUpdateCheckSkipped([], { WPMOO_SKIP_UPDATE_CHECK: 'YeS' })).toBe(true);
+    expect(isUpdateCheckSkipped([], { WPMOO_SKIP_UPDATE_CHECK: 'y' })).toBe(true);
     expect(isUpdateCheckSkipped([], { npm_command: 'exec' })).toBe(false);
     expect(isUpdateCheckSkipped([], { npm_execpath: '/usr/local/bin/npx' })).toBe(false);
     expect(isUpdateCheckSkipped([], { npm_command: 'run-script' })).toBe(false);
