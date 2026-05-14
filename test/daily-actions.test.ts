@@ -50,7 +50,16 @@ describe('daily actions', () => {
 
   it('maps core and module commands to fixed compose scripts', async () => {
     const target = await makeEnvironment({
-      scripts: ['restart.sh', 'shell.sh', 'install.sh', 'update.sh', 'test.sh'],
+      scripts: ['up.sh', 'down.sh', 'restart.sh', 'shell.sh', 'install.sh', 'update.sh', 'test.sh'],
+    });
+
+    await expect(dailyActionPlan('start', [], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/up.sh'),
+      args: [],
+    });
+    await expect(dailyActionPlan('stop', [], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/down.sh'),
+      args: [],
     });
 
     await expect(dailyActionPlan('restart', [], target)).resolves.toMatchObject({

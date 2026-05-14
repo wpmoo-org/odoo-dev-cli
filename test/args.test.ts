@@ -177,6 +177,8 @@ describe('args', () => {
     expect(renderHelp()).toContain('--source-repo-url');
     expect(renderHelp()).toContain('--dev-repo-url');
     expect(renderHelp()).toContain('npx @wpmoo/odoo');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo start');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo stop');
     expect(renderHelp()).toContain('npx @wpmoo/odoo logs [service]');
     expect(renderHelp()).toContain('npx @wpmoo/odoo update <module[,module]> [db]');
     expect(renderHelp()).toContain('npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update]');
@@ -211,6 +213,14 @@ describe('args', () => {
     expect(commandFromArgs(['logs', 'db'])).toEqual({
       command: 'logs',
       argv: ['db'],
+    });
+    expect(commandFromArgs(['start'])).toEqual({
+      command: 'start',
+      argv: [],
+    });
+    expect(commandFromArgs(['stop'])).toEqual({
+      command: 'stop',
+      argv: [],
     });
     expect(commandFromArgs(['restart'])).toEqual({
       command: 'restart',

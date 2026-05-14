@@ -1,3 +1,8 @@
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -59,16 +64,58 @@ describe('template rendering', () => {
     expect(readme).toContain('Odoo Sample Module Development Environment');
     expect(readme).toContain('git clone --recurse-submodules https://github.com/example-org/odoo_sample_module_dev.git');
     expect(readme).toContain('odoo/custom/src/private/odoo_sample_module_reports');
+    expect(readme).toContain('./moo start');
+    expect(readme).toContain('./moo stop');
+    expect(readme).toContain('./moo restart');
     expect(readme).toContain('./moo add-module');
   });
 
-  it('renders an executable bash delegation for the local moo shortcut', () => {
+  it('renders an executable bash dispatcher for the local moo shortcut', () => {
     const script = renderMooDelegationScript();
 
     expect(script).toContain('#!/usr/bin/env bash');
     expect(script).toContain('set -euo pipefail');
     expect(script).toContain('cd "$script_dir"');
+    expect(script).toContain('"start")');
+    expect(script).toContain('./scripts/up.sh');
+    expect(script).toContain('"stop")');
+    expect(script).toContain('./scripts/down.sh');
     expect(script).toContain('exec npx --yes @wpmoo/odoo@latest "$@"');
+  });
+
+  it('dispatches daily commands locally and falls back to npx for management commands', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-moo-dispatch-'));
+    await mkdir(join(target, 'scripts'), { recursive: true });
+    await mkdir(join(target, 'bin'), { recursive: true });
+    await writeFile(join(target, 'moo'), renderMooDelegationScript(), 'utf8');
+    await chmod(join(target, 'moo'), 0o755);
+    await writeFile(
+      join(target, 'scripts/up.sh'),
+      '#!/usr/bin/env bash\nprintf "up:%s\\n" "$*" >> "$PWD/calls.log"\n',
+      'utf8',
+    );
+    await writeFile(
+      join(target, 'scripts/restart.sh'),
+      '#!/usr/bin/env bash\nprintf "restart:%s\\n" "$*" >> "$PWD/calls.log"\n',
+      'utf8',
+    );
+    await writeFile(
+      join(target, 'bin/npx'),
+      '#!/usr/bin/env bash\nprintf "npx:%s\\n" "$*" >> "$PWD/calls.log"\n',
+      'utf8',
+    );
+    await chmod(join(target, 'scripts/up.sh'), 0o755);
+    await chmod(join(target, 'scripts/restart.sh'), 0o755);
+    await chmod(join(target, 'bin/npx'), 0o755);
+
+    const env = { ...process.env, PATH: `${join(target, 'bin')}:${process.env.PATH ?? ''}` };
+    await execa(join(target, 'moo'), ['start'], { env });
+    await execa(join(target, 'moo'), ['restart'], { env });
+    await execa(join(target, 'moo'), ['add-module'], { env });
+
+    await expect(readFile(join(target, 'calls.log'), 'utf8')).resolves.toBe(
+      'up:\nrestart:\nnpx:--yes @wpmoo/odoo@latest add-module\n',
+    );
   });
 
   it('renders README without pro assumptions for one source repo', () => {

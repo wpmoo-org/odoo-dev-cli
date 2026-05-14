@@ -11,6 +11,8 @@ Usage:
   npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
   npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name>
   npx @wpmoo/odoo reset
+  npx @wpmoo/odoo start
+  npx @wpmoo/odoo stop
   npx @wpmoo/odoo logs [service]
   npx @wpmoo/odoo restart
   npx @wpmoo/odoo shell
@@ -55,6 +57,7 @@ Options:
 Daily actions:
   Daily actions must be run from a generated environment root containing .wpmoo/odoo.json.
   They delegate to the fixed scripts copied from the compose resource under ./scripts.
+  Generated environments also include ./moo for Doodba-style local commands such as ./moo start.
 
 Example:
   npx @wpmoo/odoo create \\

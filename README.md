@@ -180,8 +180,10 @@ npx @wpmoo/odoo reset
 Run daily local development actions from a generated environment root:
 
 ```bash
+npx @wpmoo/odoo start
 npx @wpmoo/odoo logs odoo
 npx @wpmoo/odoo restart
+npx @wpmoo/odoo stop
 npx @wpmoo/odoo shell
 npx @wpmoo/odoo psql devel
 npx @wpmoo/odoo install sale devel
@@ -192,6 +194,9 @@ npx @wpmoo/odoo test sale --db devel --mode update --tags /sale
 Daily actions require `.wpmoo/odoo.json` in the current directory and delegate to
 fixed scripts under `./scripts`; they do not search parent directories or accept
 arbitrary script names.
+
+Generated environments also include a local `./moo` shortcut for Doodba-style
+daily commands such as `./moo start`, `./moo restart`, and `./moo stop`.
 
 ## Defaults
 

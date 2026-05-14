@@ -166,6 +166,8 @@ describe('scaffold', () => {
     await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain(
       'exec npx --yes @wpmoo/odoo@latest "$@"',
     );
+    await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain('./scripts/up.sh');
+    await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain('./scripts/down.sh');
     expect((await stat(join(target, 'moo'))).mode & 0o111).not.toBe(0);
   });
 });
