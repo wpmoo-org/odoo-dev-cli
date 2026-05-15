@@ -31,6 +31,7 @@ type ValidEnvironmentStatus = EnvironmentStatusBase & {
   invalidSourceRepoPaths: string[];
   moduleCandidateCount: number;
   composeFiles: string[];
+  composeErrors: string[];
   missingCoreFiles: string[];
 };
 
@@ -94,7 +95,7 @@ function sourceRepoPathsFromMetadata(metadata: Metadata): {
 async function missingCoreFiles(
   target: string,
   odooVersion: string,
-): Promise<{ missing: string[]; composeFiles: string[] }> {
+): Promise<{ missing: string[]; composeFiles: string[]; composeErrors: string[] }> {
   const missing: string[] = [];
   const checks: Array<{ label: string; path: string; mustBeDirectory?: boolean }> = [
     { label: 'moo', path: join(target, 'moo') },
@@ -121,7 +122,7 @@ async function missingCoreFiles(
   });
   missing.push(...composeLayout.missingFiles);
 
-  return { missing, composeFiles: composeLayout.files };
+  return { missing, composeFiles: composeLayout.files, composeErrors: composeLayout.errors };
 }
 
 async function countModuleCandidatesInRepoPath(path: string): Promise<number> {
@@ -158,7 +159,9 @@ function summaryText(status: EnvironmentStatus): string {
   if (status.kind === 'invalid_metadata') return 'Environment metadata is invalid.';
 
   const prefix =
-    status.missingCoreFiles.length > 0 || status.invalidSourceRepoPaths.length > 0
+    status.missingCoreFiles.length > 0 ||
+    status.invalidSourceRepoPaths.length > 0 ||
+    status.composeErrors.length > 0
       ? 'Environment needs attention'
       : 'Environment ready';
   return `${prefix}: Odoo ${status.odooVersion}, source repos ${status.sourceRepoCount}, module candidates ${status.moduleCandidateCount}.`;
@@ -202,7 +205,11 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
     moduleCandidateCount += await countModuleCandidatesInRepoPath(repoRoot);
   }
 
-  const { missing: missingFiles, composeFiles } = await missingCoreFiles(target, odooVersion);
+  const {
+    missing: missingFiles,
+    composeFiles,
+    composeErrors,
+  } = await missingCoreFiles(target, odooVersion);
 
   let recommendedNextAction = 'Run npx @wpmoo/odoo doctor for deep checks or ./moo start.';
   if (invalidSourceRepoPaths.length > 0) {
@@ -210,6 +217,8 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
       'Fix invalid source repo paths in .wpmoo/odoo.json, then run npx @wpmoo/odoo doctor.';
   } else if (missingFiles.length > 0) {
     recommendedNextAction = 'Run npx @wpmoo/odoo reset, then npx @wpmoo/odoo doctor.';
+  } else if (composeErrors.length > 0) {
+    recommendedNextAction = 'Fix compose layout errors, then run npx @wpmoo/odoo doctor.';
   } else if (sourceRepoPaths.length === 0) {
     recommendedNextAction = 'Run npx @wpmoo/odoo add-repo ...';
   }
@@ -224,6 +233,7 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
     invalidSourceRepoPaths,
     moduleCandidateCount,
     composeFiles,
+    composeErrors,
     missingCoreFiles: missingFiles,
     recommendedNextAction,
   };
@@ -254,6 +264,9 @@ export function renderEnvironmentStatus(status: EnvironmentStatus): string {
   lines.push(
     `Compose files: ${status.composeFiles.length > 0 ? status.composeFiles.join(', ') : '(missing)'}`,
   );
+  if (status.composeErrors.length > 0) {
+    lines.push(`Compose errors: ${status.composeErrors.join(', ')}`);
+  }
   lines.push(`Source repos: ${status.sourceRepoCount}`);
   lines.push(
     `Source repo paths: ${

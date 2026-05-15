@@ -78,6 +78,10 @@ function isValidComposeEnvironmentName(value: string): boolean {
   return /^[A-Za-z0-9_-]+$/.test(value);
 }
 
+function isValidOdooVersion(value: string): boolean {
+  return /^\d+\.\d+$/.test(value);
+}
+
 function compactOverlayError(envName: string, overlayFile: string): string {
   if (envName === 'dev') return `Missing compact compose overlay: ${overlayFile}`;
   return `Missing compact compose overlay for WPMOO_ENV=${envName}: ${overlayFile}`;
@@ -126,7 +130,18 @@ export async function detectComposeLayout(
     return { kind: 'missing', files: [], missingFiles, errors };
   }
 
-  const legacyFiles = uniqueStrings(options.odooVersions).map((version) => `docker-compose_${version}.yml`);
+  const odooVersions = uniqueStrings(options.odooVersions);
+  const invalidOdooVersions = odooVersions.filter((version) => !isValidOdooVersion(version));
+  if (invalidOdooVersions.length > 0) {
+    return {
+      kind: 'missing',
+      files: [],
+      missingFiles: [],
+      errors: invalidOdooVersions.map((version) => `Invalid Odoo version for compose file: ${version}`),
+    };
+  }
+
+  const legacyFiles = odooVersions.map((version) => `docker-compose_${version}.yml`);
   const missingLegacyFiles: string[] = [];
   for (const file of legacyFiles) {
     if (!(await exists(join(target, file)))) {

@@ -173,6 +173,17 @@ describe('doctor', () => {
     );
   });
 
+  it('rejects invalid .env ODOO_VERSION before checking legacy compose paths', async () => {
+    const target = await makeEnvironment({
+      composeVersions: ['19.0'],
+      env: 'ODOO_VERSION=../18.0\nHTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      'Invalid Odoo version for compose file: ../18.0',
+    );
+  });
+
   it('passes compact compose layout using the default dev overlay', async () => {
     const target = await makeEnvironment({
       composeVersions: [],

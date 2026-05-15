@@ -38,6 +38,13 @@ async function writeCoreFiles(target: string, version = '19.0'): Promise<void> {
   await mkdir(join(target, 'scripts'), { recursive: true });
 }
 
+async function writeCoreFilesWithoutCompose(target: string): Promise<void> {
+  await writeFile(join(target, 'moo'), '#!/usr/bin/env bash\n');
+  await writeFile(join(target, 'README.md'), '# Test\n');
+  await writeFile(join(target, 'AGENTS.md'), '# Test\n');
+  await mkdir(join(target, 'scripts'), { recursive: true });
+}
+
 async function writeCompactCoreFiles(target: string, envName = 'dev'): Promise<void> {
   await writeFile(join(target, 'moo'), '#!/usr/bin/env bash\n');
   await writeFile(join(target, 'README.md'), '# Test\n');
@@ -85,6 +92,7 @@ describe('status', () => {
     expect(status.moduleCandidateCount).toBe(0);
     expect(status.missingCoreFiles).toEqual([]);
     expect(status.composeFiles).toEqual(['docker-compose_19.0.yml']);
+    expect(status.composeErrors).toEqual([]);
     expect(status.recommendedNextAction).toBe('Run npx @wpmoo/odoo add-repo ...');
     expect(renderEnvironmentStatus(status)).toContain('Compose files: docker-compose_19.0.yml');
   });
@@ -100,7 +108,44 @@ describe('status', () => {
 
     expect(status.missingCoreFiles).toEqual([]);
     expect(status.composeFiles).toEqual(['compose.yaml', 'compose/dev.yaml']);
+    expect(status.composeErrors).toEqual([]);
     expect(renderEnvironmentStatus(status)).toContain('Compose files: compose.yaml, compose/dev.yaml');
+  });
+
+  it('reports invalid WPMOO_ENV as a compose error that needs attention', async () => {
+    const target = await makeTarget('wpmoo-status-invalid-wpmoo-env-');
+    await writeMetadata(target, JSON.stringify(validMetadata, null, 2));
+    await writeCoreFilesWithoutCompose(target);
+    await writeFile(join(target, '.env'), 'WPMOO_ENV=../stage\n');
+
+    const status = await getEnvironmentStatus(target);
+    expect(status.kind).toBe('environment');
+    if (status.kind !== 'environment') return;
+
+    expect(status.composeFiles).toEqual([]);
+    expect(status.composeErrors).toEqual([
+      'Invalid WPMOO_ENV in .env: expected a simple compose overlay name, got ../stage',
+    ]);
+    expect(renderEnvironmentStatusSummary(status)).toContain('Environment needs attention');
+    expect(renderEnvironmentStatus(status)).toContain(
+      'Compose errors: Invalid WPMOO_ENV in .env: expected a simple compose overlay name, got ../stage',
+    );
+  });
+
+  it('reports invalid metadata Odoo versions before checking legacy compose paths', async () => {
+    const target = await makeTarget('wpmoo-status-invalid-version-');
+    await writeMetadata(target, JSON.stringify({ ...validMetadata, odooVersion: '../19.0' }, null, 2));
+    await writeCoreFilesWithoutCompose(target);
+
+    const status = await getEnvironmentStatus(target);
+    expect(status.kind).toBe('environment');
+    if (status.kind !== 'environment') return;
+
+    expect(status.composeErrors).toEqual([
+      'Invalid Odoo version for compose file: ../19.0',
+    ]);
+    expect(status.missingCoreFiles).toEqual([]);
+    expect(renderEnvironmentStatusSummary(status)).toContain('Environment needs attention');
   });
 
   it('counts module candidates from configured source repo paths', async () => {

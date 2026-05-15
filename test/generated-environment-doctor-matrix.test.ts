@@ -115,6 +115,16 @@ describe('generated environment doctor matrix', () => {
     );
   });
 
+  it('rejects invalid .env ODOO_VERSION before checking generated legacy compose paths', async () => {
+    const target = await makeGeneratedEnvironment({
+      env: 'ODOO_VERSION=../18.0\nHTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+
+    await expect(runDoctor(target, fakeRunner())).rejects.toThrow(
+      'Invalid Odoo version for compose file: ../18.0',
+    );
+  });
+
   it('passes a generated-like compact compose environment', async () => {
     const target = await makeGeneratedEnvironment({
       composeVersions: [],
