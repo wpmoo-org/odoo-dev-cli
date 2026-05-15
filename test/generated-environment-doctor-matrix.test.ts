@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -49,18 +49,34 @@ async function makeGeneratedEnvironment(options: {
   env?: string;
   scripts?: string[];
   sourcePaths?: string[];
+  composeFiles?: Record<string, string>;
 } = {}): Promise<string> {
   const target = await mkdtemp(join(tmpdir(), 'wpmoo-generated-doctor-matrix-'));
   await mkdir(join(target, '.wpmoo'), { recursive: true });
   await writeFile(join(target, markerPath), JSON.stringify(metadata, null, 2), 'utf8');
 
-  for (const version of options.composeVersions ?? ['19.0']) {
-    await writeFile(join(target, `docker-compose_${version}.yml`), 'services:\n  odoo:\n    image: odoo\n', 'utf8');
-  }
-  if (options.compactEnv) {
-    await writeFile(join(target, 'compose.yaml'), 'services:\n  odoo:\n    image: odoo\n', 'utf8');
-    await mkdir(join(target, 'compose'), { recursive: true });
-    await writeFile(join(target, 'compose', `${options.compactEnv}.yaml`), 'services:\n  odoo:\n    environment: []\n', 'utf8');
+  if (options.composeFiles && Object.keys(options.composeFiles).length > 0) {
+    for (const [relativePath, content] of Object.entries(options.composeFiles)) {
+      await mkdir(dirname(join(target, relativePath)), { recursive: true });
+      await writeFile(join(target, relativePath), content, 'utf8');
+    }
+  } else {
+    for (const version of options.composeVersions ?? ['19.0']) {
+      await writeFile(
+        join(target, `docker-compose_${version}.yml`),
+        'services:\n  odoo:\n    image: odoo\n',
+        'utf8',
+      );
+    }
+    if (options.compactEnv) {
+      await writeFile(join(target, 'compose.yaml'), 'services:\n  odoo:\n    image: odoo\n', 'utf8');
+      await mkdir(join(target, 'compose'), { recursive: true });
+      await writeFile(
+        join(target, 'compose', `${options.compactEnv}.yaml`),
+        'services:\n  odoo:\n    environment: []\n',
+        'utf8',
+      );
+    }
   }
 
   if (options.env !== undefined) {
@@ -146,6 +162,29 @@ describe('generated environment doctor matrix', () => {
 
     await expect(runDoctor(target, fakeRunner())).rejects.toThrow(
       'Missing compact compose overlay for WPMOO_ENV=stage: compose/stage.yaml',
+    );
+  });
+
+  it('fails generated environments with PostgreSQL 18 bad mounts in compose overlays', async () => {
+    const target = await makeGeneratedEnvironment({
+      composeVersions: [],
+      compactEnv: 'dev',
+      env: [
+        'ODOO_VERSION=19.0',
+        'POSTGRES_IMAGE=postgres:18',
+        'HTTP_PORT=10019',
+        'GEVENT_PORT=20019',
+      ].join('\n'),
+      composeFiles: {
+        'compose.yaml':
+          'services:\n  odoo:\n    image: odoo:19\n',
+        'compose/dev.yaml':
+          'services:\n  db:\n    volumes:\n      - pg-data:/var/lib/postgresql/18/docker\n',
+      },
+    });
+
+    await expect(runDoctor(target, fakeRunner())).rejects.toThrow(
+      "PostgreSQL 18 compatibility issue in 'compose/dev.yaml': mount target '/var/lib/postgresql/18/docker' is invalid",
     );
   });
 

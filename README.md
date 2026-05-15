@@ -16,7 +16,7 @@ It gives Odoo teams a repeatable environment layout, a guided cockpit for daily 
 ## Why WPMoo Odoo
 
 - Create a local Odoo development environment from a dev repository and one or more source repositories.
-- Keep product source repositories under `odoo/custom/src/private` as Git submodules pinned to the selected Odoo branch.
+- Keep product source repositories under `odoo/custom/src/private`, `odoo/custom/src/oca`, or `odoo/custom/src/external` as Git submodules pinned to the selected Odoo branch.
 - Copy Docker Compose resources from the standalone `wpmoo-org/odoo-docker-compose` resource instead of embedding large runtime assets in the TypeScript package.
 - Optionally copy project-local Agent Skills from `wpmoo-org/odoo-skills` into generated environments.
 - Use either a guided terminal cockpit or direct CLI commands for the same lifecycle tasks.
@@ -194,8 +194,9 @@ odoo_sample_module_dev/
 |-- odoo/
 |   `-- custom/
 |       `-- src/
-|           `-- private/
-|               `-- odoo_sample_module/
+|           |-- private/
+|           |-- oca/
+|           `-- external/
 `-- scripts/
 ```
 
@@ -240,6 +241,18 @@ Add a source repository after local-only setup from the cockpit or direct comman
 npx @wpmoo/odoo add-repo \
   --repo-url https://github.com/example-org/odoo_sample_module_reports.git \
   --init-empty-repos
+```
+
+Pin source repositories to dedicated source directories:
+
+```bash
+npx @wpmoo/odoo add-repo \
+  --repo-url https://github.com/OCA/sale-workflow.git \
+  --source-type oca
+
+npx @wpmoo/odoo add-repo \
+  --repo-url https://github.com/example-org/odoo_external_tool.git \
+  --source-type external
 ```
 
 GitHub CLI is optional for repository setup. When it is available and authenticated, the interactive flow can:
@@ -299,7 +312,10 @@ It reports whether the environment is detected, which Odoo version is selected, 
 npx @wpmoo/odoo doctor
 ```
 
-It validates metadata, engine support, selected compose files, daily scripts, source repo paths, `.env` ports, Docker CLI access, Docker Compose access, Git submodule state, and GitHub CLI authentication when available.
+It validates metadata, engine support, selected compose files, source repo paths,
+daily scripts, `.env` settings, Docker CLI access, Docker Compose access, GitHub CLI
+authentication when available, and PostgreSQL 18 compatibility in compose mount
+targets (for mounts to `/var/lib/postgresql/data` or `/var/lib/postgresql/18/docker`).
 
 Safe reset refreshes generated environment files without deleting product source code:
 
@@ -309,9 +325,19 @@ npx @wpmoo/odoo reset
 
 Safe reset updates generated files such as `.wpmoo/odoo.json`, `moo`,
 `.gitignore`, `.env.example`, generated docs, compose assets, and optional
-Agent Skills. It does not touch source repo folders under
+Agent Skills. Compose overlays like `compose.yaml` and `compose/dev.yaml` are
+also refreshed from the current compose template source.
+
+It does not touch source repo folders under
 `odoo/custom/src/private`, module source code, Git history, remotes, or
-branches. Legacy compose template paths from older scaffolds can remain
+branches. It also preserves local runtime artifacts and custom source layout
+content:
+
+- `.env`, `data`, and `backups`
+- `odoo/custom/src/oca`, `odoo/custom/src/external`, `odoo/custom/patches`,
+  `odoo/custom/manifests`, and their existing contents
+
+Legacy compose template paths from older scaffolds can remain
 (`docs/assets/`, `test/`, `.github/`) until you remove them manually.
 
 Recommended recovery pattern:

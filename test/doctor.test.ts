@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -31,18 +31,32 @@ async function makeEnvironment(options: {
   env?: string;
   scripts?: string[];
   sourcePaths?: string[];
+  composeFiles?: Record<string, string>;
 } = {}): Promise<string> {
   const target = await mkdtemp(join(tmpdir(), 'wpmoo-doctor-'));
   await mkdir(join(target, '.wpmoo'), { recursive: true });
   await writeFile(join(target, markerPath), JSON.stringify(options.metadata ?? baseMetadata, null, 2));
 
-  for (const version of options.composeVersions ?? ['19.0']) {
-    await writeFile(join(target, `docker-compose_${version}.yml`), 'services:\n  odoo:\n    image: odoo\n');
-  }
-  if (options.compactEnv) {
-    await writeFile(join(target, 'compose.yaml'), 'services:\n  odoo:\n    image: odoo\n');
-    await mkdir(join(target, 'compose'), { recursive: true });
-    await writeFile(join(target, 'compose', `${options.compactEnv}.yaml`), 'services:\n  odoo:\n    environment: []\n');
+  if (options.composeFiles && Object.keys(options.composeFiles).length > 0) {
+    for (const [relativePath, content] of Object.entries(options.composeFiles)) {
+      await mkdir(dirname(join(target, relativePath)), { recursive: true });
+      await writeFile(join(target, relativePath), content);
+    }
+  } else {
+    for (const version of options.composeVersions ?? ['19.0']) {
+      await writeFile(
+        join(target, `docker-compose_${version}.yml`),
+        'services:\n  odoo:\n    image: odoo\n',
+      );
+    }
+    if (options.compactEnv) {
+      await writeFile(join(target, 'compose.yaml'), 'services:\n  odoo:\n    image: odoo\n');
+      await mkdir(join(target, 'compose'), { recursive: true });
+      await writeFile(
+        join(target, 'compose', `${options.compactEnv}.yaml`),
+        'services:\n  odoo:\n    environment: []\n',
+      );
+    }
   }
 
   if (options.env !== undefined) {
@@ -205,6 +219,57 @@ describe('doctor', () => {
 
     await expect(runDoctor(target, passingDockerRunner())).resolves.toContain(
       'OK compose files compose.yaml, compose/stage.yaml',
+    );
+  });
+
+  it('flags incompatible PostgreSQL 18 DB mount targets in legacy compose files', async () => {
+    const target = await makeEnvironment({
+      composeVersions: ['19.0'],
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+      composeFiles: {
+        'docker-compose_19.0.yml':
+          'services:\n  db:\n    image: postgres:18\n    volumes:\n      - pg-data:/var/lib/postgresql/data\n',
+      },
+    });
+
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      "PostgreSQL 18 compatibility issue in 'docker-compose_19.0.yml': mount target '/var/lib/postgresql/data' is invalid",
+    );
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      "recommend using '/var/lib/postgresql'",
+    );
+  });
+
+  it('passes when PostgreSQL 18 mounts use /var/lib/postgresql in compose files', async () => {
+    const target = await makeEnvironment({
+      composeVersions: ['19.0'],
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+      composeFiles: {
+        'docker-compose_19.0.yml':
+          'services:\n  db:\n    image: postgres:18\n    volumes:\n      - pg-data:/var/lib/postgresql\n',
+      },
+    });
+
+    await expect(runDoctor(target, passingDockerRunner())).resolves.toContain(
+      'OK compose files docker-compose_19.0.yml',
+    );
+  });
+
+  it('inspects compact compose overlays for PostgreSQL 18 mount compatibility', async () => {
+    const target = await makeEnvironment({
+      composeVersions: [],
+      compactEnv: 'dev',
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\nPOSTGRES_IMAGE=postgres:18\n',
+      composeFiles: {
+        'compose.yaml':
+          'services:\n  odoo:\n    image: odoo:19\n    volumes: []\n',
+        'compose/dev.yaml':
+          'services:\n  db:\n    image: postgres:18\n    tmpfs:\n      - /var/lib/postgresql/18/docker\n',
+      },
+    });
+
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      "PostgreSQL 18 compatibility issue in 'compose/dev.yaml': mount target '/var/lib/postgresql/18/docker' is invalid",
     );
   });
 

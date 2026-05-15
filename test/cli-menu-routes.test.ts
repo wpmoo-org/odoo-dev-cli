@@ -201,6 +201,7 @@ describe('cli menu environment routes', () => {
     expect(mocks.addModuleRepo).toHaveBeenCalledWith({
       target: '/tmp/environment',
       repoUrl: 'https://github.com/example-org/odoo_new_repo.git',
+      sourceType: 'private',
       odooVersion: '19.0',
       initEmptyRepos: true,
       stage: true,

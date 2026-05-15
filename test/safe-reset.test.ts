@@ -13,7 +13,10 @@ async function writeStandaloneResourceFixtures(root: string): Promise<{ compose:
 
   await mkdir(join(compose, 'etc'), { recursive: true });
   await mkdir(join(compose, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
+  await mkdir(join(compose, 'compose'), { recursive: true });
   await mkdir(join(skills, 'skills/odoo-oca'), { recursive: true });
+  await writeFile(join(compose, 'compose.yaml'), 'name: base-compose\n', 'utf8');
+  await writeFile(join(compose, 'compose/dev.yaml'), 'name: base-compose-dev\n', 'utf8');
   await writeFile(join(compose, 'docker-compose_18.0.yml'), 'services:\n  odoo:\n    image: refreshed-compose\n');
   await writeFile(join(compose, 'README.md'), '# Refreshed Compose Docs\n');
   await writeFile(join(compose, 'etc/odoo.conf'), '[options]\nrefreshed = true\n');
@@ -68,7 +71,11 @@ describe('safe reset', () => {
         '- source repo folders under odoo/custom/src/private',
         '- module source code',
         '- Git history, remotes, or branches',
+        '- .env, data, and backups',
+        '- custom source layout directories (oca, external, patches, manifests)',
         '- Legacy compose template files may remain until manually removed: docs/assets/, test/, .github/',
+        '',
+        'Preview-only output; files are not changed until reset is executed.',
         '',
         'Generated changes will be staged with git add .',
       ].join('\n'),
@@ -240,6 +247,22 @@ describe('safe reset', () => {
     await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
     await mkdir(join(target, '.agents/skills/odoo-oca'), { recursive: true });
     await mkdir(join(target, 'docs'), { recursive: true });
+    await mkdir(join(target, 'data'), { recursive: true });
+    await mkdir(join(target, 'backups'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/oca'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/external'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/patches'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/manifests'), { recursive: true });
+    await writeFile(join(target, 'compose.yaml'), 'stale compose\n', 'utf8');
+    await mkdir(join(target, 'compose'), { recursive: true });
+    await writeFile(join(target, 'compose/dev.yaml'), 'stale compose dev\n', 'utf8');
+    await writeFile(join(target, '.gitmodules'), '[submodule "keep"]\n\tpath = odoo/custom/src/private/keep\n\turl = https://example.com/keep.git\n', 'utf8');
+    await writeFile(join(target, 'data/keep.txt'), 'KEEP_DATA\n', 'utf8');
+    await writeFile(join(target, 'backups/keep.txt'), 'KEEP_BACKUP\n', 'utf8');
+    await writeFile(join(target, 'odoo/custom/src/oca/README.md'), 'local oca readme\n', 'utf8');
+    await writeFile(join(target, 'odoo/custom/src/external/README.md'), 'local external readme\n', 'utf8');
+    await writeFile(join(target, 'odoo/custom/patches/keep.patch'), 'local patch\n', 'utf8');
+    await writeFile(join(target, 'odoo/custom/manifests/keep.txt'), 'local manifest\n', 'utf8');
     await writeFile(join(target, '.env'), 'LOCAL_SECRET=keep\n', 'utf8');
     await writeFile(join(target, '.env.example'), 'STALE_ENV=true\n', 'utf8');
     await writeFile(join(target, 'docker-compose_18.0.yml'), 'stale compose\n', 'utf8');
@@ -277,6 +300,7 @@ describe('safe reset', () => {
           postgresVersion: '16',
           httpPort: '18080',
           geventPort: '28080',
+          refreshMetadataMarker: 'preserve this',
         },
         null,
         2,
@@ -287,11 +311,25 @@ describe('safe reset', () => {
     await safeResetEnvironment({ target, stage: false }, git);
 
     await expect(readFile(join(target, 'docker-compose_18.0.yml'), 'utf8')).resolves.toContain('refreshed-compose');
+    await expect(readFile(join(target, 'compose.yaml'), 'utf8')).resolves.toBe('name: base-compose\n');
+    await expect(readFile(join(target, 'compose/dev.yaml'), 'utf8')).resolves.toBe('name: base-compose-dev\n');
+    await expect(readFile(join(target, '.gitmodules'), 'utf8')).resolves.toContain('https://example.com/keep.git');
     await expect(readFile(join(target, 'etc/odoo.conf'), 'utf8')).resolves.toContain('refreshed = true');
     await expect(readFile(join(target, 'docs/compose.md'), 'utf8')).resolves.toContain('Refreshed Compose Docs');
     await expect(readFile(join(target, '.agents/skills/odoo-oca/SKILL.md'), 'utf8')).resolves.toContain(
       'refreshed-odoo-oca',
     );
+    await expect(readFile(join(target, 'data/keep.txt'), 'utf8')).resolves.toBe('KEEP_DATA\n');
+    await expect(readFile(join(target, 'backups/keep.txt'), 'utf8')).resolves.toBe('KEEP_BACKUP\n');
+    await expect(readFile(join(target, 'odoo/custom/src/oca/README.md'), 'utf8')).resolves.toBe('local oca readme\n');
+    await expect(readFile(join(target, 'odoo/custom/src/external/README.md'), 'utf8')).resolves.toBe(
+      'local external readme\n',
+    );
+    await expect(readFile(join(target, 'odoo/custom/patches/keep.patch'), 'utf8')).resolves.toBe('local patch\n');
+    await expect(readFile(join(target, 'odoo/custom/manifests/keep.txt'), 'utf8')).resolves.toBe('local manifest\n');
+
+    const metadata = JSON.parse(await readFile(join(target, '.wpmoo/odoo.json'), 'utf8')) as { refreshMetadataMarker?: string };
+    expect(metadata.refreshMetadataMarker).toBe('preserve this');
     await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toContain('ODOO_VERSION=18.0');
     await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toContain('POSTGRES_IMAGE=postgres:16');
     await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toContain('HTTP_PORT=18080');

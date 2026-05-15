@@ -45,7 +45,7 @@ import {
 } from './repository-preflight.js';
 import { scaffold } from './scaffold.js';
 import { renderBanner } from './templates.js';
-import type { ScaffoldOptions, SourceRepo } from './types.js';
+import type { ScaffoldOptions, SourceRepo, SourceRepoType } from './types.js';
 import { checkForUpdate, installLatestPackage, isUpdateCheckSkipped, restartCli } from './update-check.js';
 import { packageName, packageVersion, renderVersion, renderVersionTag } from './version.js';
 import {
@@ -132,6 +132,23 @@ function stringOption(values: Record<string, string | boolean>, key: string): st
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+function optionalSourceTypeValue(values: Record<string, string | boolean>): SourceRepoType | undefined {
+  const value = stringOption(values, 'sourceType');
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === 'private' || value === 'oca' || value === 'external') {
+    return value;
+  }
+
+  throw new Error(`Invalid value for --source-type: ${value}`);
+}
+
+function sourceTypeValue(values: Record<string, string | boolean>): SourceRepoType {
+  return optionalSourceTypeValue(values) ?? 'private';
+}
+
 function booleanOption(values: Record<string, string | boolean>, key: string, fallback: boolean): boolean {
   const value = values[key];
   if (value === undefined) return fallback;
@@ -152,6 +169,13 @@ function yellow(value: string): string {
 function shellQuote(value: string): string {
   if (/^[A-Za-z0-9_./:-]+$/.test(value)) return value;
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function renderedSourceRepoPath(target: string, sourceType: SourceRepoType, repoPath?: string): string {
+  if (repoPath) {
+    return `${target}/odoo/custom/src/${sourceType}/${repoPath}`;
+  }
+  return `${target}/odoo/custom/src/${sourceType}`;
 }
 
 function renderPostCreateGuidance(target: string, cwd: string): string {
@@ -402,6 +426,7 @@ async function addRepoOptionsFromArgs(argv: string[]): Promise<AddModuleRepoOpti
     target,
     repoUrl: normalizeRepositoryUrl(repoUrl),
     repoPath: stringOption(values, 'repo') ?? stringOption(values, 'sourcePath'),
+    sourceType: sourceTypeValue(values),
     odooVersion: await commandOdooVersion(target, stringOption(values, 'odooVersion')),
     initEmptyRepos: booleanOption(values, 'initEmptyRepos', false),
     stage: booleanOption(values, 'stage', true),
@@ -444,6 +469,7 @@ async function addRepoOptionsFromPrompts(
   return {
     target,
     repoUrl,
+    sourceType: 'private',
     odooVersion,
     initEmptyRepos: true,
     stage: true,
@@ -580,6 +606,7 @@ function removeRepoOptionsFromArgs(argv: string[]): RemoveModuleRepoOptions | un
   return {
     target: resolve(stringOption(values, 'target') ?? process.cwd()),
     repoPath,
+    sourceType: optionalSourceTypeValue(values),
     stage: booleanOption(values, 'stage', true),
   };
 }
@@ -831,7 +858,7 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
     const options = await addRepoOptionsFromPrompts(false, 'back');
     await ensureAddRepoGitHubRepository(options, 'back');
     await addModuleRepo(options);
-    note(`Added source repo under ${options.target}/odoo/custom/src/private.`, 'Done');
+    note(`Added source repo under ${renderedSourceRepoPath(options.target, options.sourceType ?? 'private')}.`, 'Done');
     return 'continue';
   }
 
@@ -935,7 +962,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     if (options) {
       console.log(renderBanner());
       await addModuleRepo(options);
-      outro(`Added source repo under ${options.target}/odoo/custom/src/private.`);
+      outro(`Added source repo under ${renderedSourceRepoPath(options.target, options.sourceType ?? 'private', options.repoPath)}.`);
       return;
     }
 

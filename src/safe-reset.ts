@@ -1,7 +1,7 @@
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
-import { readEnvironmentMetadata } from './environment.js';
+import { environmentMetadata, readEnvironmentMetadata } from './environment.js';
 import { applyExternalAsset, writeTextFile, type ExternalAssetOptions } from './external-assets.js';
 import { plannedExternalAssetOptions, renderComposeEnvExample } from './external-templates.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
@@ -14,6 +14,49 @@ export type SafeResetOptions = {
   target: string;
   stage: boolean;
 };
+
+const safeResetProtectedPaths = [
+  'data',
+  'backups',
+  '.env',
+  '.gitmodules',
+  'odoo/custom/src/private',
+  'odoo/custom/src/oca',
+  'odoo/custom/src/external',
+  'odoo/custom/patches',
+  'odoo/custom/manifests',
+].map((path) => path.replace(/\/$/, ''));
+
+const safeResetProtectedGeneratedReadmes = new Set([
+  'odoo/custom/src/private/README.md',
+  'odoo/custom/src/oca/README.md',
+  'odoo/custom/src/external/README.md',
+  'odoo/custom/patches/README.md',
+  'odoo/custom/manifests/README.md',
+]);
+
+function isProtectedGeneratedFile(filePath: string): boolean {
+  return safeResetProtectedGeneratedReadmes.has(filePath);
+}
+
+type ExistingEnvironmentMetadata = Record<string, unknown>;
+
+function mergeEnvironmentMetadata(
+  target: string,
+  options: ScaffoldOptions,
+): Promise<string> {
+  const generated = environmentMetadata(options);
+  return readFile(join(target, '.wpmoo/odoo.json'), 'utf8')
+    .then((content) => JSON.parse(content) as ExistingEnvironmentMetadata)
+    .then((existing) => {
+      if (!existing || typeof existing !== 'object' || Array.isArray(existing)) {
+        return `${JSON.stringify(generated, null, 2)}\n`;
+      }
+
+      return `${JSON.stringify({ ...existing, ...generated, sourceRepos: generated.sourceRepos }, null, 2)}\n`;
+    })
+    .catch(() => `${JSON.stringify(generated, null, 2)}\n`);
+}
 
 export function renderSafeResetPreview(target: string, stage: boolean): string {
   return [
@@ -37,7 +80,11 @@ export function renderSafeResetPreview(target: string, stage: boolean): string {
     '- source repo folders under odoo/custom/src/private',
     '- module source code',
     '- Git history, remotes, or branches',
+    '- .env, data, and backups',
+    '- custom source layout directories (oca, external, patches, manifests)',
     '- Legacy compose template files may remain until manually removed: docs/assets/, test/, .github/',
+    '',
+    'Preview-only output; files are not changed until reset is executed.',
     '',
     stage ? 'Generated changes will be staged with git add .' : 'Generated changes will not be staged.',
   ].join('\n');
@@ -52,9 +99,7 @@ function safeResetExternalAssetOptions(options: ScaffoldOptions): ExternalAssetO
     ...assetOptions,
     exclude: [
       ...(assetOptions.exclude ?? []),
-      '.env',
-      '.gitmodules',
-      'odoo/custom/src/private',
+      ...safeResetProtectedPaths,
     ],
   }));
 }
@@ -98,6 +143,15 @@ async function readSubmoduleUrl(target: string, repoPath: string): Promise<strin
     return url || `odoo/custom/src/private/${safeRepoPath}`;
   } catch {
     return `odoo/custom/src/private/${safeRepoPath}`;
+  }
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -152,6 +206,14 @@ export async function safeResetEnvironment(
   const externalAssets = safeResetExternalAssetOptions(scaffoldOptions);
 
   for (const file of files) {
+    if (file.path === '.wpmoo/odoo.json') {
+      continue;
+    }
+
+    if (isProtectedGeneratedFile(file.path) && (await pathExists(join(options.target, file.path)))) {
+      continue;
+    }
+
     if (file.path === 'odoo/custom/src/addons.yaml') {
       continue;
     }
@@ -167,6 +229,7 @@ export async function safeResetEnvironment(
   for (const assetOptions of externalAssets) {
     await applyExternalAsset(assetOptions, git);
   }
+  await writeTextFile(join(options.target, '.wpmoo/odoo.json'), await mergeEnvironmentMetadata(options.target, scaffoldOptions));
   await writeTextFile(join(options.target, '.env.example'), renderComposeEnvExample(scaffoldOptions));
 
   if (options.stage) {

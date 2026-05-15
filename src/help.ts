@@ -7,7 +7,7 @@ Usage:
   npx @wpmoo/odoo
   npx @wpmoo/odoo create --product <slug> [--target <path>] --dev-repo-url <url> --source-repo-url <url>
   npx @wpmoo/odoo status
-  npx @wpmoo/odoo add-repo --repo-url <url>
+  npx @wpmoo/odoo add-repo --repo-url <url> [--source-type private|oca|external]
   npx @wpmoo/odoo remove-repo --repo <name>
   npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
   npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name>
@@ -45,6 +45,7 @@ Options:
   --http-port <port>           Host HTTP port written to .env.example.
   --gevent-port <port>         Host gevent/live chat port written to .env.example.
   --repo-url <url>             Source repo URL for add-repo.
+  --source-type <category>     Source repo category for add-repo/remove-repo. One of private, oca, external. Default: private.
   --repo <name>                Source repo folder name for repo/module actions.
   --module <name>              Odoo module technical name for module actions.
   --delete-files               Also delete module files in remove-module. Default: false.
@@ -90,7 +91,7 @@ Task recipes:
   Create local-only environment:
     npx @wpmoo/odoo
   Add source repo:
-    npx @wpmoo/odoo add-repo --repo-url <url>
+    npx @wpmoo/odoo add-repo --repo-url <url> --source-type oca
   Add module:
     npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
   Run tests:

@@ -90,6 +90,31 @@ describe('repo actions', () => {
     await expect(listModuleRepos(target)).resolves.toEqual(['odoo_sample_module']);
   });
 
+  it('lists source repos from private, oca, and external submodule paths', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-list-module-repos-'));
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/private/odoo_sample_module"]',
+        '\tpath = odoo/custom/src/private/odoo_sample_module',
+        '\turl = https://github.com/example-org/odoo_sample_module.git',
+        '[submodule "odoo/custom/src/oca/odoo_sample_oca"]',
+        '\tpath = odoo/custom/src/oca/odoo_sample_oca',
+        '\turl = https://github.com/example-org/odoo_sample_oca.git',
+        '[submodule "odoo/custom/src/external/odoo_sample_external"]',
+        '\tpath = odoo/custom/src/external/odoo_sample_external',
+        '\turl = https://github.com/example-org/odoo_sample_external.git',
+        '',
+      ].join('\n'),
+    );
+
+    await expect(listModuleRepos(target)).resolves.toEqual([
+      'odoo_sample_external',
+      'odoo_sample_module',
+      'odoo_sample_oca',
+    ]);
+  });
+
   it('rejects traversal source paths before running git', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-add-repo-traversal-'));
 
@@ -106,6 +131,205 @@ describe('repo actions', () => {
         failingGit(),
       ),
     ).rejects.toThrow('Invalid repo path');
+  });
+
+  it('adds a source repo under oca and stores sourceType metadata', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-add-repo-oca-'));
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/oca/odoo_sample_oca_repo"]',
+        '\tpath = odoo/custom/src/oca/odoo_sample_oca_repo',
+        '\turl = https://github.com/example-org/odoo_sample_oca_repo.git',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/odoo',
+          version: '0.8.25',
+          product: 'odoo_sample_module',
+          odooVersion: '19.0',
+          engine: 'compose',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          sourceRepos: [],
+        },
+        null,
+        2,
+      ),
+    );
+
+    const git: GitRunner = {
+      async run(_cwd, args) {
+        if (args[0] === 'ls-remote' && args[1] === '--heads' && args.length === 3) {
+          return { stdout: 'abc123 refs/heads/main\n', stderr: '' };
+        }
+        if (args[0] === 'ls-remote' && args[1] === '--heads' && args.length === 4) {
+          return { stdout: 'abc123 refs/heads/19.0\n', stderr: '' };
+        }
+        if (args[0] === 'ls-files') {
+          return { stdout: 'odoo/custom/src/oca/odoo_sample_oca_repo\n', stderr: '' };
+        }
+        return { stdout: '', stderr: '' };
+      },
+    };
+
+    await addModuleRepo(
+      {
+        target,
+        repoUrl: 'https://github.com/example-org/odoo_sample_oca_repo.git',
+        repoPath: 'odoo_sample_oca_repo',
+        sourceType: 'oca',
+        odooVersion: '19.0',
+        initEmptyRepos: false,
+        stage: false,
+      },
+      git,
+    );
+
+    const metadata = JSON.parse(await readFile(join(target, '.wpmoo/odoo.json'), 'utf8'));
+    expect(metadata.sourceRepos).toEqual([
+      {
+        url: 'https://github.com/example-org/odoo_sample_oca_repo.git',
+        path: 'odoo_sample_oca_repo',
+        addons: ['odoo_sample_oca_repo'],
+        sourceType: 'oca',
+      },
+    ]);
+    await expect(readFile(join(target, '.gitmodules'), 'utf8')).resolves.toContain(
+      'path = odoo/custom/src/oca/odoo_sample_oca_repo',
+    );
+  });
+
+  it('requires source-type when the same repo name exists in multiple source directories', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-remove-repo-ambiguous-'));
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/private/odoo_sample_module"]',
+        '\tpath = odoo/custom/src/private/odoo_sample_module',
+        '\turl = https://github.com/example-org/odoo_sample_module.git',
+        '[submodule "odoo/custom/src/oca/odoo_sample_module"]',
+        '\tpath = odoo/custom/src/oca/odoo_sample_module',
+        '\turl = https://github.com/example-org/odoo_sample_module.git',
+        '',
+      ].join('\n'),
+    );
+
+    const git: GitRunner = {
+      async run() {
+        return { stdout: '', stderr: '' };
+      },
+    };
+
+    await expect(
+      removeModuleRepo(
+        {
+          target,
+          repoPath: 'odoo_sample_module',
+          stage: false,
+        },
+        git,
+      ),
+    ).rejects.toThrow(/exists in multiple source directories: .*oca.*private/);
+  });
+
+  it('removes the target source repo from a selected source directory when source-type is explicit', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-remove-repo-selected-type-'));
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/private/odoo_sample_module"]',
+        '\tpath = odoo/custom/src/private/odoo_sample_module',
+        '\turl = https://github.com/example-org/odoo_sample_module.git',
+        '[submodule "odoo/custom/src/oca/odoo_sample_module"]',
+        '\tpath = odoo/custom/src/oca/odoo_sample_module',
+        '\turl = https://github.com/example-org/odoo_sample_module.git',
+        '',
+      ].join('\n'),
+    );
+    const calls: string[][] = [];
+    const git: GitRunner = {
+      async run(_cwd, args) {
+        calls.push(args);
+        return { stdout: '', stderr: '' };
+      },
+    };
+
+    await removeModuleRepo(
+      {
+        target,
+        repoPath: 'odoo_sample_module',
+        sourceType: 'oca',
+        stage: false,
+      },
+      git,
+    );
+
+    expect(calls).toContainEqual(['submodule', 'deinit', '-f', 'odoo/custom/src/oca/odoo_sample_module']);
+    expect(calls).toContainEqual(['rm', '-f', 'odoo/custom/src/oca/odoo_sample_module']);
+  });
+
+  it('removes oca source repo metadata even when source-type was inferred from layout', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-remove-repo-metadata-infer-type-'));
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/odoo',
+          version: '0.8.25',
+          product: 'odoo_sample_module',
+          odooVersion: '19.0',
+          engine: 'compose',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          sourceRepos: [
+            {
+              url: 'https://github.com/example-org/odoo_sample_module.git',
+              path: 'odoo_sample_module',
+              addons: ['odoo_sample_module'],
+              sourceType: 'oca',
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/oca/odoo_sample_module"]',
+        '\tpath = odoo/custom/src/oca/odoo_sample_module',
+        '\turl = https://github.com/example-org/odoo_sample_module.git',
+        '',
+      ].join('\n'),
+    );
+
+    const calls: string[][] = [];
+    const git: GitRunner = {
+      async run(_cwd, args) {
+        calls.push(args);
+        return { stdout: '', stderr: '' };
+      },
+    };
+
+    await removeModuleRepo(
+      {
+        target,
+        repoPath: 'odoo_sample_module',
+        stage: false,
+      },
+      git,
+    );
+
+    const metadata = JSON.parse(await readFile(join(target, '.wpmoo/odoo.json'), 'utf8'));
+    expect(metadata.sourceRepos).toEqual([]);
   });
 
   it('exits quietly when compose metadata exists but etc/odoo.conf is missing', async () => {

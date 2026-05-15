@@ -1,9 +1,12 @@
 import type { RepositoryVisibility } from './github.js';
 
+export type SourceRepoType = 'private' | 'oca' | 'external';
+
 export type SourceRepo = {
   url: string;
   path: string;
   addons: string[];
+  sourceType?: SourceRepoType;
 };
 
 export type EnvironmentEngine = 'compose';

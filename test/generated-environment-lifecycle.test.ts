@@ -34,7 +34,10 @@ async function git(cwd: string, args: string[]) {
 async function writeLocalComposeFixture(root: string): Promise<string> {
   const fixture = join(root, 'compose-fixture');
   await mkdir(join(fixture, 'scripts'), { recursive: true });
+  await mkdir(join(fixture, 'compose'), { recursive: true });
   await mkdir(join(fixture, 'etc'), { recursive: true });
+  await writeFile(join(fixture, 'compose.yaml'), 'name: base-compose\n', 'utf8');
+  await writeFile(join(fixture, 'compose/dev.yaml'), 'name: base-compose-dev\n', 'utf8');
   await writeFile(join(fixture, 'docker-compose_19.0.yml'), 'services:\n  odoo:\n    image: odoo:19\n', 'utf8');
   await writeFile(join(fixture, 'docker-compose_18.0.yml'), 'services:\n  odoo:\n    image: odoo:18\n', 'utf8');
   await writeFile(
@@ -125,6 +128,8 @@ describe('generated environment lifecycle and maintenance matrix', () => {
     await expect(stat(moduleDir)).resolves.toBeTruthy();
 
     await writeFile(join(target, 'moo'), '# stale moo script\n', 'utf8');
+    await writeFile(join(target, 'compose.yaml'), 'name: stale-compose\n', 'utf8');
+    await writeFile(join(target, 'compose/dev.yaml'), 'name: stale-compose-dev\n', 'utf8');
     await safeResetEnvironment({ target, stage: false });
 
     await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module'))).resolves.toBeTruthy();
@@ -132,6 +137,8 @@ describe('generated environment lifecycle and maintenance matrix', () => {
     await expect(stat(moduleDir)).resolves.toBeTruthy();
     await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain('./scripts/up.sh');
     await expect(readFile(join(target, 'etc/odoo.conf'), 'utf8')).resolves.toContain('/mnt/wpmoo-addons');
+    await expect(readFile(join(target, 'compose.yaml'), 'utf8')).resolves.toBe('name: base-compose\n');
+    await expect(readFile(join(target, 'compose/dev.yaml'), 'utf8')).resolves.toBe('name: base-compose-dev\n');
     await expect(readFile(join(target, 'docker-compose_19.0.yml'), 'utf8')).resolves.toContain('odoo:19');
   });
 });

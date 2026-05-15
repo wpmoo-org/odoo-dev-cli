@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { addSourceRepoToAddonsYaml, removeSourceRepoFromAddonsYaml } from './addons-yaml.js';
-import { readEnvironmentMetadata } from './environment.js';
+import { readEnvironmentMetadata, removeSourceRepoMetadata, upsertSourceRepoMetadata } from './environment.js';
 import {
   ensureRemoteHasBranch,
   ensureSubmodule,
@@ -14,17 +14,22 @@ import {
 } from './git.js';
 import { isValidPathSegment, validateRepoPath } from './path-validation.js';
 import { inferRepoPath } from './repo-url.js';
+import type { SourceRepoType } from './types.js';
 
 export const addonsYamlHeader = `# Addons activated from source submodules.
 #
-# Source repos are managed as Git submodules under odoo/custom/src/private.
+# Source repos are managed as Git submodules under odoo/custom/src/private (product code).
+# OCA/external source repos can be placed under odoo/custom/src/oca and odoo/custom/src/external.
 # Do not duplicate these same repos in repos.yaml.
 `;
+
+const validSourceTypes: SourceRepoType[] = ['private', 'oca', 'external'];
 
 export type AddModuleRepoOptions = {
   target: string;
   repoUrl: string;
   repoPath?: string;
+  sourceType?: SourceRepoType;
   odooVersion: string;
   initEmptyRepos: boolean;
   stage: boolean;
@@ -33,11 +38,59 @@ export type AddModuleRepoOptions = {
 export type RemoveModuleRepoOptions = {
   target: string;
   repoPath: string;
+  sourceType?: SourceRepoType;
   stage: boolean;
 };
 
-function privateSubmodulePath(repoPath: string): string {
-  return `odoo/custom/src/private/${validateRepoPath(repoPath)}`;
+function normalizeSourceType(value?: string): SourceRepoType {
+  return validSourceTypes.includes(value as SourceRepoType) ? (value as SourceRepoType) : 'private';
+}
+
+function sourceSubmodulePath(sourceType: SourceRepoType, repoPath: string): string {
+  return `odoo/custom/src/${sourceType}/${validateRepoPath(repoPath)}`;
+}
+
+function resolveSourceTypeFromSubmodulePath(submodulePath: string): SourceRepoType | undefined {
+  const match = /^odoo\/custom\/src\/(private|oca|external)\//.exec(submodulePath);
+  if (!match) return undefined;
+  return match[1] as SourceRepoType;
+}
+
+async function listGitmoduleRepos(target: string): Promise<Array<{ sourceType: SourceRepoType; path: string }>> {
+  try {
+    const gitmodules = await readFile(join(target, '.gitmodules'), 'utf8');
+    return [...gitmodules.matchAll(/^\s*path\s*=\s*odoo\/custom\/src\/(private|oca|external)\/(.+)$/gm)]
+      .map((match) => ({ sourceType: match[1] as SourceRepoType, path: match[2].trim() }))
+      .filter((entry) => isValidPathSegment(entry.path));
+  } catch {
+    return [];
+  }
+}
+
+async function resolveSubmodulePathFromConfig(
+  target: string,
+  repoPath: string,
+  sourceType?: SourceRepoType,
+): Promise<string> {
+  if (sourceType) {
+    return sourceSubmodulePath(sourceType, validateRepoPath(repoPath));
+  }
+
+  const repoMatches = (await listGitmoduleRepos(target)).filter((repo) => repo.path === repoPath);
+  if (repoMatches.length === 1) {
+    return sourceSubmodulePath(repoMatches[0].sourceType, repoPath);
+  }
+
+  if (repoMatches.length > 1) {
+    const sorted = repoMatches.map((repo) => repo.sourceType).sort();
+    throw new Error(
+      `Source repo ${repoPath} exists in multiple source directories: ${sorted.join(
+        ', ',
+      )}. Provide --source-type to disambiguate.`,
+    );
+  }
+
+  return sourceSubmodulePath('private', repoPath);
 }
 
 export async function readAddonsYaml(target: string): Promise<string> {
@@ -91,26 +144,35 @@ export async function addModuleRepo(
   git: GitRunner = realGit,
 ): Promise<void> {
   const repoPath = validateRepoPath(options.repoPath?.trim() || inferRepoPath(options.repoUrl));
-  const submodulePath = privateSubmodulePath(repoPath);
+  const sourceType = normalizeSourceType(options.sourceType);
+  const submodulePath = sourceSubmodulePath(sourceType, repoPath);
 
   await ensureRemoteHasBranch(git, options.target, options.repoUrl, options.odooVersion, options.initEmptyRepos);
-  await mkdir(join(options.target, 'odoo/custom/src/private'), { recursive: true });
+  await mkdir(join(options.target, 'odoo/custom/src', sourceType), { recursive: true });
   await ensureSubmodule(git, options.target, options.repoUrl, options.odooVersion, submodulePath);
 
   const listedRepos = await listModuleRepos(options.target);
   if (!listedRepos.includes(repoPath)) {
     throw new Error(`Source repo was added but is not registered in .gitmodules: ${repoPath}`);
   }
+  await upsertSourceRepoMetadata(options.target, {
+    url: options.repoUrl,
+    path: repoPath,
+    addons: [repoPath],
+    sourceType,
+  });
 
   if (!(await isComposeEnvironment(options.target))) {
     const addonsYaml = await readAddonsYaml(options.target);
-    await writeAddonsYaml(
-      options.target,
-      addSourceRepoToAddonsYaml(addonsYaml, {
-        path: repoPath,
-        addons: [repoPath],
-      }),
-    );
+    if (sourceType === 'private') {
+      await writeAddonsYaml(
+        options.target,
+        addSourceRepoToAddonsYaml(addonsYaml, {
+          path: repoPath,
+          addons: [repoPath],
+        }),
+      );
+    }
   }
   await syncComposeOdooConfAddonsPath(options.target);
 
@@ -120,15 +182,7 @@ export async function addModuleRepo(
 }
 
 export async function listModuleRepos(target: string): Promise<string[]> {
-  try {
-    const gitmodules = await readFile(join(target, '.gitmodules'), 'utf8');
-    return [...gitmodules.matchAll(/^\s*path\s*=\s*odoo\/custom\/src\/private\/(.+)$/gm)]
-      .map((match) => match[1].trim())
-      .filter((repoPath) => repoPath && isValidPathSegment(repoPath))
-      .sort();
-  } catch {
-    return [];
-  }
+  return (await listGitmoduleRepos(target)).map((repo) => repo.path).sort();
 }
 
 export async function removeModuleRepo(
@@ -136,18 +190,23 @@ export async function removeModuleRepo(
   git: GitRunner = realGit,
 ): Promise<void> {
   const repoPath = validateRepoPath(options.repoPath);
-  const submodulePath = privateSubmodulePath(repoPath);
+  const sourceType = options.sourceType ? normalizeSourceType(options.sourceType) : undefined;
+  const submodulePath = await resolveSubmodulePathFromConfig(options.target, repoPath, sourceType);
   const fullSubmodulePath = join(options.target, submodulePath);
+  const resolvedSourceType = sourceType ?? resolveSourceTypeFromSubmodulePath(submodulePath);
 
   if (await hasUncommittedChanges(git, fullSubmodulePath)) {
     throw new Error(`Cannot remove ${repoPath}: submodule has uncommitted changes.`);
   }
 
   await removeSubmodule(git, options.target, submodulePath);
+  await removeSourceRepoMetadata(options.target, repoPath, resolvedSourceType);
 
   if (!(await isComposeEnvironment(options.target))) {
     const addonsYaml = await readAddonsYaml(options.target);
-    await writeAddonsYaml(options.target, removeSourceRepoFromAddonsYaml(addonsYaml, repoPath));
+    if (resolvedSourceType === 'private') {
+      await writeAddonsYaml(options.target, removeSourceRepoFromAddonsYaml(addonsYaml, repoPath));
+    }
   }
   await syncComposeOdooConfAddonsPath(options.target);
 

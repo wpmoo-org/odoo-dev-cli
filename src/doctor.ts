@@ -5,6 +5,7 @@ import { execa } from 'execa';
 
 import { detectComposeLayout, readEnvFile, selectedComposeEnvironment } from './compose-layout.js';
 import { dailyActionScripts } from './daily-actions.js';
+import { defaultPostgresVersion } from './external-templates.js';
 import { defaultOdooVersion, markerPath } from './environment.js';
 import type { SourceRepo } from './types.js';
 
@@ -47,6 +48,67 @@ function commandErrorText(error: unknown): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+const incompatiblePostgres18MountTargets = ['/var/lib/postgresql/data', '/var/lib/postgresql/18/docker'];
+
+function parsePostgresMajorFromValue(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^\d{1,3}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const match = trimmed.match(/postgres:([0-9]{1,3})(?:[-._][A-Za-z0-9._-]+)?(?:@[\w:.-]+)?/i);
+  return match?.[1];
+}
+
+function stripInlineComment(line: string): string {
+  const hashIndex = line.indexOf('#');
+  if (hashIndex === -1) return line;
+  return line.slice(0, hashIndex);
+}
+
+function hasInvalidPostgres18Mount(line: string, mountTarget: string): boolean {
+  const escaped = mountTarget.replaceAll('.', '\\.').replaceAll('/', '\\/');
+  const shortPatterns = [
+    new RegExp(`^\\s*-\\s+.+:\\s*['"]?${escaped}['"]?(?:\\s|:|$)`),
+    new RegExp(`^\\s*-\\s*['"]?${escaped}['"]?(?:\\s|$)`),
+    new RegExp(`^\\s*target:\\s*['"]?${escaped}['"]?(?:\\s|$)`),
+  ];
+  return shortPatterns.some((pattern) => pattern.test(line));
+}
+
+function invalidPostgres18MountTargetsInCompose(content: string): string[] {
+  const badTargets = new Set<string>();
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = stripInlineComment(rawLine).trim();
+    if (!line) continue;
+    for (const target of incompatiblePostgres18MountTargets) {
+      if (hasInvalidPostgres18Mount(line, target)) {
+        badTargets.add(target);
+      }
+    }
+  }
+  return [...badTargets];
+}
+
+function inferPostgresVersion(
+  metadata: Record<string, unknown>,
+  odooVersion: string,
+  env?: Map<string, string>,
+): string {
+  const envPostgresImage = env?.get('POSTGRES_IMAGE')?.trim();
+  const envPostgresMajor = parsePostgresMajorFromValue(envPostgresImage);
+  if (envPostgresMajor) {
+    return envPostgresMajor;
+  }
+
+  const explicitPostgres = parsePostgresMajorFromValue(metadataString(metadata, 'postgresVersion'));
+  if (explicitPostgres) {
+    return explicitPostgres;
+  }
+
+  return defaultPostgresVersion(odooVersion);
 }
 
 function sourceReposFromMetadata(metadata: Record<string, unknown>): SourceRepo[] {
@@ -170,6 +232,26 @@ export async function runDoctor(
     errors.push(...composeLayout.errors);
   } else {
     lines.push(`OK compose files ${composeLayout.files.join(', ')}`);
+    const postgresVersion = inferPostgresVersion(metadata, odooVersion, env);
+    if (postgresVersion === '18') {
+      for (const file of composeLayout.files) {
+        const composePath = join(target, file);
+        let content: string;
+        try {
+          content = await readFile(composePath, 'utf8');
+        } catch (error) {
+          errors.push(`Cannot read compose file for compatibility check: ${file}: ${errorMessage(error)}`);
+          continue;
+        }
+
+        const badMounts = invalidPostgres18MountTargetsInCompose(content);
+        for (const badMount of badMounts) {
+          errors.push(
+            `PostgreSQL 18 compatibility issue in '${file}': mount target '${badMount}' is invalid; recommend using '/var/lib/postgresql'`,
+          );
+        }
+      }
+    }
   }
 
   const scriptNames = Object.values(dailyActionScripts);

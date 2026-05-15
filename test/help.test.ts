@@ -44,6 +44,15 @@ describe('help', () => {
     expect(output).toContain('Daily command checks:');
   });
 
+  it('documents source repo category option', () => {
+    const output = renderHelp();
+
+    expect(output).toContain('--source-type <category>');
+    expect(output).toContain('private, oca, external');
+    expect(output).toContain('Add source repo:');
+    expect(output).toContain('--source-type oca');
+  });
+
   it('documents local-only wizard setup and custom environment folder support', () => {
     const output = renderHelp();
 

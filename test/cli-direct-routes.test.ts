@@ -127,12 +127,47 @@ describe('cli direct command routes', () => {
       target,
       repoUrl: 'https://github.com/example-org/odoo_sample_module.git',
       repoPath: 'odoo_sample_module',
+      sourceType: 'private',
       odooVersion: '18.0-mocked',
       initEmptyRepos: true,
       stage: false,
     });
     expect(logSpy).toHaveBeenCalledWith('mock banner');
-    expect(promptMocks.outro).toHaveBeenCalledWith(`Added source repo under ${target}/odoo/custom/src/private.`);
+    expect(promptMocks.outro).toHaveBeenCalledWith(`Added source repo under ${target}/odoo/custom/src/private/odoo_sample_module.`);
+  });
+
+  it('routes add-repo with --source-type oca to target the OCA source directory', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-add-repo-oca');
+
+    await runCli(
+      [
+        'add-repo',
+        '--repo-url',
+        'https://github.com/example-org/odoo_sample_module_oca.git',
+        '--source-type',
+        'oca',
+        '--repo',
+        'odoo_sample_module_oca',
+        '--target',
+        target,
+        '--stage=false',
+      ],
+      '/tmp/ignored-cwd',
+    );
+
+    expect(mocks.addModuleRepo).toHaveBeenCalledWith({
+      target,
+      repoUrl: 'https://github.com/example-org/odoo_sample_module_oca.git',
+      repoPath: 'odoo_sample_module_oca',
+      sourceType: 'oca',
+      odooVersion: '18.0-mocked',
+      initEmptyRepos: false,
+      stage: false,
+    });
+    expect(promptMocks.outro).toHaveBeenCalledWith(`Added source repo under ${target}/odoo/custom/src/oca/odoo_sample_module_oca.`);
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
   });
 
   it('routes remove-repo with full args to removeModuleRepo and prints banner/outro', async () => {
@@ -148,6 +183,26 @@ describe('cli direct command routes', () => {
     expect(mocks.removeModuleRepo).toHaveBeenCalledWith({
       target,
       repoPath: 'odoo_sample_module',
+      stage: false,
+    });
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(promptMocks.outro).toHaveBeenCalledWith(`Removed source repo odoo_sample_module from ${target}.`);
+  });
+
+  it('routes remove-repo with --source-type to remove the selected source directory', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-remove-repo-oca');
+
+    await runCli(
+      ['remove-repo', '--repo', 'odoo_sample_module', '--source-type', 'oca', '--target', target, '--stage=false'],
+      '/tmp/ignored-cwd',
+    );
+
+    expect(mocks.removeModuleRepo).toHaveBeenCalledWith({
+      target,
+      repoPath: 'odoo_sample_module',
+      sourceType: 'oca',
       stage: false,
     });
     expect(logSpy).toHaveBeenCalledWith('mock banner');
