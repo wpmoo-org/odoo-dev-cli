@@ -31,21 +31,38 @@ function hasSourceRepos(options: CreateOptions): boolean {
 function repositoryLayout(options: CreateOptions): string {
   const sourceRepoRows = hasSourceRepos(options)
     ? options.sourceRepos.map((repo) => `│               ├── ${repo.path}/`).join('\n')
-    : '│               └── README.md';
+    : '│               └── (add repos with ./moo add-repo)';
 
   return `${options.devRepo}/
-├── docker-compose_17.0.yml
-├── docker-compose_18.0.yml
-├── docker-compose_19.0.yml
+├── compose.yaml
+├── compose/
+│   ├── dev.yaml
+│   ├── debug.yaml
+│   ├── test.yaml
+│   ├── stage.yaml
+│   ├── prod.yaml
+│   ├── proxy.yaml
+│   └── tools.yaml
+├── config/
+│   ├── odoo/
+│   │   ├── odoo.conf
+│   │   └── requirements.txt
+│   └── logrotate/
+│       └── odoo
+├── resources/
+│   └── odoo/
+│       └── entrypoint.sh
 ├── moo
 ├── scripts/
-├── etc/
 ├── odoo/
 │   └── custom/
 │       └── src/
 │           └── private/
 ${sourceRepoRows}
 ├── docs/
+│   ├── appstore-release.md
+│   └── compose.md
+├── .env.example
 ├── README.md
 └── AGENTS.md`;
 }
@@ -167,17 +184,22 @@ function verificationCommand(options: CreateOptions): string {
 function environmentUsageDocs(options: CreateOptions): string {
   return `## Docker Compose Notes
 
-This environment uses the standalone WPMoo Odoo Compose resource. Compose files
-are version-specific and static:
+This environment uses the compact WPMoo Compose layout:
 
 \`\`\`text
-docker-compose_17.0.yml
-docker-compose_18.0.yml
-docker-compose_19.0.yml
+compose.yaml
+compose/dev.yaml
+compose/stage.yaml
+compose/prod.yaml
+config/odoo/odoo.conf
+resources/odoo/entrypoint.sh
 \`\`\`
 
-If copied from the standalone resource, additional compose documentation is kept
-in \`docs/compose.md\`.
+Development uses compose.yaml plus compose/dev.yaml by default.
+Set WPMOO_ENV=stage or WPMOO_ENV=prod only after providing production-grade secrets and volumes.
+
+If copied from the standalone resource, additional compose notes are in
+\`docs/compose.md\`.
 
 Source repositories stay under \`odoo/custom/src/private\` when configured. At
 container startup, \`entrypoint.sh\` scans those repositories for addons and

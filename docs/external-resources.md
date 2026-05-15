@@ -15,21 +15,33 @@ gh:wpmoo-org/odoo-skills
 
 ## Compose resource
 
-`wpmoo-org/odoo-docker-compose` uses static version-specific files:
+`wpmoo-org/odoo-docker-compose` now exposes a compact generated-environment payload
+under `resources/generated-env/`:
 
 ```text
-docker-compose_17.0.yml
-docker-compose_18.0.yml
-docker-compose_19.0.yml
+compose.yaml
+compose/dev.yaml
+compose/stage.yaml
+compose/prod.yaml
+config/odoo/odoo.conf
+resources/odoo/entrypoint.sh
 ```
 
-Standalone usage:
+`@wpmoo/odoo` prefers that compact payload first when copying compose assets.
+For pinned older refs that do not provide `resources/generated-env/`, the CLI
+falls back to the legacy repository-root layout (`docker-compose_<version>.yml`
+and related files) for compatibility.
+
+Standalone usage with the compact payload:
 
 ```bash
 git clone https://github.com/wpmoo-org/odoo-docker-compose
 cd odoo-docker-compose
-cp .env.example .env
-docker compose -f docker-compose_19.0.yml up -d
+mkdir -p ../my_product_dev
+cp -R resources/generated-env/. ../my_product_dev/
+cp .env.example ../my_product_dev/.env
+cd ../my_product_dev
+./scripts/up.sh
 ```
 
 WPMoo CLI usage with the default remote source:

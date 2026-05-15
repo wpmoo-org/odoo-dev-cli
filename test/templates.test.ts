@@ -88,6 +88,16 @@ describe('template rendering', () => {
     expect(readme).toContain('### Recover / Reset');
     expect(readme).toContain('`./moo status` and `./moo doctor` are package fallback commands');
     expect(readme).toContain('routes day-to-day service and module workflows to local scripts');
+    expect(readme).toContain('compose.yaml');
+    expect(readme).toContain('compose/dev.yaml');
+    expect(readme).toContain('compose/stage.yaml');
+    expect(readme).toContain('compose/prod.yaml');
+    expect(readme).toContain('config/odoo/odoo.conf');
+    expect(readme).toContain('resources/odoo/entrypoint.sh');
+    expect(readme).toContain('Development uses compose.yaml plus compose/dev.yaml by default.');
+    expect(readme).toContain(
+      'Set WPMOO_ENV=stage or WPMOO_ENV=prod only after providing production-grade secrets and volumes.',
+    );
   });
 
   it('renders local-only README guidance when no source repos are configured yet', () => {

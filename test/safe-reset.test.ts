@@ -68,6 +68,7 @@ describe('safe reset', () => {
         '- source repo folders under odoo/custom/src/private',
         '- module source code',
         '- Git history, remotes, or branches',
+        '- Legacy compose template files may remain until manually removed: docs/assets/, test/, .github/',
         '',
         'Generated changes will be staged with git add .',
       ].join('\n'),

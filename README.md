@@ -28,7 +28,10 @@ It gives Odoo teams a repeatable environment layout, a guided cockpit for daily 
 - Docker and Docker Compose for generated environment runtime commands
 - GitHub CLI (`gh`) is optional. Use it for repository discovery, repository creation, and deeper diagnostics.
 
-The wizard currently offers Odoo `19.0`, `18.0`, `17.0`, and `16.0`. The copied Compose resource must include the matching `docker-compose_<version>.yml` file for the selected branch.
+The wizard currently offers Odoo `19.0`, `18.0`, `17.0`, and `16.0`. Generated
+environments now use the compact compose layout (`compose.yaml` with
+`compose/<env>.yaml` overlays). Legacy root-level
+`docker-compose_<version>.yml` layouts are still supported for compatibility.
 
 Set up GitHub CLI only when you want WPMoo to discover your personal account and organizations or create missing repositories from the interactive wizard:
 
@@ -173,11 +176,20 @@ odoo_sample_module_dev/
 |-- .env.example
 |-- AGENTS.md
 |-- README.md
+|-- compose.yaml
+|-- compose/
+|   |-- dev.yaml
+|   |-- stage.yaml
+|   `-- prod.yaml
+|-- config/
+|   `-- odoo/
+|       `-- odoo.conf
 |-- docs/
 |   |-- appstore-release.md
 |   `-- compose.md
-|-- docker-compose_19.0.yml
-|-- etc/
+|-- resources/
+|   `-- odoo/
+|       `-- entrypoint.sh
 |-- moo
 |-- odoo/
 |   `-- custom/
@@ -186,6 +198,10 @@ odoo_sample_module_dev/
 |               `-- odoo_sample_module/
 `-- scripts/
 ```
+
+Development uses `compose.yaml` plus `compose/dev.yaml` by default. Set
+`WPMOO_ENV=stage` or `WPMOO_ENV=prod` only after providing production-grade
+secrets and volumes.
 
 The metadata file `.wpmoo/odoo.json` records the product slug, selected Odoo version, dev repo URL, source repos, engine, external resource refs, ports, and template configuration. Status, doctor, daily actions, and safe reset use that metadata instead of guessing from the filesystem.
 
@@ -291,7 +307,12 @@ Safe reset refreshes generated environment files without deleting product source
 npx @wpmoo/odoo reset
 ```
 
-Safe reset updates generated files such as `.wpmoo/odoo.json`, `moo`, `.gitignore`, `.env.example`, generated docs, compose assets, and optional Agent Skills. It does not touch source repo folders under `odoo/custom/src/private`, module source code, Git history, remotes, or branches.
+Safe reset updates generated files such as `.wpmoo/odoo.json`, `moo`,
+`.gitignore`, `.env.example`, generated docs, compose assets, and optional
+Agent Skills. It does not touch source repo folders under
+`odoo/custom/src/private`, module source code, Git history, remotes, or
+branches. Legacy compose template paths from older scaffolds can remain
+(`docs/assets/`, `test/`, `.github/`) until you remove them manually.
 
 Recommended recovery pattern:
 

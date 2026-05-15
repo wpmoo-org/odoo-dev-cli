@@ -37,6 +37,7 @@ export function renderSafeResetPreview(target: string, stage: boolean): string {
     '- source repo folders under odoo/custom/src/private',
     '- module source code',
     '- Git history, remotes, or branches',
+    '- Legacy compose template files may remain until manually removed: docs/assets/, test/, .github/',
     '',
     stage ? 'Generated changes will be staged with git add .' : 'Generated changes will not be staged.',
   ].join('\n');
