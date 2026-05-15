@@ -4,41 +4,33 @@
 
 # WPMoo Odoo
 
-WPMoo Odoo is a development-first CLI for creating and operating Docker Compose
-based Odoo environments with source repositories managed as Git submodules.
+WPMoo Odoo is a development-first CLI for creating and operating Docker Compose based Odoo environments with source repositories managed as Git submodules.
 
-It gives Odoo teams a repeatable environment layout, a guided cockpit for daily
-work, direct commands for automation, and recovery tools that refresh generated
-files without touching product source code.
+It gives Odoo teams a repeatable environment layout, a guided cockpit for daily work, direct commands for automation, and recovery tools that refresh generated files without touching product source code.
+
+## Development Status
+
+> [!IMPORTANT]
+> **Pre-1.0 active development:** WPMoo Odoo has not reached `1.0.0` yet. Until the `1.0.0` release, use it as a preview tool for evaluation, local trials, and feedback rather than a dependency for critical production workflows. Setup conventions and command behavior may still change between pre-1.0 releases.
 
 ## Why WPMoo Odoo
 
-- Create a local Odoo development environment from a dev repository and one or
-  more source repositories.
-- Keep product source repositories under `odoo/custom/src/private` as Git
-  submodules pinned to the selected Odoo branch.
-- Copy Docker Compose resources from the standalone
-  `wpmoo-org/odoo-docker-compose` resource instead of embedding large runtime
-  assets in the TypeScript package.
-- Optionally copy project-local Agent Skills from `wpmoo-org/odoo-skills` into
-  generated environments.
-- Use either a guided terminal cockpit or direct CLI commands for the same
-  lifecycle tasks.
+- Create a local Odoo development environment from a dev repository and one or more source repositories.
+- Keep product source repositories under `odoo/custom/src/private` as Git submodules pinned to the selected Odoo branch.
+- Copy Docker Compose resources from the standalone `wpmoo-org/odoo-docker-compose` resource instead of embedding large runtime assets in the TypeScript package.
+- Optionally copy project-local Agent Skills from `wpmoo-org/odoo-skills` into generated environments.
+- Use either a guided terminal cockpit or direct CLI commands for the same lifecycle tasks.
 
 ## Requirements
 
 - Node.js `>=20.17`
 - Git
 - Docker and Docker Compose for generated environment runtime commands
-- GitHub CLI (`gh`) is optional. Use it for repository discovery, repository
-  creation, and deeper diagnostics.
+- GitHub CLI (`gh`) is optional. Use it for repository discovery, repository creation, and deeper diagnostics.
 
-The wizard currently offers Odoo `19.0`, `18.0`, `17.0`, and `16.0`. The copied
-Compose resource must include the matching `docker-compose_<version>.yml` file
-for the selected branch.
+The wizard currently offers Odoo `19.0`, `18.0`, `17.0`, and `16.0`. The copied Compose resource must include the matching `docker-compose_<version>.yml` file for the selected branch.
 
-Set up GitHub CLI only when you want WPMoo to discover your personal account and
-organizations or create missing repositories from the interactive wizard:
+Set up GitHub CLI only when you want WPMoo to discover your personal account and organizations or create missing repositories from the interactive wizard:
 
 ```bash
 brew install gh
@@ -53,19 +45,13 @@ Run the guided wizard from a workspace directory:
 npx @wpmoo/odoo
 ```
 
-If the current directory is not already a WPMoo environment, the CLI opens the
-create flow. It asks for the product slug, Odoo version, and environment folder.
-Choose any environment folder; the default is `./<product>_dev`.
+If the current directory is not already a WPMoo environment, the CLI opens the create flow. It asks for the product slug, Odoo version, and environment folder. Choose any environment folder; the default is `./<product>_dev`.
 
-After folder selection, connect Git/GitHub to use repository URLs. Choose
-local-only setup to skip Git/GitHub connection and source repo prompts. Add
-source repositories later from the cockpit (`Repositories` -> `add-repo`) or
-`npx @wpmoo/odoo add-repo`.
+After folder selection, connect Git/GitHub to use repository URLs. Choose local-only setup to skip Git/GitHub connection and source repo prompts. Add source repositories later from the cockpit (`Repositories` -> `add-repo`) or `npx @wpmoo/odoo add-repo`.
 
 For non-interactive usage with repository URLs:
 
-Direct `create` commands keep the existing repo URL options; use
-`--target <path>` to choose a custom folder.
+Direct `create` commands keep the existing repo URL options; use `--target <path>` to choose a custom folder.
 
 ```bash
 npx @wpmoo/odoo create \
@@ -107,8 +93,7 @@ Run the package with no command inside a generated environment:
 npx @wpmoo/odoo
 ```
 
-The cockpit starts with a fast environment status summary, then opens a compact
-menu designed for repeated local work:
+The cockpit starts with a fast environment status summary, then opens a compact menu designed for repeated local work:
 
 ```text
 Command palette /
@@ -123,18 +108,12 @@ Exit
 
 The UI is intentionally practical rather than decorative:
 
-- `Command palette /` searches slash commands such as `/test`, `/logs`,
-  `/doctor`, and `/safe-reset`.
-- Category menus group related tasks for scanability: services, modules,
-  database, diagnostics, repositories, and maintenance.
+- `Command palette /` searches slash commands such as `/test`, `/logs`, `/doctor`, and `/safe-reset`.
+- Category menus group related tasks for scanability: services, modules, database, diagnostics, repositories, and maintenance.
 - `Esc` returns from category menus to the top-level cockpit.
-- Empty states explain the next action, such as adding a source repo before
-  selecting a module.
-- Risky commands such as stopping services, resetting databases, restoring
-  snapshots, removing repos, removing modules, and safe reset ask for explicit
-  confirmation.
-- Guided prompts collect common arguments for daily actions, including module
-  names, database names, test modes, tags, snapshot names, and POT output paths.
+- Empty states explain the next action, such as adding a source repo before selecting a module.
+- Risky commands such as stopping services, resetting databases, restoring snapshots, removing repos, removing modules, and safe reset ask for explicit confirmation.
+- Guided prompts collect common arguments for daily actions, including module names, database names, test modes, tags, snapshot names, and POT output paths.
 
 ## Cockpit Command Map
 
@@ -147,9 +126,7 @@ The UI is intentionally practical rather than decorative:
 | Repositories | `add-repo`, `remove-repo` |
 | Maintenance | `safe-reset` |
 
-Every cockpit action maps to a direct command, or to an equivalent management
-command such as `/safe-reset` mapping to `reset`, for scripting and repeatable
-terminal workflows.
+Every cockpit action maps to a direct command, or to an equivalent management command such as `/safe-reset` mapping to `reset`, for scripting and repeatable terminal workflows.
 
 ## Direct Commands
 
@@ -183,15 +160,11 @@ npx @wpmoo/odoo snapshot devel before-update
 npx @wpmoo/odoo restore-snapshot before-update devel
 ```
 
-Daily action commands must be run from a generated environment root containing
-`.wpmoo/odoo.json`. They delegate to fixed scripts under `./scripts`; they do
-not search parent directories or run arbitrary script names.
+Daily action commands must be run from a generated environment root containing `.wpmoo/odoo.json`. They delegate to fixed scripts under `./scripts`; they do not search parent directories or run arbitrary script names.
 
 ## Generated Environment Layout
 
-A generated environment is a separate Git repository, usually named
-`<product>_dev`, but the wizard and `--target` can use any folder. Product
-source code stays in child source repositories.
+A generated environment is a separate Git repository, usually named `<product>_dev`, but the wizard and `--target` can use any folder. Product source code stays in child source repositories.
 
 ```text
 odoo_sample_module_dev/
@@ -214,15 +187,11 @@ odoo_sample_module_dev/
 `-- scripts/
 ```
 
-The metadata file `.wpmoo/odoo.json` records the product slug, selected Odoo
-version, dev repo URL, source repos, engine, external resource refs, ports, and
-template configuration. Status, doctor, daily actions, and safe reset use that
-metadata instead of guessing from the filesystem.
+The metadata file `.wpmoo/odoo.json` records the product slug, selected Odoo version, dev repo URL, source repos, engine, external resource refs, ports, and template configuration. Status, doctor, daily actions, and safe reset use that metadata instead of guessing from the filesystem.
 
 ## Daily `./moo` Commands
 
-Generated environments include a local `./moo` dispatcher. It is the shortest
-path for everyday Compose and Odoo work:
+Generated environments include a local `./moo` dispatcher. It is the shortest path for everyday Compose and Odoo work:
 
 ```bash
 cp .env.example .env
@@ -245,15 +214,11 @@ cp .env.example .env
 ./moo resetdb devel sale
 ```
 
-Use `npx @wpmoo/odoo ...` for package/operator commands such as `create`,
-`add-repo`, `remove-repo`, `add-module`, `remove-module`, `status`, `doctor`,
-and `reset`. Use `./moo ...` inside a generated environment for local daily
-Compose commands.
+Use `npx @wpmoo/odoo ...` for package/operator commands such as `create`, `add-repo`, `remove-repo`, `add-module`, `remove-module`, `status`, `doctor`, and `reset`. Use `./moo ...` inside a generated environment for local daily Compose commands.
 
 ## Repository and Module Management
 
-Add a source repository after local-only setup from the cockpit or direct
-command:
+Add a source repository after local-only setup from the cockpit or direct command:
 
 ```bash
 npx @wpmoo/odoo add-repo \
@@ -261,8 +226,7 @@ npx @wpmoo/odoo add-repo \
   --init-empty-repos
 ```
 
-GitHub CLI is optional for repository setup. When it is available and
-authenticated, the interactive flow can:
+GitHub CLI is optional for repository setup. When it is available and authenticated, the interactive flow can:
 
 - detect the owner or organization from the current environment;
 - suggest repository URLs;
@@ -301,8 +265,7 @@ Remove a source repository submodule:
 npx @wpmoo/odoo remove-repo --repo odoo_sample_module_reports
 ```
 
-WPMoo refuses to remove a source repo submodule when that submodule has
-uncommitted changes.
+WPMoo refuses to remove a source repo submodule when that submodule has uncommitted changes.
 
 ## Status, Doctor, and Recovery
 
@@ -312,9 +275,7 @@ uncommitted changes.
 npx @wpmoo/odoo status
 ```
 
-It reports whether the environment is detected, which Odoo version is selected,
-how many source repos are configured, how many module candidates are present,
-which core files are missing, and the recommended next action.
+It reports whether the environment is detected, which Odoo version is selected, how many source repos are configured, how many module candidates are present, which core files are missing, and the recommended next action.
 
 `doctor` performs deeper checks:
 
@@ -322,22 +283,15 @@ which core files are missing, and the recommended next action.
 npx @wpmoo/odoo doctor
 ```
 
-It validates metadata, engine support, selected compose files, daily scripts,
-source repo paths, `.env` ports, Docker CLI access, Docker Compose access, Git
-submodule state, and GitHub CLI authentication when available.
+It validates metadata, engine support, selected compose files, daily scripts, source repo paths, `.env` ports, Docker CLI access, Docker Compose access, Git submodule state, and GitHub CLI authentication when available.
 
-Safe reset refreshes generated environment files without deleting product source
-code:
+Safe reset refreshes generated environment files without deleting product source code:
 
 ```bash
 npx @wpmoo/odoo reset
 ```
 
-Safe reset updates generated files such as `.wpmoo/odoo.json`, `moo`,
-`.gitignore`, `.env.example`, generated docs, compose assets, and optional
-Agent Skills. It does not touch source repo folders under
-`odoo/custom/src/private`, module source code, Git history, remotes, or
-branches.
+Safe reset updates generated files such as `.wpmoo/odoo.json`, `moo`, `.gitignore`, `.env.example`, generated docs, compose assets, and optional Agent Skills. It does not touch source repo folders under `odoo/custom/src/private`, module source code, Git history, remotes, or branches.
 
 Recommended recovery pattern:
 
@@ -350,8 +304,7 @@ npx @wpmoo/odoo doctor
 
 ## External Resources
 
-WPMoo Odoo keeps the package small by copying external resources into generated
-environments:
+WPMoo Odoo keeps the package small by copying external resources into generated environments:
 
 ```text
 gh:wpmoo-org/odoo-docker-compose
@@ -406,13 +359,11 @@ npm run test:coverage
 npm run build
 ```
 
-Generated environment behavior is covered by the operator-facing matrix in
-[Generated Environment Verification](docs/generated-environment-verification.md).
+Generated environment behavior is covered by the operator-facing matrix in [Generated Environment Verification](docs/generated-environment-verification.md).
 
 ## Release
 
-The normal release path uses the repository helper and GitHub Actions trusted
-publishing:
+The normal release path uses the repository helper and GitHub Actions trusted publishing:
 
 ```bash
 npm run release:check
@@ -424,9 +375,7 @@ git tag -a "v$VERSION" -m "Release v$VERSION"
 git push origin "v$VERSION"
 ```
 
-If `npm run release:check` bumps `package.json` and `package-lock.json`, commit
-and push that version bump first, then rerun the release check before tagging.
-Publishing is handled by the `Publish` workflow after the tag is pushed.
+If `npm run release:check` bumps `package.json` and `package-lock.json`, commit and push that version bump first, then rerun the release check before tagging. Publishing is handled by the `Publish` workflow after the tag is pushed.
 
 ## Sponsoring
 
