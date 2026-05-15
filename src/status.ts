@@ -1,6 +1,7 @@
 import { access, readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { detectComposeLayout, readEnvFile, selectedComposeEnvironment } from './compose-layout.js';
 import { defaultOdooVersion, markerPath } from './environment.js';
 import { isValidPathSegment, validateRepoPath } from './path-validation.js';
 
@@ -29,6 +30,7 @@ type ValidEnvironmentStatus = EnvironmentStatusBase & {
   sourceRepoPaths: string[];
   invalidSourceRepoPaths: string[];
   moduleCandidateCount: number;
+  composeFiles: string[];
   missingCoreFiles: string[];
 };
 
@@ -89,14 +91,15 @@ function sourceRepoPathsFromMetadata(metadata: Metadata): {
   return { sourceRepoPaths, invalidSourceRepoPaths };
 }
 
-async function missingCoreFiles(target: string, odooVersion: string): Promise<string[]> {
+async function missingCoreFiles(
+  target: string,
+  odooVersion: string,
+): Promise<{ missing: string[]; composeFiles: string[] }> {
   const missing: string[] = [];
-  const composeFile = `docker-compose_${odooVersion}.yml`;
   const checks: Array<{ label: string; path: string; mustBeDirectory?: boolean }> = [
     { label: 'moo', path: join(target, 'moo') },
     { label: 'README.md', path: join(target, 'README.md') },
     { label: 'AGENTS.md', path: join(target, 'AGENTS.md') },
-    { label: composeFile, path: join(target, composeFile) },
     { label: 'scripts/', path: join(target, 'scripts'), mustBeDirectory: true },
   ];
 
@@ -111,7 +114,14 @@ async function missingCoreFiles(target: string, odooVersion: string): Promise<st
     }
   }
 
-  return missing;
+  const env = await readEnvFile(target);
+  const composeLayout = await detectComposeLayout(target, {
+    odooVersions: [odooVersion],
+    envName: selectedComposeEnvironment(env),
+  });
+  missing.push(...composeLayout.missingFiles);
+
+  return { missing, composeFiles: composeLayout.files };
 }
 
 async function countModuleCandidatesInRepoPath(path: string): Promise<number> {
@@ -192,7 +202,7 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
     moduleCandidateCount += await countModuleCandidatesInRepoPath(repoRoot);
   }
 
-  const missingFiles = await missingCoreFiles(target, odooVersion);
+  const { missing: missingFiles, composeFiles } = await missingCoreFiles(target, odooVersion);
 
   let recommendedNextAction = 'Run npx @wpmoo/odoo doctor for deep checks or ./moo start.';
   if (invalidSourceRepoPaths.length > 0) {
@@ -213,6 +223,7 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
     sourceRepoPaths,
     invalidSourceRepoPaths,
     moduleCandidateCount,
+    composeFiles,
     missingCoreFiles: missingFiles,
     recommendedNextAction,
   };
@@ -240,6 +251,9 @@ export function renderEnvironmentStatus(status: EnvironmentStatus): string {
 
   lines.push(`Metadata: ${status.metadataPath}`);
   lines.push(`Odoo: ${status.odooVersion}`);
+  lines.push(
+    `Compose files: ${status.composeFiles.length > 0 ? status.composeFiles.join(', ') : '(missing)'}`,
+  );
   lines.push(`Source repos: ${status.sourceRepoCount}`);
   lines.push(
     `Source repo paths: ${

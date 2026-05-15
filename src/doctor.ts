@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { execa } from 'execa';
 
+import { detectComposeLayout, readEnvFile, selectedComposeEnvironment } from './compose-layout.js';
 import { dailyActionScripts } from './daily-actions.js';
 import { defaultOdooVersion, markerPath } from './environment.js';
 import type { SourceRepo } from './types.js';
@@ -89,36 +90,6 @@ function metadataString(metadata: Record<string, unknown>, key: string): string 
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-function parseEnv(content: string): Map<string, string> {
-  const values = new Map<string, string>();
-
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-
-    const separator = line.indexOf('=');
-    if (separator === -1) continue;
-
-    const key = line.slice(0, separator).trim();
-    let value = line.slice(separator + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    values.set(key, value);
-  }
-
-  return values;
-}
-
-async function readEnv(target: string): Promise<Map<string, string> | undefined> {
-  const path = join(target, '.env');
-  if (!(await exists(path))) return undefined;
-  return parseEnv(await readFile(path, 'utf8'));
-}
-
 function validatePort(name: 'HTTP_PORT' | 'GEVENT_PORT', env: Map<string, string>, errors: string[]): string {
   const value = env.get(name)?.trim() ?? '';
   if (!/^\d+$/.test(value)) {
@@ -184,20 +155,21 @@ export async function runDoctor(
   const odooVersion = metadataString(metadata, 'odooVersion') ?? defaultOdooVersion;
   lines.push(`OK Odoo version ${odooVersion}`);
 
-  const env = await readEnv(target);
+  const env = await readEnvFile(target);
   const composeVersions = new Set([odooVersion]);
   const envOdooVersion = env?.get('ODOO_VERSION')?.trim();
   if (envOdooVersion) {
     composeVersions.add(envOdooVersion);
   }
 
-  for (const version of composeVersions) {
-    const composeFile = `docker-compose_${version}.yml`;
-    if (await exists(join(target, composeFile))) {
-      lines.push(`OK compose ${composeFile}`);
-    } else {
-      errors.push(`Missing compose file: ${composeFile}`);
-    }
+  const composeLayout = await detectComposeLayout(target, {
+    odooVersions: [...composeVersions],
+    envName: selectedComposeEnvironment(env),
+  });
+  if (composeLayout.kind === 'missing') {
+    errors.push(...composeLayout.errors);
+  } else {
+    lines.push(`OK compose files ${composeLayout.files.join(', ')}`);
   }
 
   const scriptNames = Object.values(dailyActionScripts);

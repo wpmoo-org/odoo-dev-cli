@@ -38,6 +38,16 @@ async function writeCoreFiles(target: string, version = '19.0'): Promise<void> {
   await mkdir(join(target, 'scripts'), { recursive: true });
 }
 
+async function writeCompactCoreFiles(target: string, envName = 'dev'): Promise<void> {
+  await writeFile(join(target, 'moo'), '#!/usr/bin/env bash\n');
+  await writeFile(join(target, 'README.md'), '# Test\n');
+  await writeFile(join(target, 'AGENTS.md'), '# Test\n');
+  await writeFile(join(target, 'compose.yaml'), 'services:\n  odoo:\n    image: odoo\n');
+  await mkdir(join(target, 'compose'), { recursive: true });
+  await writeFile(join(target, 'compose', `${envName}.yaml`), 'services:\n  odoo:\n    environment: []\n');
+  await mkdir(join(target, 'scripts'), { recursive: true });
+}
+
 describe('status', () => {
   it('reports no environment when metadata file is missing', async () => {
     const target = await makeTarget('wpmoo-status-none-');
@@ -74,7 +84,23 @@ describe('status', () => {
     expect(status.invalidSourceRepoPaths).toEqual([]);
     expect(status.moduleCandidateCount).toBe(0);
     expect(status.missingCoreFiles).toEqual([]);
+    expect(status.composeFiles).toEqual(['docker-compose_19.0.yml']);
     expect(status.recommendedNextAction).toBe('Run npx @wpmoo/odoo add-repo ...');
+    expect(renderEnvironmentStatus(status)).toContain('Compose files: docker-compose_19.0.yml');
+  });
+
+  it('reports compact compose layout files', async () => {
+    const target = await makeTarget('wpmoo-status-compact-');
+    await writeMetadata(target, JSON.stringify(validMetadata, null, 2));
+    await writeCompactCoreFiles(target, 'dev');
+
+    const status = await getEnvironmentStatus(target);
+    expect(status.kind).toBe('environment');
+    if (status.kind !== 'environment') return;
+
+    expect(status.missingCoreFiles).toEqual([]);
+    expect(status.composeFiles).toEqual(['compose.yaml', 'compose/dev.yaml']);
+    expect(renderEnvironmentStatus(status)).toContain('Compose files: compose.yaml, compose/dev.yaml');
   });
 
   it('counts module candidates from configured source repo paths', async () => {

@@ -27,6 +27,7 @@ const baseMetadata = {
 async function makeEnvironment(options: {
   metadata?: unknown;
   composeVersions?: string[];
+  compactEnv?: string;
   env?: string;
   scripts?: string[];
   sourcePaths?: string[];
@@ -37,6 +38,11 @@ async function makeEnvironment(options: {
 
   for (const version of options.composeVersions ?? ['19.0']) {
     await writeFile(join(target, `docker-compose_${version}.yml`), 'services:\n  odoo:\n    image: odoo\n');
+  }
+  if (options.compactEnv) {
+    await writeFile(join(target, 'compose.yaml'), 'services:\n  odoo:\n    image: odoo\n');
+    await mkdir(join(target, 'compose'), { recursive: true });
+    await writeFile(join(target, 'compose', `${options.compactEnv}.yaml`), 'services:\n  odoo:\n    environment: []\n');
   }
 
   if (options.env !== undefined) {
@@ -104,7 +110,7 @@ describe('doctor', () => {
         'OK metadata .wpmoo/odoo.json',
         'OK engine compose',
         'OK Odoo version 19.0',
-        'OK compose docker-compose_19.0.yml',
+        'OK compose files docker-compose_19.0.yml',
         'OK scripts 14 checked',
         'OK source repos 1 checked',
         'OK .env ports HTTP_PORT=10019 GEVENT_PORT=20019',
@@ -164,6 +170,42 @@ describe('doctor', () => {
 
     await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
       'Missing compose file: docker-compose_18.0.yml',
+    );
+  });
+
+  it('passes compact compose layout using the default dev overlay', async () => {
+    const target = await makeEnvironment({
+      composeVersions: [],
+      compactEnv: 'dev',
+      env: 'ODOO_VERSION=18.0\nHTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+
+    await expect(runDoctor(target, passingDockerRunner())).resolves.toContain(
+      'OK compose files compose.yaml, compose/dev.yaml',
+    );
+  });
+
+  it('honors WPMOO_ENV when selecting compact compose overlays', async () => {
+    const target = await makeEnvironment({
+      composeVersions: [],
+      compactEnv: 'stage',
+      env: 'WPMOO_ENV=stage\nODOO_VERSION=19.0\nHTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+
+    await expect(runDoctor(target, passingDockerRunner())).resolves.toContain(
+      'OK compose files compose.yaml, compose/stage.yaml',
+    );
+  });
+
+  it('fails compact compose layout when the selected WPMOO_ENV overlay is missing', async () => {
+    const target = await makeEnvironment({
+      composeVersions: [],
+      compactEnv: 'dev',
+      env: 'WPMOO_ENV=stage\nODOO_VERSION=19.0\nHTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      'Missing compact compose overlay for WPMOO_ENV=stage: compose/stage.yaml',
     );
   });
 
