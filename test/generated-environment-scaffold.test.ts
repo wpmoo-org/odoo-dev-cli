@@ -47,7 +47,8 @@ async function writeCompactComposeFixture(root: string): Promise<string> {
     'utf8',
   );
   await writeFile(join(compact, 'resources/odoo/entrypoint.sh'), '#!/usr/bin/env bash\nexec odoo\n', 'utf8');
-  await writeFile(join(fixture, 'README.md'), '# Compose Fixture\nLocal compact compose fixture content.\n', 'utf8');
+  await writeFile(join(compact, 'README.md'), '# Compact Compose Fixture\nLocal compact compose fixture content.\n', 'utf8');
+  await writeFile(join(fixture, 'README.md'), '# Legacy Compose Fixture\nUse docker-compose_19.0.yml.\n', 'utf8');
   await writeFile(join(fixture, '.github/workflows/ci.yml'), 'name: ci\n', 'utf8');
   await writeFile(join(fixture, 'docs/assets/diagram.png'), 'asset\n', 'utf8');
   await writeFile(join(fixture, 'test/compose.test.ts'), 'test\n', 'utf8');
@@ -194,5 +195,6 @@ describe('generated environment scaffold output matrix', () => {
     }
 
     await expect(readFile(join(target, 'docs/compose.md'), 'utf8')).resolves.toContain('Local compact compose');
+    await expect(readFile(join(target, 'docs/compose.md'), 'utf8')).resolves.not.toContain('docker-compose_19.0.yml');
   });
 });

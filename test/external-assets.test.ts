@@ -86,8 +86,9 @@ describe('external assets', () => {
     await mkdir(join(source, 'templates'), { recursive: true });
     await writeFile(join(source, 'resources/generated-env/compose.yaml'), 'services:\n  odoo:\n');
     await writeFile(join(source, 'resources/generated-env/compose/dev.yaml'), 'services:\n  odoo-dev:\n');
+    await writeFile(join(source, 'resources/generated-env/README.md'), '# Compact Compose README\nUse compose.yaml.\n');
     await writeFile(join(source, 'templates/docker-compose_19.0.yml'), 'legacy compose\n');
-    await writeFile(join(source, 'README.md'), '# Compose README\n');
+    await writeFile(join(source, 'README.md'), '# Legacy Compose README\nUse docker-compose_19.0.yml.\n');
 
     await applyExternalAsset({
       label: 'compose',
@@ -101,7 +102,8 @@ describe('external assets', () => {
     await expect(readFile(join(destination, 'compose.yaml'), 'utf8')).resolves.toContain('services:');
     await expect(readFile(join(destination, 'compose/dev.yaml'), 'utf8')).resolves.toContain('odoo-dev');
     await expect(readFile(join(destination, 'docker-compose_19.0.yml'), 'utf8')).rejects.toThrow();
-    await expect(readFile(join(destination, 'docs/compose.md'), 'utf8')).resolves.toBe('# Compose README\n');
+    await expect(readFile(join(destination, 'docs/compose.md'), 'utf8')).resolves.toContain('Compact Compose README');
+    await expect(readFile(join(destination, 'docs/compose.md'), 'utf8')).resolves.not.toContain('docker-compose_19.0.yml');
   });
 
   it('falls back to the legacy source subdirectory when compact candidates are absent', async () => {
@@ -110,6 +112,7 @@ describe('external assets', () => {
 
     await mkdir(join(source, 'templates'), { recursive: true });
     await writeFile(join(source, 'templates/docker-compose_19.0.yml'), 'legacy compose\n');
+    await writeFile(join(source, 'README.md'), '# Legacy Compose README\nUse docker-compose_19.0.yml.\n');
 
     await applyExternalAsset({
       label: 'compose',
@@ -117,9 +120,11 @@ describe('external assets', () => {
       sourceSubdirCandidates: ['resources/generated-env'],
       sourceSubdir: 'templates',
       destination,
+      readmeDestination: 'docs/compose.md',
     });
 
     await expect(readFile(join(destination, 'docker-compose_19.0.yml'), 'utf8')).resolves.toBe('legacy compose\n');
+    await expect(readFile(join(destination, 'docs/compose.md'), 'utf8')).resolves.toContain('docker-compose_19.0.yml');
   });
 
   it('skips explicitly excluded paths while copying local assets', async () => {

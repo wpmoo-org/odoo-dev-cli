@@ -112,7 +112,11 @@ async function copyDirectory(options: ExternalAssetOptions, checkedOut: CheckedO
   });
 
   if (options.readmeDestination) {
-    const readmePath = join(checkedOut.root, 'README.md');
+    const selectedReadmePath = selectedSourceSubdir ? join(checkedOut.root, selectedSourceSubdir, 'README.md') : undefined;
+    const readmePath =
+      selectedReadmePath && (await pathExists(selectedReadmePath))
+        ? selectedReadmePath
+        : join(checkedOut.root, 'README.md');
     if (await pathExists(readmePath)) {
       const destination = join(options.destination, options.readmeDestination);
       await mkdir(dirname(destination), { recursive: true });

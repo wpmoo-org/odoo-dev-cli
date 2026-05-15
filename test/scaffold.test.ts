@@ -37,7 +37,8 @@ async function writeCompactComposeFixture(root: string): Promise<string> {
   await writeFile(join(compact, 'scripts/up.sh'), '#!/usr/bin/env bash\nexit 0\n');
   await writeFile(join(compact, 'config/odoo/odoo.conf'), '[options]\n');
   await writeFile(join(compact, 'resources/odoo/entrypoint.sh'), '#!/usr/bin/env bash\nexec odoo\n');
-  await writeFile(join(compose, 'README.md'), '# WPMoo Odoo Compose\n');
+  await writeFile(join(compact, 'README.md'), '# WPMoo Compact Compose\nUse compose.yaml.\n');
+  await writeFile(join(compose, 'README.md'), '# WPMoo Legacy Compose\nUse docker-compose_19.0.yml.\n');
   await writeFile(join(compose, '.github/workflows/ci.yml'), 'name: ci\n');
   await writeFile(join(compose, 'docs/assets/diagram.png'), 'asset\n');
   await writeFile(join(compose, 'test/compose.test.ts'), 'test\n');
@@ -225,7 +226,8 @@ describe('scaffold', () => {
     await expect(readFile(join(target, 'scripts/up.sh'), 'utf8')).resolves.toContain('exit 0');
     await expect(readFile(join(target, 'config/odoo/odoo.conf'), 'utf8')).resolves.toContain('[options]');
     await expect(readFile(join(target, 'resources/odoo/entrypoint.sh'), 'utf8')).resolves.toContain('exec odoo');
-    await expect(readFile(join(target, 'docs/compose.md'), 'utf8')).resolves.toContain('WPMoo Odoo Compose');
+    await expect(readFile(join(target, 'docs/compose.md'), 'utf8')).resolves.toContain('WPMoo Compact Compose');
+    await expect(readFile(join(target, 'docs/compose.md'), 'utf8')).resolves.not.toContain('docker-compose_19.0.yml');
     await expect(readFile(join(target, 'docker-compose_19.0.yml'), 'utf8')).rejects.toThrow();
     await expect(readFile(join(target, '.github/workflows/ci.yml'), 'utf8')).rejects.toThrow();
     await expect(readFile(join(target, 'docs/assets/diagram.png'), 'utf8')).rejects.toThrow();
