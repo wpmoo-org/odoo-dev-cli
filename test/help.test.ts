@@ -51,6 +51,9 @@ describe('help', () => {
     expect(output).toContain('private, oca, external');
     expect(output).toContain('Add source repo:');
     expect(output).toContain('--source-type oca');
+    expect(output).toContain('npx @wpmoo/odoo source list');
+    expect(output).toContain('npx @wpmoo/odoo source sync');
+    expect(output).toContain('Inspect and sync source manifest:');
   });
 
   it('documents local-only wizard setup and custom environment folder support', () => {

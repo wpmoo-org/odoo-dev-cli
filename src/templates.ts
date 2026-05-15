@@ -28,6 +28,14 @@ function hasSourceRepos(options: CreateOptions): boolean {
   return options.sourceRepos.length > 0;
 }
 
+function sourceTypeOf(repo: CreateOptions['sourceRepos'][number]): string {
+  return repo.sourceType ?? 'private';
+}
+
+function sourceRepoRelativePath(repo: CreateOptions['sourceRepos'][number]): string {
+  return `odoo/custom/src/${sourceTypeOf(repo)}/${repo.path}`;
+}
+
 function repositoryLayout(options: CreateOptions): string {
   const sourceRepoRows = hasSourceRepos(options)
     ? options.sourceRepos
@@ -103,11 +111,14 @@ ${repo.url}
 Submodule path:
 
 \`\`\`text
-odoo/custom/src/private/${repo.path}
+${sourceRepoRelativePath(repo)}
 \`\`\`
 
-Note: If this repository is an OCA or third-party source, place it under
-\`odoo/custom/src/oca\` or \`odoo/custom/src/external\` according to your policy.
+Source manifest entry:
+
+\`\`\`text
+odoo/custom/manifests/sources.yaml
+\`\`\`
 
 Expected addon layout:
 
@@ -575,7 +586,7 @@ export function renderAddonsYaml(options: CreateOptions): string {
 # Source repos are managed as Git submodules under odoo/custom/src/private.
 # Do not duplicate these same repos in repos.yaml.
 
-${options.sourceRepos.map((repo) => `private/${repo.path}:\n${yamlList(repo.addons)}`).join('\n\n')}
+${options.sourceRepos.map((repo) => `${sourceTypeOf(repo)}/${repo.path}:\n${yamlList(repo.addons)}`).join('\n\n')}
 `;
 }
 
@@ -585,7 +596,7 @@ export function renderReposYaml(options: CreateOptions): string {
 # Project source repositories are intentionally not listed here because
 # they are pinned as Git submodules:
 #
-${options.sourceRepos.map((repo) => `# - private/${repo.path}`).join('\n')}
+${options.sourceRepos.map((repo) => `# - ${sourceTypeOf(repo)}/${repo.path}`).join('\n')}
 #
 # Keep this file for upstream/OCA repositories that should be aggregated.
 
@@ -665,7 +676,7 @@ export function renderAgents(options: CreateOptions): string {
 source directory below for this environment:
 
 \`\`\`text
-${options.sourceRepos.map((repo) => `odoo/custom/src/private/${repo.path}`).join('\n')}
+${options.sourceRepos.map(sourceRepoRelativePath).join('\n')}
 \`\`\`
 
 ${repoDuplicationNote()}`

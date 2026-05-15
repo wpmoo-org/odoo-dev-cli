@@ -146,6 +146,34 @@ describe('scaffold', () => {
     await expect(stat(join(target, '.gitignore'))).rejects.toThrow();
   });
 
+  it('dry-run plans source-type aware submodule paths and source manifest', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-dry-run-source-type-'));
+
+    const result = await scaffold({
+      product: 'odoo_sample_module',
+      odooVersion: '19.0',
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+      sourceRepos: [
+        {
+          sourceType: 'oca',
+          url: 'https://github.com/OCA/server-tools.git',
+          path: 'server-tools',
+          addons: ['queue_job'],
+        },
+      ],
+      target,
+      dryRun: true,
+      initEmptyRepos: false,
+      stage: false,
+    });
+
+    expect(result.plannedFiles).toContain('odoo/custom/manifests/sources.yaml');
+    expect(result.plannedCommands).toContain(
+      'git submodule add -b 19.0 https://github.com/OCA/server-tools.git odoo/custom/src/oca/server-tools',
+    );
+  });
+
   it('plans external compose and agent skill assets in dry-run', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-compose-dry-run-'));
 

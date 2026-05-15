@@ -85,7 +85,7 @@ function normalizeMetadataSourceRepo(repo: unknown): SourceRepo | undefined {
     typeof candidate.sourceType === 'string' ? candidate.sourceType : undefined,
   );
 
-  if (!path || !url) {
+  if (!path) {
     return undefined;
   }
 
@@ -127,7 +127,7 @@ export async function readEnvironmentMetadata(target: string): Promise<Environme
   }
 }
 
-async function writeEnvironmentMetadata(target: string, metadata: EnvironmentMetadata): Promise<void> {
+export async function writeEnvironmentMetadata(target: string, metadata: EnvironmentMetadata): Promise<void> {
   const content = `${JSON.stringify(
     {
       ...metadata,
@@ -138,6 +138,17 @@ async function writeEnvironmentMetadata(target: string, metadata: EnvironmentMet
   )}\n`;
 
   await writeFile(join(target, markerPath), content, 'utf8');
+}
+
+export async function replaceSourceRepos(
+  target: string,
+  sourceRepos: SourceRepo[],
+): Promise<void> {
+  const metadata = await readEnvironmentMetadata(target);
+  if (!metadata) return;
+
+  metadata.sourceRepos = withoutPathDuplicates(sourceRepos.map((repo) => sourceRepoWithType(repo)));
+  await writeEnvironmentMetadata(target, metadata);
 }
 
 export async function upsertSourceRepoMetadata(

@@ -227,6 +227,26 @@ describe('template rendering', () => {
     expect(readme).not.toContain('private paid/pro modules');
   });
 
+  it('renders source-type aware source paths in generated docs', () => {
+    const sourceOptions = {
+      ...options,
+      sourceRepos: [
+        {
+          sourceType: 'oca' as const,
+          url: 'https://github.com/OCA/server-tools.git',
+          path: 'server-tools',
+          addons: ['queue_job'],
+        },
+      ],
+    };
+
+    expect(renderReadme(sourceOptions)).toContain('odoo/custom/src/oca/server-tools');
+    expect(renderReadme(sourceOptions)).toContain('odoo/custom/manifests/sources.yaml');
+    expect(renderAddonsYaml(sourceOptions)).toContain('oca/server-tools:');
+    expect(renderReposYaml(sourceOptions)).toContain('# - oca/server-tools');
+    expect(renderAgents(sourceOptions)).toContain('odoo/custom/src/oca/server-tools');
+  });
+
   it('renders generated AGENTS guidance with daily maintenance commands', () => {
     const agents = renderAgents(options);
 

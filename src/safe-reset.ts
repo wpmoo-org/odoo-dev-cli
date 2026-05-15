@@ -6,9 +6,10 @@ import { applyExternalAsset, writeTextFile, type ExternalAssetOptions } from './
 import { plannedExternalAssetOptions, renderComposeEnvExample } from './external-templates.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
 import { isValidPathSegment, validateAddonName, validateRepoPath } from './path-validation.js';
-import { listModuleRepos, readAddonsYaml } from './repo-actions.js';
+import { readAddonsYaml } from './repo-actions.js';
 import { generatedFiles } from './scaffold.js';
-import type { ScaffoldOptions, SourceRepo } from './types.js';
+import { listGitmoduleSources } from './source-manifest.js';
+import type { ScaffoldOptions, SourceRepo, SourceRepoType } from './types.js';
 
 export type SafeResetOptions = {
   target: string;
@@ -132,17 +133,17 @@ function parseRepoPathsFromAddonsYaml(addonsYaml: string): string[] {
     .map(validateRepoPath);
 }
 
-async function readSubmoduleUrl(target: string, repoPath: string): Promise<string> {
+async function readSubmoduleUrl(target: string, repoPath: string, sourceType: SourceRepoType): Promise<string> {
   const safeRepoPath = validateRepoPath(repoPath);
   try {
     const gitmodules = await readFile(join(target, '.gitmodules'), 'utf8');
-    const escapedPath = `odoo/custom/src/private/${safeRepoPath}`;
+    const escapedPath = `odoo/custom/src/${sourceType}/${safeRepoPath}`;
     const sections = gitmodules.split(/\n(?=\[submodule )/);
     const section = sections.find((value) => value.includes(`path = ${escapedPath}`));
     const url = section?.match(/^\s*url\s*=\s*(.+)$/m)?.[1]?.trim();
-    return url || `odoo/custom/src/private/${safeRepoPath}`;
+    return url || `odoo/custom/src/${sourceType}/${safeRepoPath}`;
   } catch {
-    return `odoo/custom/src/private/${safeRepoPath}`;
+    return `odoo/custom/src/${sourceType}/${safeRepoPath}`;
   }
 }
 
@@ -158,20 +159,35 @@ async function pathExists(path: string): Promise<boolean> {
 async function inferOptions(target: string): Promise<ScaffoldOptions> {
   const metadata = await readEnvironmentMetadata(target);
   const addonsYaml = await readAddonsYaml(target);
-  const moduleRepos = await listModuleRepos(target);
+  const gitmoduleSources = await listGitmoduleSources(target);
   const addonRepos = parseRepoPathsFromAddonsYaml(addonsYaml);
-  const metadataRepoPaths =
-    metadata?.sourceRepos.map((repo) => repo.path).filter((repoPath) => isValidPathSegment(repoPath)).map(validateRepoPath) ??
-    [];
-  const repoPaths = [
-    ...new Set([...metadataRepoPaths, ...moduleRepos, ...addonRepos]),
-  ];
-  const product = metadata?.product ?? repoPaths[0] ?? titleFromTarget(target);
+  const sourceByKey = new Map<string, { sourceType: SourceRepoType; path: string }>();
+  for (const repo of metadata?.sourceRepos ?? []) {
+    if (isValidPathSegment(repo.path)) {
+      const sourceType = repo.sourceType ?? 'private';
+      const path = validateRepoPath(repo.path);
+      sourceByKey.set(`${sourceType}:${path}`, { sourceType, path });
+    }
+  }
+  for (const repo of gitmoduleSources) {
+    sourceByKey.set(`${repo.type}:${repo.path}`, { sourceType: repo.type, path: repo.path });
+  }
+  for (const repoPath of addonRepos) {
+    sourceByKey.set(`private:${repoPath}`, { sourceType: 'private', path: repoPath });
+  }
+  const sourceLocations = [...sourceByKey.values()];
+  const product = metadata?.product ?? sourceLocations[0]?.path ?? titleFromTarget(target);
   const sourceRepos: SourceRepo[] = await Promise.all(
-    repoPaths.map(async (repoPath) => ({
-      path: repoPath,
-      url: metadata?.sourceRepos.find((repo) => repo.path === repoPath)?.url ?? (await readSubmoduleUrl(target, repoPath)),
-      addons: parseAddonsForRepo(addonsYaml, repoPath),
+    sourceLocations.map(async ({ sourceType, path }) => ({
+      path,
+      sourceType,
+      url:
+        metadata?.sourceRepos
+          .find((repo) => repo.path === path && (repo.sourceType ?? 'private') === sourceType)
+          ?.url.trim() ||
+        gitmoduleSources.find((repo) => repo.path === path && repo.type === sourceType)?.url ||
+        (await readSubmoduleUrl(target, path, sourceType)),
+      addons: parseAddonsForRepo(addonsYaml, path),
     })),
   );
 

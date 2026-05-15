@@ -14,6 +14,7 @@ import {
 } from './git.js';
 import { isValidPathSegment, validateRepoPath } from './path-validation.js';
 import { inferRepoPath } from './repo-url.js';
+import { removeSourceManifestEntry, upsertSourceManifestEntry } from './source-manifest.js';
 import type { SourceRepoType } from './types.js';
 
 export const addonsYamlHeader = `# Addons activated from source submodules.
@@ -161,6 +162,13 @@ export async function addModuleRepo(
     addons: [repoPath],
     sourceType,
   });
+  await upsertSourceManifestEntry(options.target, {
+    type: sourceType,
+    path: repoPath,
+    url: options.repoUrl,
+    branch: options.odooVersion,
+    addons: [repoPath],
+  });
 
   if (!(await isComposeEnvironment(options.target))) {
     const addonsYaml = await readAddonsYaml(options.target);
@@ -201,6 +209,9 @@ export async function removeModuleRepo(
 
   await removeSubmodule(git, options.target, submodulePath);
   await removeSourceRepoMetadata(options.target, repoPath, resolvedSourceType);
+  if (resolvedSourceType) {
+    await removeSourceManifestEntry(options.target, resolvedSourceType, repoPath);
+  }
 
   if (!(await isComposeEnvironment(options.target))) {
     const addonsYaml = await readAddonsYaml(options.target);

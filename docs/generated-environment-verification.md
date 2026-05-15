@@ -23,6 +23,7 @@ not validate staging or production deployments.
 | Doctor checks | Metadata, compose files, scripts, source repo paths, and local tooling checks behave as expected. | `npx @wpmoo/odoo doctor` or `./moo doctor` |
 | Generated Postgres checks | For PostgreSQL 18 environments, doctor validates db mount targets avoid old PG image-specific paths. | `npx @wpmoo/odoo doctor` |
 | Source repo add/remove | Source repository registration and submodule lifecycle behave correctly. | `npx @wpmoo/odoo add-repo ...`, `npx @wpmoo/odoo remove-repo ...` |
+| Source manifest sync | Source repo metadata, `.gitmodules`, and `odoo/custom/manifests/sources.yaml` stay aligned. | `npx @wpmoo/odoo source list`, `npx @wpmoo/odoo source sync` |
 | Module add/remove | Module registration changes are applied to the selected source repo config. | `npx @wpmoo/odoo add-module ...`, `npx @wpmoo/odoo remove-module ...` |
 | Safe reset | Generated files are refreshed (including `compose.yaml` overlays and env example) without deleting source module code. Local runtime/data directories and custom source layout content are preserved; legacy user-editable paths from older templates may remain and are reported for manual cleanup. | `npx @wpmoo/odoo reset` |
 | Snapshot/restore and lint/pot | These actions are delegated by `./moo` to compose scripts without extra package-side logic. | `./moo snapshot ...`, `./moo restore-snapshot ...`, `./moo lint`, `./moo pot ...` |
@@ -78,6 +79,28 @@ odoo/custom/src/external/
 odoo/custom/patches/
 odoo/custom/manifests/
 ```
+
+## Source manifest checks
+
+Generated environments include `odoo/custom/manifests/sources.yaml`. The manifest
+records each source repository's type (`private`, `oca`, or `external`), path,
+URL, Odoo branch, and addon boundaries.
+
+Use `source list` to inspect the current manifest view:
+
+```bash
+npx @wpmoo/odoo source list
+```
+
+Use `source sync` after manual submodule or metadata repair to regenerate the
+manifest and normalize `.wpmoo/odoo.json` source entries:
+
+```bash
+npx @wpmoo/odoo source sync
+```
+
+`doctor` fails when manifest entries, metadata entries, and source submodule
+paths diverge.
 
 ## Local verification commands
 

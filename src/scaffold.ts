@@ -22,6 +22,7 @@ import {
   renderReadme,
 } from './templates.js';
 import { validateAddonName, validateRepoPath } from './path-validation.js';
+import { renderSourceManifest, sourceManifestEntriesFromMetadata } from './source-manifest.js';
 import type { ScaffoldOptions, ScaffoldResult, SourceRepo } from './types.js';
 
 type GeneratedFile = {
@@ -35,8 +36,13 @@ function validateSourceRepo(repo: SourceRepo): SourceRepo {
   return {
     ...repo,
     path,
+    sourceType: repo.sourceType ?? 'private',
     addons: repo.addons.map(validateAddonName),
   };
+}
+
+function sourceRepoSubmodulePath(repo: SourceRepo): string {
+  return `odoo/custom/src/${repo.sourceType ?? 'private'}/${repo.path}`;
 }
 
 function validateScaffoldOptions(options: ScaffoldOptions): ScaffoldOptions {
@@ -83,6 +89,10 @@ export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
     { path: 'README.md', content: renderReadme(safeOptions) },
     { path: 'AGENTS.md', content: renderAgents(safeOptions) },
     { path: 'docs/appstore-release.md', content: renderAppstoreRelease(safeOptions) },
+    {
+      path: 'odoo/custom/manifests/sources.yaml',
+      content: renderSourceManifest(sourceManifestEntriesFromMetadata(safeOptions.sourceRepos, safeOptions.odooVersion)),
+    },
   ];
 
   return [
@@ -154,7 +164,7 @@ export async function scaffold(
     ...externalAssets.map((assetOptions) => renderExternalAssetCommand(assetOptions)),
     ...safeOptions.sourceRepos.map(
       (repo) =>
-        `git submodule add -b ${safeOptions.odooVersion} ${repo.url} odoo/custom/src/private/${repo.path}`,
+        `git submodule add -b ${safeOptions.odooVersion} ${repo.url} ${sourceRepoSubmodulePath(repo)}`,
     ),
   ];
   if (safeOptions.stage) {
@@ -182,9 +192,9 @@ export async function scaffold(
     for (const repo of safeOptions.sourceRepos) {
       await ensureRemoteHasBranch(git, safeOptions.target, repo.url, safeOptions.odooVersion, safeOptions.initEmptyRepos);
     }
-    await mkdir(join(safeOptions.target, 'odoo/custom/src/private'), { recursive: true });
     for (const repo of safeOptions.sourceRepos) {
-      await ensureSubmodule(git, safeOptions.target, repo.url, safeOptions.odooVersion, `odoo/custom/src/private/${repo.path}`);
+      await mkdir(join(safeOptions.target, 'odoo/custom/src', repo.sourceType ?? 'private'), { recursive: true });
+      await ensureSubmodule(git, safeOptions.target, repo.url, safeOptions.odooVersion, sourceRepoSubmodulePath(repo));
     }
     await syncSubmodules(git, safeOptions.target);
   }

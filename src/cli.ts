@@ -37,6 +37,7 @@ import { promptRepositoryUrl } from './prompt-repositories.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import { addModuleRepo, listModuleRepos, removeModuleRepo, type AddModuleRepoOptions, type RemoveModuleRepoOptions } from './repo-actions.js';
 import { renderSafeResetPreview, safeResetEnvironment, type SafeResetOptions } from './safe-reset.js';
+import { listSources, renderSourceList, syncSources, type SourceSyncOptions } from './source-actions.js';
 import {
   checkGitHubRepositories,
   createGitHubRepositories,
@@ -620,6 +621,70 @@ function resetOptionsFromArgs(argv: string[]): SafeResetOptions {
   };
 }
 
+function sourceUsage(): string {
+  return 'Usage: wpmoo source <list|sync|add|remove> [options]';
+}
+
+function sourceSyncOptionsFromArgs(argv: string[]): SourceSyncOptions {
+  const { values } = parseArgs(argv);
+
+  return {
+    target: resolve(stringOption(values, 'target') ?? process.cwd()),
+    stage: booleanOption(values, 'stage', true),
+  };
+}
+
+function sourceListTargetFromArgs(argv: string[]): string {
+  const { values } = parseArgs(argv);
+  return resolve(stringOption(values, 'target') ?? process.cwd());
+}
+
+async function runSourceCommand(argv: string[]): Promise<void> {
+  const [subcommand, ...subcommandArgv] = argv;
+  if (!subcommand) {
+    throw new Error(sourceUsage());
+  }
+
+  if (subcommand === 'list') {
+    console.log(renderBanner());
+    const target = sourceListTargetFromArgs(subcommandArgv);
+    console.log(renderSourceList(await listSources(target)));
+    return;
+  }
+
+  if (subcommand === 'sync') {
+    console.log(renderBanner());
+    const options = sourceSyncOptionsFromArgs(subcommandArgv);
+    await syncSources(options);
+    outro(`Synced source manifest in ${options.target}.`);
+    return;
+  }
+
+  if (subcommand === 'add') {
+    const options = await addRepoOptionsFromArgs(subcommandArgv);
+    if (!options) {
+      throw new Error('Usage: wpmoo source add --repo-url <url> [--source-type private|oca|external]');
+    }
+    console.log(renderBanner());
+    await addModuleRepo(options);
+    outro(`Added source repo under ${renderedSourceRepoPath(options.target, options.sourceType ?? 'private', options.repoPath)}.`);
+    return;
+  }
+
+  if (subcommand === 'remove') {
+    const options = removeRepoOptionsFromArgs(subcommandArgv);
+    if (!options) {
+      throw new Error('Usage: wpmoo source remove --repo <name> [--source-type private|oca|external]');
+    }
+    console.log(renderBanner());
+    await removeModuleRepo(options);
+    outro(`Removed source repo ${options.repoPath} from ${options.target}.`);
+    return;
+  }
+
+  throw new Error(sourceUsage());
+}
+
 async function confirmSafeResetFromMenu(options: SafeResetOptions): Promise<void> {
   note(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview');
   const confirmed = await confirm({
@@ -987,6 +1052,11 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     const promptedOptions = await removeRepoOptionsFromPrompts(route.argv);
     await removeModuleRepo(promptedOptions);
     outro(`Removed source repo ${promptedOptions.repoPath} from ${promptedOptions.target}.`);
+    return;
+  }
+
+  if (route.command === 'source') {
+    await runSourceCommand(route.argv);
     return;
   }
 

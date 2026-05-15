@@ -7,6 +7,13 @@ import { detectComposeLayout, readEnvFile, selectedComposeEnvironment } from './
 import { dailyActionScripts } from './daily-actions.js';
 import { defaultPostgresVersion } from './external-templates.js';
 import { defaultOdooVersion, markerPath } from './environment.js';
+import {
+  listGitmoduleSources,
+  readSourceManifest,
+  sourceManifestPath,
+  type SourceManifestEntry,
+  type SourceModuleLocation,
+} from './source-manifest.js';
 import type { SourceRepo } from './types.js';
 
 export type DoctorCommandRunner = (
@@ -111,21 +118,46 @@ function inferPostgresVersion(
   return defaultPostgresVersion(odooVersion);
 }
 
+function normalizeSourceType(value: unknown): NonNullable<SourceRepo['sourceType']> {
+  if (value === 'oca' || value === 'external' || value === 'private') {
+    return value;
+  }
+  return 'private';
+}
+
+function sourceRepoPath(type: string, path: string): string {
+  return `odoo/custom/src/${type}/${path}`;
+}
+
+function entryKey(type: string, path: string): string {
+  return `${type}:${path}`;
+}
+
 function sourceReposFromMetadata(metadata: Record<string, unknown>): SourceRepo[] {
   const sourceRepos = metadata.sourceRepos;
   if (!Array.isArray(sourceRepos)) return [];
 
-  return sourceRepos.map((repo, index) => {
-    if (!isRecord(repo) || typeof repo.path !== 'string' || !repo.path.trim()) {
-      throw new Error(`Invalid sourceRepos entry in .wpmoo/odoo.json at index ${index}`);
-    }
+  return sourceRepos
+    .map((repo, index) => {
+      if (!isRecord(repo) || typeof repo.path !== 'string' || !repo.path.trim()) {
+        throw new Error(`Invalid sourceRepos entry in .wpmoo/odoo.json at index ${index}`);
+      }
 
-    return {
-      url: typeof repo.url === 'string' ? repo.url : '',
-      path: repo.path.trim(),
-      addons: Array.isArray(repo.addons) ? repo.addons.filter((addon): addon is string => typeof addon === 'string') : [],
-    };
-  });
+      return {
+        url: typeof repo.url === 'string' ? repo.url : '',
+        path: repo.path.trim(),
+        addons: Array.isArray(repo.addons)
+          ? repo.addons.filter((addon): addon is string => typeof addon === 'string')
+          : [],
+        sourceType: normalizeSourceType(repo.sourceType),
+      } satisfies SourceRepo;
+    })
+    .filter((repo) => repo.path)
+    .sort((left, right) => {
+      const typeOrder = left.sourceType.localeCompare(right.sourceType);
+      if (typeOrder !== 0) return typeOrder;
+      return left.path.localeCompare(right.path);
+    });
 }
 
 async function readMetadata(target: string): Promise<Record<string, unknown>> {
@@ -170,7 +202,7 @@ function isNotGitCheckoutError(error: unknown): boolean {
 
 function isSourceRepoSubmodule(path: string, sourceRepos: SourceRepo[]): boolean {
   return sourceRepos.some((repo) => {
-    const sourcePath = `odoo/custom/src/private/${repo.path}`;
+    const sourcePath = sourceRepoPath(repo.sourceType ?? 'private', repo.path);
     return path === sourcePath || path.startsWith(`${sourcePath}/`);
   });
 }
@@ -191,6 +223,66 @@ function sourceSubmoduleStatusErrors(output: string, sourceRepos: SourceRepo[]):
       errors.push(`Uninitialized Git submodule: ${path}`);
     } else if (status === 'U') {
       errors.push(`Conflicted Git submodule: ${path}`);
+    }
+  }
+
+  return errors;
+}
+
+function manifestEntryToKey(entry: { type: string; path: string }): string {
+  return entryKey(entry.type, entry.path);
+}
+
+function manifestRepoToKey(repo: SourceRepo): string {
+  return entryKey(normalizeSourceType(repo.sourceType), repo.path);
+}
+
+function formatKeyForPath(key: string): string {
+  const [sourceType, ...pathParts] = key.split(':');
+  return sourceRepoPath(sourceType, pathParts.join(':'));
+}
+
+function checkSourceConsistency(
+  sourceRepos: SourceRepo[],
+  manifestEntries: SourceManifestEntry[],
+  gitmoduleSources: SourceModuleLocation[],
+  manifestExists: boolean,
+): string[] {
+  if (!manifestExists) {
+    return [];
+  }
+
+  const errors: string[] = [];
+  const metadataEntries = new Map<string, SourceRepo>();
+  for (const repo of sourceRepos) {
+    metadataEntries.set(manifestRepoToKey(repo), repo);
+  }
+
+  const manifestMap = new Map<string, SourceManifestEntry>();
+  for (const entry of manifestEntries) {
+    manifestMap.set(manifestEntryToKey(entry), entry);
+  }
+
+  const gitmoduleSet = new Set(
+    gitmoduleSources.map((source) => manifestEntryToKey({ type: source.type, path: source.path })),
+  );
+
+  const sortedMetadataKeys = [...metadataEntries.keys()].sort();
+  const sortedManifestKeys = [...manifestMap.keys()].sort();
+
+  for (const key of sortedMetadataKeys) {
+    if (!manifestMap.has(key)) {
+      errors.push(`Metadata source entry missing in manifest: ${formatKeyForPath(key)}`);
+    }
+  }
+
+  for (const key of sortedManifestKeys) {
+    if (!metadataEntries.has(key)) {
+      errors.push(`Manifest source entry missing in metadata: ${formatKeyForPath(key)}`);
+    }
+
+    if (!gitmoduleSet.has(key)) {
+      errors.push(`Manifest source path missing in .gitmodules: ${formatKeyForPath(key)}`);
     }
   }
 
@@ -268,12 +360,35 @@ export async function runDoctor(
 
   const sourceRepos = sourceReposFromMetadata(metadata);
   for (const repo of sourceRepos) {
-    const relativePath = `odoo/custom/src/private/${repo.path}`;
-    if (!(await exists(join(target, relativePath)))) {
+    const relativePath = sourceRepoPath(normalizeSourceType(repo.sourceType), repo.path);
+    if (!(await exists(join(target, relativePath))) && repo.path) {
       errors.push(`Missing source repo path: ${relativePath}`);
     }
   }
   lines.push(`OK source repos ${sourceRepos.length} checked`);
+
+  const manifestPath = join(target, sourceManifestPath);
+  const hasManifest = await exists(manifestPath);
+  let manifestEntries: SourceManifestEntry[] = [];
+  if (hasManifest) {
+    try {
+      manifestEntries = (await readSourceManifest(target)).sources;
+    } catch (error) {
+      errors.push(`Failed to read source manifest ${sourceManifestPath}: ${errorMessage(error)}`);
+    }
+  }
+
+  const gitmoduleSources = await listGitmoduleSources(target);
+  if (errors.length === 0 || manifestEntries.length > 0) {
+    errors.push(
+      ...checkSourceConsistency(
+        sourceRepos,
+        manifestEntries,
+        gitmoduleSources,
+        hasManifest,
+      ),
+    );
+  }
 
   if (env) {
     const httpPort = validatePort('HTTP_PORT', env, errors);

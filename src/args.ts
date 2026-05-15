@@ -21,6 +21,7 @@ export type CliCommand =
   | 'remove-repo'
   | 'add-module'
   | 'remove-module'
+  | 'source'
   | 'reset'
   | 'doctor'
   | DailyActionCommand;
@@ -37,6 +38,7 @@ const commandNames = new Set<CliCommand>([
   'remove-repo',
   'add-module',
   'remove-module',
+  'source',
   'reset',
   'doctor',
   ...dailyActionCommands,

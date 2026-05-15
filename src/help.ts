@@ -9,6 +9,10 @@ Usage:
   npx @wpmoo/odoo status
   npx @wpmoo/odoo add-repo --repo-url <url> [--source-type private|oca|external]
   npx @wpmoo/odoo remove-repo --repo <name>
+  npx @wpmoo/odoo source list
+  npx @wpmoo/odoo source sync
+  npx @wpmoo/odoo source add --repo-url <url> [--source-type private|oca|external]
+  npx @wpmoo/odoo source remove --repo <name> [--source-type private|oca|external]
   npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
   npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name>
   npx @wpmoo/odoo reset
@@ -92,6 +96,9 @@ Task recipes:
     npx @wpmoo/odoo
   Add source repo:
     npx @wpmoo/odoo add-repo --repo-url <url> --source-type oca
+  Inspect and sync source manifest:
+    npx @wpmoo/odoo source list
+    npx @wpmoo/odoo source sync
   Add module:
     npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
   Run tests:

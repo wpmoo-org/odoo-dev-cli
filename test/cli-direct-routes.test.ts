@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   addModuleToSourceRepo: vi.fn(async () => undefined),
   removeModuleFromSourceRepo: vi.fn(async () => undefined),
   safeResetEnvironment: vi.fn(async () => undefined),
+  listSources: vi.fn(async () => [] as unknown[]),
+  renderSourceList: vi.fn(() => 'mock source list'),
+  syncSources: vi.fn(async () => [] as unknown[]),
   runDoctor: vi.fn(async () => 'doctor report'),
   renderBanner: vi.fn(() => 'mock banner'),
   commandOdooVersion: vi.fn(async () => '18.0-mocked'),
@@ -53,6 +56,12 @@ vi.mock('../src/safe-reset.js', async (importOriginal) => {
     safeResetEnvironment: mocks.safeResetEnvironment,
   };
 });
+
+vi.mock('../src/source-actions.js', () => ({
+  listSources: mocks.listSources,
+  renderSourceList: mocks.renderSourceList,
+  syncSources: mocks.syncSources,
+}));
 
 vi.mock('../src/doctor.js', () => ({
   runDoctor: mocks.runDoctor,
@@ -207,6 +216,95 @@ describe('cli direct command routes', () => {
     });
     expect(logSpy).toHaveBeenCalledWith('mock banner');
     expect(promptMocks.outro).toHaveBeenCalledWith(`Removed source repo odoo_sample_module from ${target}.`);
+  });
+
+  it('routes source list to render configured source repositories', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-source-list');
+    const sources = [
+      {
+        type: 'oca' as const,
+        path: 'server-tools',
+        url: 'https://github.com/OCA/server-tools.git',
+        branch: '19.0',
+        addons: ['queue_job'],
+      },
+    ];
+    mocks.listSources.mockResolvedValueOnce(sources);
+
+    await runCli(['source', 'list', '--target', target], '/tmp/ignored-cwd');
+
+    expect(mocks.listSources).toHaveBeenCalledWith(target);
+    expect(mocks.renderSourceList).toHaveBeenCalledWith(sources);
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith('mock source list');
+  });
+
+  it('routes source sync to regenerate source manifest state', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-source-sync');
+
+    await runCli(['source', 'sync', '--target', target, '--stage=false'], '/tmp/ignored-cwd');
+
+    expect(mocks.syncSources).toHaveBeenCalledWith({
+      target,
+      stage: false,
+    });
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(promptMocks.outro).toHaveBeenCalledWith(`Synced source manifest in ${target}.`);
+  });
+
+  it('routes source add as an alias for add-repo', async () => {
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-source-add');
+
+    await runCli(
+      [
+        'source',
+        'add',
+        '--repo-url',
+        'https://github.com/OCA/server-tools.git',
+        '--repo',
+        'server-tools',
+        '--source-type',
+        'oca',
+        '--target',
+        target,
+        '--stage=false',
+      ],
+      '/tmp/ignored-cwd',
+    );
+
+    expect(mocks.addModuleRepo).toHaveBeenCalledWith({
+      target,
+      repoUrl: 'https://github.com/OCA/server-tools.git',
+      repoPath: 'server-tools',
+      sourceType: 'oca',
+      odooVersion: '18.0-mocked',
+      initEmptyRepos: false,
+      stage: false,
+    });
+    expect(promptMocks.outro).toHaveBeenCalledWith(`Added source repo under ${target}/odoo/custom/src/oca/server-tools.`);
+  });
+
+  it('routes source remove as an alias for remove-repo', async () => {
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-source-remove');
+
+    await runCli(
+      ['source', 'remove', '--repo', 'server-tools', '--source-type', 'oca', '--target', target, '--stage=false'],
+      '/tmp/ignored-cwd',
+    );
+
+    expect(mocks.removeModuleRepo).toHaveBeenCalledWith({
+      target,
+      repoPath: 'server-tools',
+      sourceType: 'oca',
+      stage: false,
+    });
+    expect(promptMocks.outro).toHaveBeenCalledWith(`Removed source repo server-tools from ${target}.`);
   });
 
   it('routes add-module with full args to addModuleToSourceRepo and prints banner/outro', async () => {

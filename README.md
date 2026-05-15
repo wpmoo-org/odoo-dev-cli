@@ -296,6 +296,34 @@ npx @wpmoo/odoo remove-repo --repo odoo_sample_module_reports
 
 WPMoo refuses to remove a source repo submodule when that submodule has uncommitted changes.
 
+Generated environments also keep a deterministic source manifest at
+`odoo/custom/manifests/sources.yaml`. It mirrors source submodules from
+`.wpmoo/odoo.json` and `.gitmodules`, including source type, path, URL, branch,
+and addon boundaries.
+
+Inspect configured sources:
+
+```bash
+npx @wpmoo/odoo source list
+```
+
+Regenerate the manifest and metadata from the current metadata/gitmodule state:
+
+```bash
+npx @wpmoo/odoo source sync
+```
+
+`source add` and `source remove` are direct aliases for the same repository
+operations:
+
+```bash
+npx @wpmoo/odoo source add \
+  --repo-url https://github.com/OCA/server-tools.git \
+  --source-type oca
+
+npx @wpmoo/odoo source remove --repo server-tools --source-type oca
+```
+
 ## Status, Doctor, and Recovery
 
 `status` is fast and offline. It reads local metadata and files only:
@@ -313,9 +341,10 @@ npx @wpmoo/odoo doctor
 ```
 
 It validates metadata, engine support, selected compose files, source repo paths,
-daily scripts, `.env` settings, Docker CLI access, Docker Compose access, GitHub CLI
-authentication when available, and PostgreSQL 18 compatibility in compose mount
-targets (for mounts to `/var/lib/postgresql/data` or `/var/lib/postgresql/18/docker`).
+source manifest consistency, daily scripts, `.env` settings, Docker CLI access,
+Docker Compose access, GitHub CLI authentication when available, and PostgreSQL
+18 compatibility in compose mount targets (for mounts to
+`/var/lib/postgresql/data` or `/var/lib/postgresql/18/docker`).
 
 Safe reset refreshes generated environment files without deleting product source code:
 

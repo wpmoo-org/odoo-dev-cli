@@ -393,6 +393,7 @@ describe('safe reset', () => {
     };
     expect(regenerated.sourceRepos).toContainEqual({
       path: 'odoo_sample_module',
+      sourceType: 'private',
       url: inferredUrl,
       addons: ['odoo_sample_module'],
     });
@@ -437,6 +438,7 @@ describe('safe reset', () => {
     };
     expect(regenerated.sourceRepos).toContainEqual({
       path: 'odoo_sample_module',
+      sourceType: 'private',
       url: 'odoo/custom/src/private/odoo_sample_module',
       addons: ['odoo_sample_module'],
     });
@@ -483,6 +485,7 @@ describe('safe reset', () => {
     expect(regenerated.product).toBe('odoo_sample_module');
     expect(regenerated.sourceRepos).toContainEqual({
       path: 'odoo_sample_module',
+      sourceType: 'private',
       url: 'odoo/custom/src/private/odoo_sample_module',
       addons: ['odoo_sample_module'],
     });
