@@ -311,9 +311,12 @@ __pycache__/
 
 # Local generated files
 *.code-workspace
+addons/
 auto/
+backups/
 data/
 filestore/
+postgresql/
 sessions/
 odoo/custom/auto/
 odoo/custom/src/*/.git-aggregate-cache/

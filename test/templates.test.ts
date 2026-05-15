@@ -254,6 +254,9 @@ describe('template rendering', () => {
     const gitignore = renderGitignore();
 
     expect(gitignore).toContain('node_modules/');
+    expect(gitignore).toContain('addons/');
+    expect(gitignore).toContain('backups/');
+    expect(gitignore).toContain('postgresql/');
     expect(gitignore).toContain('odoo/custom/auto/');
     expect(gitignore).toContain('*.dump');
   });
