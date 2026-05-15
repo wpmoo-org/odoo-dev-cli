@@ -9,6 +9,7 @@ export type ExternalAssetOptions = {
   source: string;
   destination: string;
   ref?: string;
+  sourceSubdirCandidates?: string[];
   sourceSubdir?: string;
   destinationSubdir?: string;
   exclude?: string[];
@@ -89,7 +90,8 @@ function isExcluded(relativePath: string, excludes: string[]): boolean {
 }
 
 async function copyDirectory(options: ExternalAssetOptions, checkedOut: CheckedOutSource): Promise<void> {
-  const sourcePath = options.sourceSubdir ? join(checkedOut.root, options.sourceSubdir) : checkedOut.root;
+  const selectedSourceSubdir = await selectSourceSubdir(options, checkedOut.root);
+  const sourcePath = selectedSourceSubdir ? join(checkedOut.root, selectedSourceSubdir) : checkedOut.root;
   const destinationPath = options.destinationSubdir
     ? join(options.destination, options.destinationSubdir)
     : options.destination;
@@ -117,6 +119,16 @@ async function copyDirectory(options: ExternalAssetOptions, checkedOut: CheckedO
       await cp(readmePath, destination, { force: true });
     }
   }
+}
+
+async function selectSourceSubdir(options: ExternalAssetOptions, root: string): Promise<string | undefined> {
+  for (const candidate of options.sourceSubdirCandidates ?? []) {
+    if (await pathExists(join(root, candidate))) {
+      return candidate;
+    }
+  }
+
+  return options.sourceSubdir;
 }
 
 export function renderExternalAssetCommand(options: ExternalAssetOptions): string {

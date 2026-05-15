@@ -39,7 +39,23 @@ describe('external template helpers', () => {
   });
 
   it('plans compose only by default and includes agent skills when configured', () => {
-    expect(plannedExternalAssetOptions(baseOptions)).toEqual([composeTemplateOptions(baseOptions)]);
+    const composeOptions = composeTemplateOptions(baseOptions);
+    expect(composeOptions.sourceSubdirCandidates).toEqual(['resources/generated-env']);
+    expect(composeOptions.readmeDestination).toBe('docs/compose.md');
+    expect(composeOptions.exclude).toEqual(
+      expect.arrayContaining([
+        '.github',
+        'docs/assets',
+        'test',
+        'README.md',
+        'README-template.md',
+        '.gitignore',
+        'LICENSE',
+        'package.json',
+        'package-lock.json',
+      ]),
+    );
+    expect(plannedExternalAssetOptions(baseOptions)).toEqual([composeOptions]);
 
     const withAgentSkills = {
       ...baseOptions,

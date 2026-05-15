@@ -52,7 +52,18 @@ export function composeTemplateOptions(options: ScaffoldOptions): ExternalAssetO
     source: options.composeTemplateUrl ?? defaultComposeTemplateUrl,
     destination: options.target,
     ref: options.composeTemplateRef,
-    exclude: ['README.md', 'README-template.md', '.gitignore', 'LICENSE', 'package.json', 'package-lock.json'],
+    sourceSubdirCandidates: ['resources/generated-env'],
+    exclude: [
+      '.github',
+      'docs/assets',
+      'test',
+      'README.md',
+      'README-template.md',
+      '.gitignore',
+      'LICENSE',
+      'package.json',
+      'package-lock.json',
+    ],
     readmeDestination: 'docs/compose.md',
   };
 }

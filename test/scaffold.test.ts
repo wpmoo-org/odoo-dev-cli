@@ -21,6 +21,32 @@ async function writeStandaloneResourceFixtures(root: string): Promise<{ compose:
   return { compose, skills };
 }
 
+async function writeCompactComposeFixture(root: string): Promise<string> {
+  const compose = join(root, 'odoo-docker-compose');
+  const compact = join(compose, 'resources/generated-env');
+
+  await mkdir(join(compact, 'compose'), { recursive: true });
+  await mkdir(join(compact, 'scripts'), { recursive: true });
+  await mkdir(join(compact, 'config/odoo'), { recursive: true });
+  await mkdir(join(compact, 'resources/odoo'), { recursive: true });
+  await mkdir(join(compose, '.github/workflows'), { recursive: true });
+  await mkdir(join(compose, 'docs/assets'), { recursive: true });
+  await mkdir(join(compose, 'test'), { recursive: true });
+  await writeFile(join(compact, 'compose.yaml'), 'services:\n  odoo:\n');
+  await writeFile(join(compact, 'compose/dev.yaml'), 'services:\n  odoo-dev:\n');
+  await writeFile(join(compact, 'scripts/up.sh'), '#!/usr/bin/env bash\nexit 0\n');
+  await writeFile(join(compact, 'config/odoo/odoo.conf'), '[options]\n');
+  await writeFile(join(compact, 'resources/odoo/entrypoint.sh'), '#!/usr/bin/env bash\nexec odoo\n');
+  await writeFile(join(compose, 'README.md'), '# WPMoo Odoo Compose\n');
+  await writeFile(join(compose, '.github/workflows/ci.yml'), 'name: ci\n');
+  await writeFile(join(compose, 'docs/assets/diagram.png'), 'asset\n');
+  await writeFile(join(compose, 'test/compose.test.ts'), 'test\n');
+  await writeFile(join(compose, 'package.json'), '{}\n');
+  await writeFile(join(compose, 'docker-compose_19.0.yml'), 'legacy compose\n');
+
+  return compose;
+}
+
 describe('scaffold', () => {
   it('creates a local-only target without cloning the dev repo or adding submodules', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wpmoo-local-only-root-'));
@@ -167,6 +193,44 @@ describe('scaffold', () => {
     await expect(readFile(join(target, 'README.md'), 'utf8')).resolves.toContain(
       'Odoo Sample Module Development Environment',
     );
+  });
+
+  it('prefers compact compose resources and omits bulky repository-only files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-compact-assets-'));
+    const composeTemplateUrl = await writeCompactComposeFixture(await mkdtemp(join(tmpdir(), 'wpmoo-compact-fixtures-')));
+
+    await scaffold({
+      product: 'odoo_sample_module',
+      odooVersion: '19.0',
+      engine: 'compose',
+      composeTemplateUrl,
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+      sourceRepos: [
+        {
+          url: 'https://github.com/example-org/odoo_sample_module.git',
+          path: 'odoo_sample_module',
+          addons: ['odoo_sample_module'],
+        },
+      ],
+      target,
+      dryRun: false,
+      initEmptyRepos: false,
+      stage: false,
+      skipSubmodules: true,
+    });
+
+    await expect(readFile(join(target, 'compose.yaml'), 'utf8')).resolves.toContain('services:');
+    await expect(readFile(join(target, 'compose/dev.yaml'), 'utf8')).resolves.toContain('odoo-dev');
+    await expect(readFile(join(target, 'scripts/up.sh'), 'utf8')).resolves.toContain('exit 0');
+    await expect(readFile(join(target, 'config/odoo/odoo.conf'), 'utf8')).resolves.toContain('[options]');
+    await expect(readFile(join(target, 'resources/odoo/entrypoint.sh'), 'utf8')).resolves.toContain('exec odoo');
+    await expect(readFile(join(target, 'docs/compose.md'), 'utf8')).resolves.toContain('WPMoo Odoo Compose');
+    await expect(readFile(join(target, 'docker-compose_19.0.yml'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(target, '.github/workflows/ci.yml'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(target, 'docs/assets/diagram.png'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(target, 'test/compose.test.ts'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(target, 'package.json'), 'utf8')).rejects.toThrow();
   });
 
   it('writes overlay files when dry-run is disabled', async () => {

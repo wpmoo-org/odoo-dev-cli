@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { dailyActionScripts } from '../src/daily-actions.js';
 import { scaffold } from '../src/scaffold.js';
 
-async function writeComposeFixture(root: string): Promise<string> {
+async function writeLegacyComposeFixture(root: string): Promise<string> {
   const fixture = join(root, 'compose-fixture');
   await mkdir(join(fixture, 'scripts'), { recursive: true });
   await mkdir(join(fixture, 'etc'), { recursive: true });
@@ -27,11 +27,41 @@ async function writeComposeFixture(root: string): Promise<string> {
   return fixture;
 }
 
+async function writeCompactComposeFixture(root: string): Promise<string> {
+  const fixture = join(root, 'compose-fixture');
+  const compact = join(fixture, 'resources/generated-env');
+
+  await mkdir(join(compact, 'compose'), { recursive: true });
+  await mkdir(join(compact, 'scripts'), { recursive: true });
+  await mkdir(join(compact, 'config/odoo'), { recursive: true });
+  await mkdir(join(compact, 'resources/odoo'), { recursive: true });
+  await mkdir(join(fixture, '.github/workflows'), { recursive: true });
+  await mkdir(join(fixture, 'docs/assets'), { recursive: true });
+  await mkdir(join(fixture, 'test'), { recursive: true });
+  await writeFile(join(compact, 'compose.yaml'), 'services:\n  odoo:\n    image: odoo:19\n', 'utf8');
+  await writeFile(join(compact, 'compose/dev.yaml'), 'services:\n  odoo-dev:\n    image: odoo:19\n', 'utf8');
+  await writeFile(join(compact, 'scripts/up.sh'), '#!/usr/bin/env bash\nexit 0\n', 'utf8');
+  await writeFile(
+    join(compact, 'config/odoo/odoo.conf'),
+    '[options]\naddons_path = /usr/lib/python3/dist-packages/odoo/addons,/mnt/wpmoo-addons\n',
+    'utf8',
+  );
+  await writeFile(join(compact, 'resources/odoo/entrypoint.sh'), '#!/usr/bin/env bash\nexec odoo\n', 'utf8');
+  await writeFile(join(fixture, 'README.md'), '# Compose Fixture\nLocal compact compose fixture content.\n', 'utf8');
+  await writeFile(join(fixture, '.github/workflows/ci.yml'), 'name: ci\n', 'utf8');
+  await writeFile(join(fixture, 'docs/assets/diagram.png'), 'asset\n', 'utf8');
+  await writeFile(join(fixture, 'test/compose.test.ts'), 'test\n', 'utf8');
+  await writeFile(join(fixture, 'package.json'), '{}\n', 'utf8');
+  await writeFile(join(fixture, 'docker-compose_19.0.yml'), 'legacy compose\n', 'utf8');
+
+  return fixture;
+}
+
 describe('generated environment scaffold output matrix', () => {
   it('writes expected scaffold assets and metadata from a local compose fixture', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wpmoo-generated-scaffold-'));
     const target = join(root, 'odoo_sample_module_dev');
-    const composeTemplateUrl = await writeComposeFixture(root);
+    const composeTemplateUrl = await writeLegacyComposeFixture(root);
 
     await scaffold({
       product: 'odoo_sample_module',
@@ -107,5 +137,62 @@ describe('generated environment scaffold output matrix', () => {
       ['odoo_sample_module', 'odoo_sample_module_portal'],
       ['odoo_sample_module_reports'],
     ]);
+  });
+
+  it('writes compact compose assets and skips bulky source repository files', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wpmoo-generated-compact-scaffold-'));
+    const target = join(root, 'odoo_sample_module_dev');
+    const composeTemplateUrl = await writeCompactComposeFixture(root);
+
+    await scaffold({
+      product: 'odoo_sample_module',
+      odooVersion: '19.0',
+      engine: 'compose',
+      composeTemplateUrl,
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+      sourceRepos: [
+        {
+          url: 'https://github.com/example-org/odoo_sample_module.git',
+          path: 'odoo_sample_module',
+          addons: ['odoo_sample_module'],
+        },
+      ],
+      target,
+      dryRun: false,
+      initEmptyRepos: false,
+      skipSubmodules: true,
+      stage: false,
+    });
+
+    const expectedFiles = [
+      'compose.yaml',
+      'compose/dev.yaml',
+      'scripts/up.sh',
+      'config/odoo/odoo.conf',
+      'resources/odoo/entrypoint.sh',
+      'docs/compose.md',
+      '.env.example',
+      '.wpmoo/odoo.json',
+      'moo',
+      'README.md',
+      'AGENTS.md',
+    ];
+    for (const relativePath of expectedFiles) {
+      await expect(stat(join(target, relativePath))).resolves.toBeTruthy();
+    }
+
+    const omittedFiles = [
+      'docker-compose_19.0.yml',
+      '.github/workflows/ci.yml',
+      'docs/assets/diagram.png',
+      'test/compose.test.ts',
+      'package.json',
+    ];
+    for (const relativePath of omittedFiles) {
+      await expect(stat(join(target, relativePath))).rejects.toThrow();
+    }
+
+    await expect(readFile(join(target, 'docs/compose.md'), 'utf8')).resolves.toContain('Local compact compose');
   });
 });
