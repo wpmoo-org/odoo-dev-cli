@@ -48,6 +48,34 @@ function validateScaffoldOptions(options: ScaffoldOptions): ScaffoldOptions {
 
 export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
   const safeOptions = validateScaffoldOptions(options);
+  const sourceDirReadmes: Array<{ path: string; title: string; body: string }> = [
+    {
+      path: 'odoo/custom/src/private/README.md',
+      title: 'private',
+      body: 'Project-owned/private addon repositories go here.',
+    },
+    {
+      path: 'odoo/custom/src/oca/README.md',
+      title: 'oca',
+      body: 'OCA repositories go here, for example server-tools, web, queue.',
+    },
+    {
+      path: 'odoo/custom/src/external/README.md',
+      title: 'external',
+      body: 'Non-OCA third-party, vendor, and community addon repositories go here.',
+    },
+    {
+      path: 'odoo/custom/patches/README.md',
+      title: 'patches',
+      body: 'Local patches for upstream/vendor/OCA repositories go here.',
+    },
+    {
+      path: 'odoo/custom/manifests/README.md',
+      title: 'manifests',
+      body: 'Manifest/lock/list files for external sources and pinned revisions go here.',
+    },
+  ];
+
   const files: GeneratedFile[] = [
     { path: markerPath, content: renderEnvironmentMetadata(safeOptions) },
     { path: 'moo', content: renderMooDelegationScript(), mode: 0o755 },
@@ -59,10 +87,10 @@ export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
 
   return [
     ...files,
-    {
-      path: 'odoo/custom/src/private/README.md',
-      content: renderPlaceholder('private', 'WPMoo source repositories are added here as Git submodules.'),
-    },
+    ...sourceDirReadmes.map((readme) => ({
+      path: readme.path,
+      content: renderPlaceholder(readme.title, readme.body),
+    })),
   ];
 }
 

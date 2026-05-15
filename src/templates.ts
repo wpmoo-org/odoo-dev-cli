@@ -30,48 +30,64 @@ function hasSourceRepos(options: CreateOptions): boolean {
 
 function repositoryLayout(options: CreateOptions): string {
   const sourceRepoRows = hasSourceRepos(options)
-    ? options.sourceRepos.map((repo) => `│               ├── ${repo.path}/`).join('\n')
-    : '│               └── (add repos with ./moo add-repo)';
+    ? options.sourceRepos
+        .map((repo, index) => {
+          const connector = index === options.sourceRepos.length - 1 ? '└──' : '├──';
+          return `│       │   │   ${connector} ${repo.path}/              # Project-owned addon source repository`;
+        })
+        .join('\n')
+    : '│       │   │   └── (add project-owned repos with ./moo add-repo)';
 
-  return `${options.devRepo}/
-├── compose.yaml
-├── compose/
-│   ├── dev.yaml
-│   ├── debug.yaml
-│   ├── test.yaml
-│   ├── stage.yaml
-│   ├── prod.yaml
-│   ├── proxy.yaml
-│   └── tools.yaml
-├── config/
-│   ├── odoo/
-│   │   ├── odoo.conf
-│   │   └── requirements.txt
-│   └── logrotate/
-│       └── odoo
-├── resources/
-│   └── odoo/
-│       └── entrypoint.sh
-├── moo
-├── scripts/
-├── odoo/
-│   └── custom/
-│       └── src/
-│           └── private/
+  return `${options.devRepo}/                          # Development environment root
+├── compose.yaml                            # Base Docker Compose file
+├── compose/                                # Compose overlays for each workflow
+│   ├── dev.yaml                            # Local development services
+│   ├── debug.yaml                          # Debug tooling and debug-friendly settings
+│   ├── test.yaml                           # Test runner services and test database setup
+│   ├── stage.yaml                          # Staging-like deployment overlay
+│   ├── prod.yaml                           # Production deployment overlay
+│   ├── proxy.yaml                          # Reverse proxy / edge routing overlay
+│   └── tools.yaml                          # Optional maintenance and helper tools
+├── config/                                 # Runtime configuration mounted into containers
+│   ├── odoo/                               # Odoo server configuration
+│   │   ├── odoo.conf                       # Main Odoo configuration file
+│   │   └── requirements.txt                # Extra Python dependencies for the Odoo container
+│   └── logrotate/                          # Log rotation configuration
+│       └── odoo                            # Logrotate rules for Odoo logs
+├── resources/                              # Container-side helper resources
+│   └── odoo/                               # Resources specific to the Odoo service
+│       └── entrypoint.sh                   # Container startup script that discovers addons
+├── moo                                     # Local command hub shortcut
+├── scripts/                                # Shell scripts used by the local command hub
+├── odoo/                                   # Odoo workspace data and custom source tree
+│   └── custom/                             # Custom addon layer for this environment
+│       ├── src/                            # Source repository checkout root
+│       │   ├── private/                    # Project-owned/private addon repositories
 ${sourceRepoRows}
-├── docs/
-│   ├── appstore-release.md
-│   └── compose.md
-├── .env.example
-├── README.md
-└── AGENTS.md`;
+│       │   ├── oca/                        # OCA addon repositories
+│       │   └── external/                   # Non-OCA third-party addon repositories
+│       ├── patches/                        # Local patches for upstream repositories
+│       └── manifests/                      # Source manifests, locks, and pinned revisions
+├── docs/                                   # Project-specific documentation
+│   ├── appstore-release.md                 # Odoo App Store release checklist and notes
+│   └── compose.md                          # Compose layout and operations reference
+├── .env.example                            # Template for local environment variables
+├── README.md                               # This environment overview
+└── AGENTS.md                               # Agent instructions for this environment`;
 }
 
 function sourceRepoDocs(options: CreateOptions): string {
   if (!hasSourceRepos(options)) {
     return `This environment was scaffolded without source repository submodules.
 Add source repositories later from the cockpit or with \`npx @wpmoo/odoo add-repo\`.
-They will be added under \`odoo/custom/src/private\`.`;
+They can be organized under:
+
+\`odoo/custom/src/private\` for project-owned/private addon repositories,
+\`odoo/custom/src/oca\` for OCA repositories, and
+\`odoo/custom/src/external\` for non-OCA third-party repositories.
+
+Pinned external manifests and local patches should live under
+\`odoo/custom/manifests\` and \`odoo/custom/patches\` respectively.`;
   }
 
   return options.sourceRepos
@@ -89,6 +105,9 @@ Submodule path:
 \`\`\`text
 odoo/custom/src/private/${repo.path}
 \`\`\`
+
+Note: If this repository is an OCA or third-party source, place it under
+\`odoo/custom/src/oca\` or \`odoo/custom/src/external\` according to your policy.
 
 Expected addon layout:
 
@@ -173,7 +192,7 @@ function environmentKind(): string {
 }
 
 function repoDuplicationNote(): string {
-  return 'Keep these repositories under `odoo/custom/src/private`; the Compose entrypoint exposes discovered addons through `/mnt/wpmoo-addons`.';
+  return 'Keep source repositories under the relevant source directory (`private`, `oca`, or `external`); the Compose entrypoint exposes discovered addons through `/mnt/wpmoo-addons`.';
 }
 
 function verificationCommand(options: CreateOptions): string {
@@ -201,7 +220,8 @@ Set WPMOO_ENV=stage or WPMOO_ENV=prod only after providing production-grade secr
 If copied from the standalone resource, additional compose notes are in
 \`docs/compose.md\`.
 
-Source repositories stay under \`odoo/custom/src/private\` when configured. At
+Source repositories stay under \`odoo/custom/src/{private,oca,external}\` when
+configured. At
 container startup, \`entrypoint.sh\` scans those repositories for addons and
 exposes them through \`/mnt/wpmoo-addons\`.
 
@@ -589,7 +609,8 @@ export function renderReadme(options: CreateOptions): string {
 Private ${environmentKind()} development environment for the ${title} product.
 
 This folder owns the development environment only. Product source code lives
-in source repository submodules under \`odoo/custom/src/private\` when source
+in source repository submodules under \`odoo/custom/src/private\`,
+\`odoo/custom/src/oca\`, or \`odoo/custom/src/external\` when source
 repositories are connected.
 
 ## Repository Layout
@@ -640,7 +661,8 @@ export function renderAgents(options: CreateOptions): string {
     ? options.sourceRepos.map((repo) => `- \`${repo.path}\`: \`${repo.url}\``).join('\n')
     : '- No source repositories are configured yet.';
   const sourceLayout = hasSourceRepos(options)
-    ? `Product repositories are Git submodules:
+    ? `Product repositories are Git submodules. They are listed under the private
+source directory below for this environment:
 
 \`\`\`text
 ${options.sourceRepos.map((repo) => `odoo/custom/src/private/${repo.path}`).join('\n')}

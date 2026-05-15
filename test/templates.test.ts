@@ -65,6 +65,7 @@ describe('template rendering', () => {
     expect(readme).toContain('Odoo Sample Module Development Environment');
     expect(readme).toContain('git clone --recurse-submodules https://github.com/example-org/odoo_sample_module_dev.git');
     expect(readme).toContain('odoo/custom/src/private/odoo_sample_module_reports');
+    expect(readme).toContain('odoo/custom/src/{private,oca,external}');
     expect(readme).toContain('./moo start');
     expect(readme).toContain('./moo stop');
     expect(readme).toContain('./moo logs odoo');
@@ -94,10 +95,24 @@ describe('template rendering', () => {
     expect(readme).toContain('compose/prod.yaml');
     expect(readme).toContain('config/odoo/odoo.conf');
     expect(readme).toContain('resources/odoo/entrypoint.sh');
+    expect(readme).toContain('compose.yaml                            # Base Docker Compose file');
+    expect(readme).toContain('odoo/                                   # Odoo workspace data and custom source tree');
+    expect(readme).toContain('private/                    # Project-owned/private addon repositories');
+    expect(readme).toContain('oca/                        # OCA addon repositories');
+    expect(readme).toContain('external/                   # Non-OCA third-party addon repositories');
+    expect(readme).toContain('patches/                        # Local patches for upstream repositories');
+    expect(readme).toContain('manifests/                      # Source manifests, locks, and pinned revisions');
+    expect(readme).not.toContain('private/\n│           │   ├── README.md');
+    expect(readme).not.toContain('oca/\n│           │   └── README.md');
+    expect(readme).not.toContain('external/\n│           │   └── README.md');
+    expect(readme).not.toContain('patches/\n│       │   └── README.md');
+    expect(readme).not.toContain('manifests/\n│           └── README.md');
     expect(readme).toContain('Development uses compose.yaml plus compose/dev.yaml by default.');
     expect(readme).toContain(
       'Set WPMOO_ENV=stage or WPMOO_ENV=prod only after providing production-grade secrets and volumes.',
     );
+    expect(readme).toContain('Source repositories stay under');
+    expect(readme).toContain('odoo/custom/src/{private,oca,external}');
   });
 
   it('renders local-only README guidance when no source repos are configured yet', () => {
@@ -110,6 +125,11 @@ describe('template rendering', () => {
 
     expect(readme).toContain('This environment was scaffolded without source repository submodules.');
     expect(readme).toContain('Add source repositories later from the cockpit or with `npx @wpmoo/odoo add-repo`.');
+    expect(readme).toContain('odoo/custom/src/private');
+    expect(readme).toContain('odoo/custom/src/oca');
+    expect(readme).toContain('odoo/custom/src/external');
+    expect(readme).toContain('odoo/custom/manifests');
+    expect(readme).toContain('odoo/custom/patches');
     expect(readme).not.toContain('git clone --recurse-submodules /tmp/custom_local_env');
   });
 
@@ -201,6 +221,8 @@ describe('template rendering', () => {
     });
 
     expect(readme).toContain('odoo/custom/src/private/odoo_sample_module');
+    expect(readme).toContain('odoo/custom/src/oca');
+    expect(readme).toContain('odoo/custom/src/external');
     expect(readme).not.toContain('Pro repository');
     expect(readme).not.toContain('private paid/pro modules');
   });

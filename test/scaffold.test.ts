@@ -87,7 +87,19 @@ describe('scaffold', () => {
       '"sourceRepos": []',
     );
     await expect(readFile(join(target, 'odoo/custom/src/private/README.md'), 'utf8')).resolves.toContain(
-      'WPMoo source repositories',
+      'Project-owned/private addon repositories go here.',
+    );
+    await expect(readFile(join(target, 'odoo/custom/src/oca/README.md'), 'utf8')).resolves.toContain(
+      'OCA repositories go here',
+    );
+    await expect(readFile(join(target, 'odoo/custom/src/external/README.md'), 'utf8')).resolves.toContain(
+      'Non-OCA third-party, vendor, and community addon repositories go here.',
+    );
+    await expect(readFile(join(target, 'odoo/custom/patches/README.md'), 'utf8')).resolves.toContain(
+      'Local patches for upstream/vendor/OCA repositories go here.',
+    );
+    await expect(readFile(join(target, 'odoo/custom/manifests/README.md'), 'utf8')).resolves.toContain(
+      'Manifest/lock/list files for external sources and pinned revisions go here.',
     );
     expect(gitCalls).toEqual([]);
   });
@@ -127,6 +139,10 @@ describe('scaffold', () => {
 
     expect(result.plannedFiles).toContain('.gitignore');
     expect(result.plannedFiles).toContain('moo');
+    expect(result.plannedFiles).toContain('odoo/custom/src/oca/README.md');
+    expect(result.plannedFiles).toContain('odoo/custom/src/external/README.md');
+    expect(result.plannedFiles).toContain('odoo/custom/patches/README.md');
+    expect(result.plannedFiles).toContain('odoo/custom/manifests/README.md');
     await expect(stat(join(target, '.gitignore'))).rejects.toThrow();
   });
 
@@ -271,7 +287,7 @@ describe('scaffold', () => {
     );
     await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toContain('ODOO_TEST_MODULE=odoo_sample_module');
     await expect(readFile(join(target, 'odoo/custom/src/private/README.md'), 'utf8')).resolves.toContain(
-      'WPMoo source repositories',
+      'Project-owned/private addon repositories go here.',
     );
     await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain(
       'exec npx --yes @wpmoo/odoo@latest "$@"',
