@@ -15,8 +15,8 @@ Usage:
   npx @wpmoo/odoo source remove --repo <name> [--source-type private|oca|external]
   npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
   npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name>
-  npx @wpmoo/odoo reset
-  npx @wpmoo/odoo doctor
+  npx @wpmoo/odoo reset [--dry-run]
+  npx @wpmoo/odoo doctor [--fix]
   npx @wpmoo/odoo start
   npx @wpmoo/odoo stop
   npx @wpmoo/odoo logs [service]
@@ -87,6 +87,7 @@ Wizard local-only path:
 Status and doctor:
   status: fast and offline. Reads local environment metadata and files only.
   doctor: deeper health check. May check Docker CLI access and GitHub workflows.
+  doctor --fix: applies safe file-level repairs. Runs doctor again after fixes.
 
 Task recipes:
   Create environment:
@@ -105,11 +106,13 @@ Task recipes:
     npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
   Safe reset and recover:
     npx @wpmoo/odoo snapshot [db] [snapshot-name]
+    npx @wpmoo/odoo reset --dry-run
     npx @wpmoo/odoo reset
     npx @wpmoo/odoo restore-snapshot <snapshot-name> [db]
   Daily command checks:
     npx @wpmoo/odoo status
     npx @wpmoo/odoo doctor
+    npx @wpmoo/odoo doctor --fix
     npx @wpmoo/odoo logs [service]
     npx @wpmoo/odoo restart
 

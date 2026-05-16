@@ -139,10 +139,12 @@ npx @wpmoo/odoo --version
 
 npx @wpmoo/odoo status
 npx @wpmoo/odoo doctor
+npx @wpmoo/odoo doctor --fix
 npx @wpmoo/odoo add-repo --repo-url https://github.com/example-org/odoo_sample_module_reports.git
 npx @wpmoo/odoo remove-repo --repo odoo_sample_module_reports
 npx @wpmoo/odoo add-module --repo odoo_sample_module --module odoo_sample_module_base
 npx @wpmoo/odoo remove-module --repo odoo_sample_module --module odoo_sample_module_base
+npx @wpmoo/odoo reset --dry-run
 npx @wpmoo/odoo reset
 
 npx @wpmoo/odoo start
@@ -346,9 +348,15 @@ Docker Compose access, GitHub CLI authentication when available, and PostgreSQL
 18 compatibility in compose mount targets (for mounts to
 `/var/lib/postgresql/data` or `/var/lib/postgresql/18/docker`).
 
+Use `doctor --fix` for safe file-level repairs. It can normalize PostgreSQL 18
+mount targets and regenerate `odoo/custom/manifests/sources.yaml` from
+metadata plus `.gitmodules`, then it runs doctor again and reports any remaining
+manual issues.
+
 Safe reset refreshes generated environment files without deleting product source code:
 
 ```bash
+npx @wpmoo/odoo reset --dry-run
 npx @wpmoo/odoo reset
 ```
 
@@ -356,6 +364,9 @@ Safe reset updates generated files such as `.wpmoo/odoo.json`, `moo`,
 `.gitignore`, `.env.example`, generated docs, compose assets, and optional
 Agent Skills. Compose overlays like `compose.yaml` and `compose/dev.yaml` are
 also refreshed from the current compose template source.
+
+Use `reset --dry-run` first when you want a deterministic preview of refreshed
+files and cleanup warnings without writing to the environment.
 
 It does not touch source repo folders under
 `odoo/custom/src/private`, module source code, Git history, remotes, or
@@ -373,8 +384,9 @@ Recommended recovery pattern:
 
 ```bash
 ./moo snapshot devel before-reset
+npx @wpmoo/odoo reset --dry-run
 npx @wpmoo/odoo reset
-npx @wpmoo/odoo doctor
+npx @wpmoo/odoo doctor --fix
 ./moo restore-snapshot before-reset devel
 ```
 

@@ -21,7 +21,7 @@ import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
 import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
 import { isDailyActionCommand, runDailyAction } from './daily-actions.js';
-import { runDoctor } from './doctor.js';
+import { runDoctor, type DoctorCommandOptions } from './doctor.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import {
@@ -612,12 +612,33 @@ function removeRepoOptionsFromArgs(argv: string[]): RemoveModuleRepoOptions | un
   };
 }
 
-function resetOptionsFromArgs(argv: string[]): SafeResetOptions {
+type ResetCommandOptions = SafeResetOptions & {
+  dryRun: boolean;
+};
+
+function resetCommandOptionsFromArgs(argv: string[]): ResetCommandOptions {
   const { values } = parseArgs(argv);
 
   return {
     target: resolve(stringOption(values, 'target') ?? process.cwd()),
     stage: booleanOption(values, 'stage', true),
+    dryRun: booleanOption(values, 'dryRun', false),
+  };
+}
+
+function doctorOptionsFromArgs(argv: string[]): DoctorCommandOptions {
+  if (argv.length === 0) {
+    return {};
+  }
+
+  const { values } = parseArgs(argv);
+  const keys = Object.keys(values);
+  if (keys.length !== 1 || !Object.hasOwn(values, 'fix')) {
+    throw new Error('Usage: wpmoo doctor');
+  }
+
+  return {
+    fix: booleanOption(values, 'fix', false),
   };
 }
 
@@ -1094,18 +1115,22 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
 
   if (route.command === 'reset') {
     console.log(renderBanner());
-    const options = resetOptionsFromArgs(route.argv);
-    await safeResetEnvironment(options);
+    const options = resetCommandOptionsFromArgs(route.argv);
+    if (options.dryRun) {
+      console.log(renderSafeResetPreview(options.target, options.stage));
+      return;
+    }
+
+    const resetOptions: SafeResetOptions = { target: options.target, stage: options.stage };
+    await safeResetEnvironment(resetOptions);
     outro(`Safe reset refreshed generated environment files in ${options.target}.`);
     return;
   }
 
   if (route.command === 'doctor') {
-    if (route.argv.length > 0) {
-      throw new Error('Usage: wpmoo doctor');
-    }
+    const options = doctorOptionsFromArgs(route.argv);
     console.log(renderBanner());
-    console.log(await runDoctor(cwd));
+    console.log(options.fix === undefined ? await runDoctor(cwd) : await runDoctor(cwd, options));
     return;
   }
 

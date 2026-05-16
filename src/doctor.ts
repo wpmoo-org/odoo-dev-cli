@@ -1,4 +1,4 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { execa } from 'execa';
@@ -6,11 +6,14 @@ import { execa } from 'execa';
 import { detectComposeLayout, readEnvFile, selectedComposeEnvironment } from './compose-layout.js';
 import { dailyActionScripts } from './daily-actions.js';
 import { defaultPostgresVersion } from './external-templates.js';
-import { defaultOdooVersion, markerPath } from './environment.js';
+import { defaultOdooVersion, markerPath, replaceSourceRepos } from './environment.js';
 import {
   listGitmoduleSources,
   readSourceManifest,
+  sourceReposFromManifest,
   sourceManifestPath,
+  syncManifestFromMetadataAndGitmodules,
+  writeSourceManifest,
   type SourceManifestEntry,
   type SourceModuleLocation,
 } from './source-manifest.js';
@@ -21,6 +24,10 @@ export type DoctorCommandRunner = (
   args: string[],
   options: { cwd: string },
 ) => Promise<{ stdout: string; stderr: string }>;
+
+export type DoctorCommandOptions = {
+  fix?: boolean;
+};
 
 const realCommandRunner: DoctorCommandRunner = async (command, args, options) => {
   const result = await execa(command, args, { cwd: options.cwd });
@@ -57,6 +64,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isDoctorOptions(value: DoctorCommandRunner | DoctorCommandOptions): value is DoctorCommandOptions {
+  return isRecord(value);
+}
+
 const incompatiblePostgres18MountTargets = ['/var/lib/postgresql/data', '/var/lib/postgresql/18/docker'];
 
 function parsePostgresMajorFromValue(value: string | undefined): string | undefined {
@@ -83,6 +94,57 @@ function hasInvalidPostgres18Mount(line: string, mountTarget: string): boolean {
     new RegExp(`^\\s*target:\\s*['"]?${escaped}['"]?(?:\\s|$)`),
   ];
   return shortPatterns.some((pattern) => pattern.test(line));
+}
+
+function isNonAmbiguousLineForMountFix(line: string, mountTarget: string): boolean {
+  return hasInvalidPostgres18Mount(line, mountTarget);
+}
+
+function replaceMountTargetInLine(line: string, from: string, to: string): string {
+  return line.split(from).join(to);
+}
+
+function normalizePostgres18MountTargetsInComposeContent(content: string): {
+  content: string;
+  fixed: string[];
+  fixedTargets: string[];
+} {
+  const fixedTargets: string[] = [];
+  const fixed: string[] = [];
+  const hasTrailingNewline = content.endsWith('\n');
+  const comparableContent = hasTrailingNewline ? content.slice(0, -1) : content;
+  const lines = comparableContent.split(/\r?\n/);
+  const nextLines: string[] = [];
+
+  for (const line of lines) {
+    const commentIndex = line.indexOf('#');
+    const comment = commentIndex === -1 ? '' : line.slice(commentIndex);
+    const body = commentIndex === -1 ? line : line.slice(0, commentIndex);
+    let nextBody = body;
+    let lineFixed = false;
+
+    for (const target of incompatiblePostgres18MountTargets) {
+      if (!isNonAmbiguousLineForMountFix(body, target)) continue;
+      nextBody = replaceMountTargetInLine(nextBody, target, '/var/lib/postgresql');
+      if (!fixedTargets.includes(target)) {
+        fixedTargets.push(target);
+      }
+      lineFixed = true;
+    }
+
+    if (lineFixed) {
+      fixed.push(line);
+      nextLines.push(`${nextBody}${comment}`);
+    } else {
+      nextLines.push(line);
+    }
+  }
+
+  return {
+    content: `${nextLines.join('\n')}${hasTrailingNewline ? '\n' : ''}`,
+    fixed,
+    fixedTargets,
+  };
 }
 
 function invalidPostgres18MountTargetsInCompose(content: string): string[] {
@@ -247,6 +309,7 @@ function checkSourceConsistency(
   manifestEntries: SourceManifestEntry[],
   gitmoduleSources: SourceModuleLocation[],
   manifestExists: boolean,
+  gitmodulesExists: boolean,
 ): string[] {
   if (!manifestExists) {
     return [];
@@ -281,7 +344,7 @@ function checkSourceConsistency(
       errors.push(`Manifest source entry missing in metadata: ${formatKeyForPath(key)}`);
     }
 
-    if (!gitmoduleSet.has(key)) {
+    if (gitmodulesExists && !gitmoduleSet.has(key)) {
       errors.push(`Manifest source path missing in .gitmodules: ${formatKeyForPath(key)}`);
     }
   }
@@ -289,10 +352,25 @@ function checkSourceConsistency(
   return errors;
 }
 
+async function repairSourceManifestFromDiscoveredState(
+  target: string,
+  sourceRepos: SourceRepo[],
+  fallbackBranch: string,
+  gitmoduleSources: SourceModuleLocation[],
+): Promise<void> {
+  const entries = syncManifestFromMetadataAndGitmodules(sourceRepos, fallbackBranch, gitmoduleSources);
+  await writeSourceManifest(target, entries);
+  await replaceSourceRepos(target, sourceReposFromManifest(entries));
+}
+
 export async function runDoctor(
   target = process.cwd(),
-  runner: DoctorCommandRunner = realCommandRunner,
+  runnerOrOptions: DoctorCommandRunner | DoctorCommandOptions = realCommandRunner,
+  options: DoctorCommandOptions = {},
 ): Promise<string> {
+  const actualRunner = isDoctorOptions(runnerOrOptions) ? realCommandRunner : runnerOrOptions;
+  const actualOptions = isDoctorOptions(runnerOrOptions) ? runnerOrOptions : options;
+  const appliedFixes: string[] = [];
   const lines = ['WPMoo doctor'];
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -336,6 +414,17 @@ export async function runDoctor(
           continue;
         }
 
+        if (actualOptions.fix) {
+          const normalization = normalizePostgres18MountTargetsInComposeContent(content);
+          if (normalization.fixed.length > 0) {
+            await writeFile(composePath, normalization.content, 'utf8');
+            for (const target of normalization.fixedTargets) {
+              appliedFixes.push(`Normalized PostgreSQL 18 mount target in '${file}': replaced '${target}' -> '/var/lib/postgresql'`);
+            }
+            continue;
+          }
+        }
+
         const badMounts = invalidPostgres18MountTargetsInCompose(content);
         for (const badMount of badMounts) {
           errors.push(
@@ -370,24 +459,44 @@ export async function runDoctor(
   const manifestPath = join(target, sourceManifestPath);
   const hasManifest = await exists(manifestPath);
   let manifestEntries: SourceManifestEntry[] = [];
+  let manifestReadError: string | undefined;
   if (hasManifest) {
     try {
       manifestEntries = (await readSourceManifest(target)).sources;
     } catch (error) {
-      errors.push(`Failed to read source manifest ${sourceManifestPath}: ${errorMessage(error)}`);
+      manifestReadError = `Failed to read source manifest ${sourceManifestPath}: ${errorMessage(error)}`;
+      if (!actualOptions.fix) {
+        errors.push(manifestReadError);
+      }
     }
   }
 
   const gitmoduleSources = await listGitmoduleSources(target);
-  if (errors.length === 0 || manifestEntries.length > 0) {
-    errors.push(
-      ...checkSourceConsistency(
-        sourceRepos,
-        manifestEntries,
-        gitmoduleSources,
-        hasManifest,
-      ),
-    );
+  const hasGitmodules = await exists(join(target, '.gitmodules'));
+  const sourceConsistencyIssues: string[] = !manifestReadError
+    ? checkSourceConsistency(sourceRepos, manifestEntries, gitmoduleSources, hasManifest, hasGitmodules)
+    : [];
+
+  const shouldSyncSources =
+    actualOptions.fix &&
+    (manifestReadError || sourceConsistencyIssues.length > 0 || (!hasManifest && (sourceRepos.length > 0 || gitmoduleSources.length > 0)));
+
+  if (sourceConsistencyIssues.length > 0) {
+    if (actualOptions.fix) {
+      const uniqueIssues = [...new Set(sourceConsistencyIssues)];
+      appliedFixes.push(...uniqueIssues.map((issue) => `Will regenerate source manifest and metadata to fix: ${issue}`));
+    } else {
+      errors.push(...sourceConsistencyIssues);
+    }
+  } else if (manifestReadError) {
+    appliedFixes.push('Will regenerate source manifest and metadata after repairing source manifest read failure.');
+  } else if (shouldSyncSources) {
+    appliedFixes.push('Will create missing source manifest from metadata and .gitmodules state.');
+  }
+
+  if (shouldSyncSources && actualOptions.fix) {
+    await repairSourceManifestFromDiscoveredState(target, sourceRepos, odooVersion, gitmoduleSources);
+    appliedFixes.push('Synced source manifest and metadata with current metadata/.gitmodules state.');
   }
 
   if (env) {
@@ -402,14 +511,14 @@ export async function runDoctor(
   }
 
   try {
-    await runner('docker', ['version'], { cwd: target });
+    await actualRunner('docker', ['version'], { cwd: target });
     lines.push('OK docker CLI');
   } catch (error) {
     errors.push(`Docker CLI check failed: ${errorMessage(error)}`);
   }
 
   try {
-    await runner('docker', ['compose', 'version'], { cwd: target });
+    await actualRunner('docker', ['compose', 'version'], { cwd: target });
     lines.push('OK docker compose');
   } catch (error) {
     errors.push(`Docker Compose check failed: ${errorMessage(error)}`);
@@ -417,7 +526,7 @@ export async function runDoctor(
 
   if (sourceRepos.length > 0) {
     try {
-      const result = await runner('git', ['submodule', 'status', '--recursive'], { cwd: target });
+      const result = await actualRunner('git', ['submodule', 'status', '--recursive'], { cwd: target });
       const submoduleErrors = sourceSubmoduleStatusErrors(result.stdout, sourceRepos);
       errors.push(...submoduleErrors);
       if (submoduleErrors.length === 0) {
@@ -433,17 +542,34 @@ export async function runDoctor(
   }
 
   try {
-    await runner('gh', ['auth', 'status'], { cwd: target });
+    await actualRunner('gh', ['auth', 'status'], { cwd: target });
     lines.push('OK GitHub CLI auth');
   } catch (error) {
     warnings.push(`WARN GitHub CLI auth: ${errorMessage(error)}`);
   }
 
   if (errors.length > 0) {
+    if (actualOptions.fix && appliedFixes.length > 0) {
+      return [
+        'Doctor auto-fixes were not enough to satisfy all checks.',
+        ...appliedFixes.map((fix) => `- ${fix}`),
+        renderFailure(errors),
+      ].join('\n');
+    }
     throw new Error(renderFailure(errors));
   }
 
   lines.push(...warnings);
   lines.push('Doctor checks passed.');
-  return lines.join('\n');
+  const report = lines.join('\n');
+  if (actualOptions.fix && appliedFixes.length > 0) {
+    const postFixReport = await runDoctor(target, actualRunner, { ...actualOptions, fix: false });
+    return [
+      'Applied safe doctor fixes:',
+      ...appliedFixes.map((fix) => `- ${fix}`),
+      '',
+      postFixReport,
+    ].join('\n');
+  }
+  return report;
 }

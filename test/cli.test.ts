@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   runDoctor: vi.fn(async () => 'doctor report'),
   runDailyAction: vi.fn(async () => undefined),
   safeResetEnvironment: vi.fn(async () => undefined),
+  renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
   scaffold: vi.fn(async () => ({
     plannedFiles: ['planned/file-a.txt'],
     plannedCommands: ['npm run example'],
@@ -41,6 +42,7 @@ vi.mock('../src/safe-reset.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/safe-reset.js')>();
   return {
     ...actual,
+    renderSafeResetPreview: mocks.renderSafeResetPreview,
     safeResetEnvironment: mocks.safeResetEnvironment,
   };
 });
@@ -127,6 +129,18 @@ describe('cli runCli', () => {
     expect(logSpy).toHaveBeenCalledWith('doctor report');
   });
 
+  it('runs doctor with --fix in the provided cwd', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    mocks.runDoctor.mockResolvedValueOnce('doctor fixed report');
+    const { runCli } = await loadCli();
+
+    await runCli(['doctor', '--fix'], '/tmp/example');
+
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith('doctor fixed report');
+    expect(mocks.runDoctor).toHaveBeenCalledWith('/tmp/example', { fix: true });
+  });
+
   it('runs daily actions with argv and cwd', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const { runCli } = await loadCli();
@@ -147,6 +161,18 @@ describe('cli runCli', () => {
       target: '/tmp/example',
       stage: false,
     });
+  });
+
+  it('runs reset dry-run and prints a deterministic preview', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await runCli(['reset', '--target', '/tmp/example', '--stage=false', '--dry-run'], '/tmp/ignored-cwd');
+
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith('safe reset preview');
+    expect(mocks.renderSafeResetPreview).toHaveBeenCalledWith('/tmp/example', false);
+    expect(mocks.safeResetEnvironment).not.toHaveBeenCalled();
   });
 
   it('prints dry-run scaffold plan for create --dry-run', async () => {

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   addModuleToSourceRepo: vi.fn(async () => undefined),
   removeModuleFromSourceRepo: vi.fn(async () => undefined),
   safeResetEnvironment: vi.fn(async () => undefined),
+  renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
   listSources: vi.fn(async () => [] as unknown[]),
   renderSourceList: vi.fn(() => 'mock source list'),
   syncSources: vi.fn(async () => [] as unknown[]),
@@ -53,6 +54,7 @@ vi.mock('../src/safe-reset.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/safe-reset.js')>();
   return {
     ...actual,
+    renderSafeResetPreview: mocks.renderSafeResetPreview,
     safeResetEnvironment: mocks.safeResetEnvironment,
   };
 });
@@ -376,5 +378,29 @@ describe('cli direct command routes', () => {
 
     await expect(runCli(['doctor', '--unexpected'], '/tmp/example')).rejects.toThrow('Usage: wpmoo doctor');
     expect(mocks.runDoctor).not.toHaveBeenCalled();
+  });
+
+  it('routes doctor --fix to the doctor fixer', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await runCli(['doctor', '--fix'], '/tmp/example');
+
+    expect(mocks.runDoctor).toHaveBeenCalledWith('/tmp/example', { fix: true });
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith('doctor report');
+  });
+
+  it('routes reset --dry-run to the preview without writing files', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-reset-preview');
+
+    await runCli(['reset', '--target', target, '--stage=false', '--dry-run'], '/tmp/ignored-cwd');
+
+    expect(mocks.renderSafeResetPreview).toHaveBeenCalledWith(target, false);
+    expect(mocks.safeResetEnvironment).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith('safe reset preview');
   });
 });

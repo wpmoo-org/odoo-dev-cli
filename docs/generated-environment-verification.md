@@ -21,11 +21,12 @@ not validate staging or production deployments.
 | Compose resource files | Compact compose layout is present (`compose.yaml` + environment overlays under `compose/`), plus config/resources/scripts. | `npx @wpmoo/odoo create ...` |
 | `./moo` delegation | `./moo` dispatches fixed daily actions to the matching script and preserves argument pass-through. | `./moo <action> ...` |
 | Doctor checks | Metadata, compose files, scripts, source repo paths, and local tooling checks behave as expected. | `npx @wpmoo/odoo doctor` or `./moo doctor` |
-| Generated Postgres checks | For PostgreSQL 18 environments, doctor validates db mount targets avoid old PG image-specific paths. | `npx @wpmoo/odoo doctor` |
+| Doctor safe fixes | Safe file-level fixes are applied only with `--fix`, then doctor runs again and reports any remaining manual issues. | `npx @wpmoo/odoo doctor --fix` |
+| Generated Postgres checks | For PostgreSQL 18 environments, doctor validates db mount targets avoid old PG image-specific paths and can normalize safe targets with `--fix`. | `npx @wpmoo/odoo doctor`, `npx @wpmoo/odoo doctor --fix` |
 | Source repo add/remove | Source repository registration and submodule lifecycle behave correctly. | `npx @wpmoo/odoo add-repo ...`, `npx @wpmoo/odoo remove-repo ...` |
 | Source manifest sync | Source repo metadata, `.gitmodules`, and `odoo/custom/manifests/sources.yaml` stay aligned. | `npx @wpmoo/odoo source list`, `npx @wpmoo/odoo source sync` |
 | Module add/remove | Module registration changes are applied to the selected source repo config. | `npx @wpmoo/odoo add-module ...`, `npx @wpmoo/odoo remove-module ...` |
-| Safe reset | Generated files are refreshed (including `compose.yaml` overlays and env example) without deleting source module code. Local runtime/data directories and custom source layout content are preserved; legacy user-editable paths from older templates may remain and are reported for manual cleanup. | `npx @wpmoo/odoo reset` |
+| Safe reset | Generated files are refreshed (including `compose.yaml` overlays and env example) without deleting source module code. Local runtime/data directories and custom source layout content are preserved; legacy user-editable paths from older templates may remain and are reported for manual cleanup. | `npx @wpmoo/odoo reset --dry-run`, `npx @wpmoo/odoo reset` |
 | Snapshot/restore and lint/pot | These actions are delegated by `./moo` to compose scripts without extra package-side logic. | `./moo snapshot ...`, `./moo restore-snapshot ...`, `./moo lint`, `./moo pot ...` |
 
 ## Compact compose checks
@@ -56,6 +57,10 @@ volume and tmpfs mount targets use `/var/lib/postgresql` directly:
 Paths such as `/var/lib/postgresql/data` and `/var/lib/postgresql/18/docker` are
 no longer accepted by the package `doctor` check.
 
+`doctor --fix` may rewrite these safe mount targets to `/var/lib/postgresql`.
+It does not upgrade existing database data; if a real PostgreSQL major upgrade
+is involved, use PostgreSQL upgrade tooling first.
+
 ## Safe reset policy
 
 Safe reset intentionally avoids deleting user-editable legacy paths from old
@@ -80,6 +85,9 @@ odoo/custom/patches/
 odoo/custom/manifests/
 ```
 
+Run `npx @wpmoo/odoo reset --dry-run` before writing changes when you need to
+review the generated file refresh plan.
+
 ## Source manifest checks
 
 Generated environments include `odoo/custom/manifests/sources.yaml`. The manifest
@@ -99,8 +107,10 @@ manifest and normalize `.wpmoo/odoo.json` source entries:
 npx @wpmoo/odoo source sync
 ```
 
-`doctor` fails when manifest entries, metadata entries, and source submodule
-paths diverge.
+`doctor` fails when manifest entries, metadata entries, and registered source
+submodule paths diverge. `doctor --fix` can regenerate
+`odoo/custom/manifests/sources.yaml` from metadata plus `.gitmodules` when the
+manifest is missing, unreadable, or stale.
 
 ## Local verification commands
 

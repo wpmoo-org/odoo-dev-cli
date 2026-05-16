@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { dailyActionScripts } from '../src/daily-actions.js';
 import { runDoctor, type DoctorCommandRunner } from '../src/doctor.js';
 import { markerPath } from '../src/environment.js';
+import { sourceManifestPath } from '../src/source-manifest.js';
 
 const baseMetadata = {
   tool: '@wpmoo/odoo',
@@ -270,6 +271,56 @@ describe('doctor', () => {
 
     await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
       "PostgreSQL 18 compatibility issue in 'compose/dev.yaml': mount target '/var/lib/postgresql/18/docker' is invalid",
+    );
+  });
+
+  it('fixes incompatible PostgreSQL 18 mount targets without adding blank lines', async () => {
+    const composeContent = 'services:\n  db:\n    image: postgres:18\n    volumes:\n      - pg-data:/var/lib/postgresql/data\n';
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+      composeFiles: {
+        'docker-compose_19.0.yml': composeContent,
+      },
+    });
+
+    const output = await runDoctor(target, passingDockerRunner(), { fix: true });
+
+    expect(output).toContain('Applied safe doctor fixes:');
+    expect(output).toContain(
+      "Normalized PostgreSQL 18 mount target in 'docker-compose_19.0.yml': replaced '/var/lib/postgresql/data' -> '/var/lib/postgresql'",
+    );
+    await expect(readFile(join(target, 'docker-compose_19.0.yml'), 'utf8')).resolves.toBe(
+      'services:\n  db:\n    image: postgres:18\n    volumes:\n      - pg-data:/var/lib/postgresql\n',
+    );
+  });
+
+  it('fixes a missing source manifest from metadata', async () => {
+    const target = await makeEnvironment();
+
+    const output = await runDoctor(target, passingDockerRunner(), { fix: true });
+
+    expect(output).toContain('Applied safe doctor fixes:');
+    expect(output).toContain('Synced source manifest and metadata with current metadata/.gitmodules state.');
+    await expect(readFile(join(target, sourceManifestPath), 'utf8')).resolves.toContain(
+      '    url: "https://github.com/example-org/odoo_sample_module.git"',
+    );
+  });
+
+  it('fixes an unreadable source manifest from metadata instead of failing the sync', async () => {
+    const target = await makeEnvironment();
+    await mkdir(join(target, 'odoo/custom/manifests'), { recursive: true });
+    await writeFile(
+      join(target, sourceManifestPath),
+      'sources:\n  - type: "private"\n    path: "odoo_sample_module"\n    url:\n',
+      'utf8',
+    );
+
+    const output = await runDoctor(target, passingDockerRunner(), { fix: true });
+
+    expect(output).toContain('Applied safe doctor fixes:');
+    expect(output).toContain('Will regenerate source manifest and metadata after repairing source manifest read failure.');
+    await expect(readFile(join(target, sourceManifestPath), 'utf8')).resolves.toContain(
+      '    url: "https://github.com/example-org/odoo_sample_module.git"',
     );
   });
 

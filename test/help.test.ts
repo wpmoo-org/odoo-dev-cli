@@ -20,6 +20,7 @@ describe('help', () => {
     expect(output).toContain('Status and doctor:');
     expect(output).toContain('status: fast and offline.');
     expect(output).toContain('doctor: deeper health check.');
+    expect(output).toContain('doctor --fix: applies safe file-level repairs.');
     expect(output).toContain('May check Docker CLI access and GitHub workflows.');
   });
 
@@ -41,6 +42,7 @@ describe('help', () => {
     expect(output).toContain('Add module:');
     expect(output).toContain('Run tests:');
     expect(output).toContain('Safe reset and recover:');
+    expect(output).toContain('npx @wpmoo/odoo reset --dry-run');
     expect(output).toContain('Daily command checks:');
   });
 
