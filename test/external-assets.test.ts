@@ -149,6 +149,29 @@ describe('external assets', () => {
     await expect(readFile(join(destination, '.agents/skills/skip-me/nested/SKILL.md'), 'utf8')).rejects.toThrow();
   });
 
+  it('replaces stale destination directories when the external asset now provides a file', async () => {
+    const source = await mkdtemp(join(tmpdir(), 'wpmoo-source-file-conflict-'));
+    const destination = await mkdtemp(join(tmpdir(), 'wpmoo-dest-file-conflict-'));
+
+    await mkdir(join(source, 'resources/generated-env/resources/odoo'), { recursive: true });
+    await writeFile(
+      join(source, 'resources/generated-env/resources/odoo/entrypoint.sh'),
+      '#!/usr/bin/env bash\nexec odoo\n',
+      'utf8',
+    );
+    await mkdir(join(destination, 'resources/odoo/entrypoint.sh'), { recursive: true });
+
+    await applyExternalAsset({
+      label: 'compose',
+      source,
+      sourceSubdirCandidates: ['resources/generated-env'],
+      destination,
+    });
+
+    await expect(readFile(join(destination, 'resources/odoo/entrypoint.sh'), 'utf8')).resolves.toContain('exec odoo');
+    expect((await stat(join(destination, 'resources/odoo/entrypoint.sh'))).isFile()).toBe(true);
+  });
+
   it('preserves executable mode on copied files', async () => {
     const source = await mkdtemp(join(tmpdir(), 'wpmoo-source-mode-'));
     const destination = await mkdtemp(join(tmpdir(), 'wpmoo-dest-mode-'));

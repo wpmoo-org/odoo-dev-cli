@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 
@@ -29,6 +29,14 @@ async function pathExists(path: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+async function statIfExists(path: string): Promise<Awaited<ReturnType<typeof stat>> | undefined> {
+  try {
+    return await stat(path);
+  } catch {
+    return undefined;
   }
 }
 
@@ -89,6 +97,33 @@ function isExcluded(relativePath: string, excludes: string[]): boolean {
   return excludes.some((pattern) => normalized === pattern || normalized.startsWith(`${pattern}/`));
 }
 
+async function removeDestinationTypeConflicts(
+  sourcePath: string,
+  destinationPath: string,
+  excludes: string[],
+): Promise<void> {
+  async function visit(source: string): Promise<void> {
+    const rel = relative(sourcePath, source);
+    if (rel && isExcluded(rel, excludes)) return;
+
+    const sourceStat = await stat(source);
+    const destination = rel ? join(destinationPath, rel) : destinationPath;
+    const destinationStat = await statIfExists(destination);
+    if (destinationStat && sourceStat.isDirectory() !== destinationStat.isDirectory()) {
+      await rm(destination, { recursive: true, force: true });
+    }
+
+    if (!sourceStat.isDirectory()) {
+      return;
+    }
+
+    const entries = await readdir(source);
+    await Promise.all(entries.map((entry) => visit(join(source, entry))));
+  }
+
+  await visit(sourcePath);
+}
+
 async function copyDirectory(options: ExternalAssetOptions, checkedOut: CheckedOutSource): Promise<void> {
   const selectedSourceSubdir = await selectSourceSubdir(options, checkedOut.root);
   const sourcePath = selectedSourceSubdir ? join(checkedOut.root, selectedSourceSubdir) : checkedOut.root;
@@ -102,6 +137,7 @@ async function copyDirectory(options: ExternalAssetOptions, checkedOut: CheckedO
 
   const excludes = [...defaultExcludes, ...(options.exclude ?? [])];
   await mkdir(destinationPath, { recursive: true });
+  await removeDestinationTypeConflicts(sourcePath, destinationPath, excludes);
   await cp(sourcePath, destinationPath, {
     recursive: true,
     force: true,
