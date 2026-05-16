@@ -497,7 +497,6 @@ describe('cli menu environment routes', () => {
       .mockResolvedValueOnce(cockpitCommand('list-modules'))
       .mockResolvedValueOnce(selectedModule)
       .mockResolvedValueOnce(moduleAction)
-      .mockResolvedValueOnce('back')
       .mockResolvedValueOnce('exit');
     const { runCli } = await loadCli();
 
@@ -513,6 +512,90 @@ describe('cli menu environment routes', () => {
     } finally {
       writeSpy.mockRestore();
       Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTTY });
+    }
+  });
+
+  it('returns from list-modules action results to the selected module action menu', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    const selectedModule = {
+      moduleName: 'odoo_sample_module_base',
+      repoPath: 'odoo_sample_module',
+      sourceType: 'private' as const,
+    };
+    const originalStdoutIsTTY = process.stdout.isTTY;
+    const originalStdinIsTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as never);
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    mocks.listModulesInEnvironment.mockResolvedValue([selectedModule]);
+    mocks.runDailyActionWithStyledOutput.mockImplementationOnce(async () => {
+      setImmediate(() => process.stdin.emit('keypress', '', { name: 'escape' }));
+    });
+    vi.mocked(prompts.isPromptCancel).mockImplementation((value) => String(value).startsWith('cancelled'));
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('list-modules'))
+      .mockResolvedValueOnce(selectedModule)
+      .mockResolvedValueOnce('update')
+      .mockResolvedValueOnce('cancelled-action-menu')
+      .mockResolvedValueOnce('cancelled-module-list')
+      .mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    try {
+      await runCli([], '/tmp/environment');
+
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledWith('update', ['odoo_sample_module_base'], '/tmp/environment');
+      const actionMenuCalls = vi.mocked(prompts.selectPrompt).mock.calls.filter((call) => {
+        const options = call[0] as { message?: string };
+        return options.message === 'Module: odoo_sample_module_base';
+      });
+      expect(actionMenuCalls).toHaveLength(2);
+      expect(writeSpy).toHaveBeenCalledWith('\u001B[2J\u001B[H');
+    } finally {
+      writeSpy.mockRestore();
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalStdoutIsTTY });
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalStdinIsTTY });
+    }
+  });
+
+  it('returns from direct update module results to the update module selection page', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    const originalStdoutIsTTY = process.stdout.isTTY;
+    const originalStdinIsTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as never);
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    mocks.listModulesInSourceRepo.mockResolvedValue(['odoo_sample_module_base']);
+    mocks.runDailyActionWithStyledOutput.mockImplementationOnce(async () => {
+      setImmediate(() => process.stdin.emit('keypress', '', { name: 'escape' }));
+    });
+    vi.mocked(prompts.isPromptCancel).mockImplementation((value) => value === 'cancelled-update-selection');
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('update'))
+      .mockResolvedValueOnce('odoo_sample_module_base')
+      .mockResolvedValueOnce('cancelled-update-selection')
+      .mockResolvedValueOnce('exit');
+    vi.mocked(prompts.textPrompt).mockResolvedValueOnce('');
+    const { runCli } = await loadCli();
+
+    try {
+      await runCli([], '/tmp/environment');
+
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledWith('update', ['odoo_sample_module_base'], '/tmp/environment');
+      expect(mocks.runDailyAction).not.toHaveBeenCalled();
+      const moduleSelectionCalls = vi.mocked(prompts.selectPrompt).mock.calls.filter((call) => {
+        const options = call[0] as { options?: Array<{ value: string }> };
+        return options.options?.some((option) => option.value === 'odoo_sample_module_base');
+      });
+      expect(moduleSelectionCalls).toHaveLength(2);
+      expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith('Update module');
+      expect(writeSpy).toHaveBeenCalledWith('\u001B[2J\u001B[H');
+    } finally {
+      writeSpy.mockRestore();
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalStdoutIsTTY });
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalStdinIsTTY });
     }
   });
 

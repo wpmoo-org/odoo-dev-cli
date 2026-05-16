@@ -12,14 +12,13 @@ import type { ListedModule } from '../module-actions.js';
 
 type ModuleActionChoice = PromptChoice<ModuleActionId>;
 
-export type ModuleActionId = 'delete' | 'update' | 'test' | 'lint' | 'back';
+export type ModuleActionId = 'delete' | 'update' | 'test' | 'lint';
 
 const moduleActions: readonly { id: ModuleActionId; label: string }[] = [
   { id: 'delete', label: 'Delete module' },
   { id: 'update', label: 'Update' },
   { id: 'test', label: 'Test' },
   { id: 'lint', label: 'Lint' },
-  { id: 'back', label: 'Back' },
 ];
 
 export type ModuleActionSelectPrompt = (options: {

@@ -31,21 +31,11 @@ describe('cockpit module action menu', () => {
       });
 
       const labels = options.choices.map(choiceLabel);
-      expect(labels).toEqual(['Delete module', 'Update', 'Test', 'Lint', 'Back']);
+      expect(labels).toEqual(['Delete module', 'Update', 'Test', 'Lint']);
       return 'update';
     });
 
     await expect(selectModuleAction(module, { select })).resolves.toEqual('update');
-  });
-
-  it('returns "back" when Back is selected', async () => {
-    const module: ListedModule = {
-      moduleName: 'odoo_sample_module_base',
-      repoPath: 'odoo_sample_module',
-      sourceType: 'private',
-    };
-    const select: ModuleActionSelectPrompt = vi.fn(async () => 'back');
-    await expect(selectModuleAction(module, { select })).resolves.toEqual('back');
   });
 
   it('returns undefined for non-action prompt values but still applies back handling', async () => {

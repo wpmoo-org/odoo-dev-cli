@@ -2,6 +2,7 @@
 import { realpathSync } from 'node:fs';
 import { rm, rename } from 'node:fs/promises';
 import { basename, relative, resolve } from 'node:path';
+import { emitKeypressEvents } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
@@ -342,13 +343,23 @@ function clearCockpitScreen(): void {
 const ANSI_ACTION = '\u001B[38;2;226;184;96m';
 const ANSI_SUCCESS = '\u001B[32m';
 const ANSI_DEFAULT_FOREGROUND = '\u001B[39m';
+const ANSI_DIM_INFO = '\u001B[2m\u001B[38;2;120;157;181m';
+const ANSI_RESET = '\u001B[0m';
 
 function renderActionText(value: string): string {
-  return `${ANSI_ACTION}${value}${ANSI_DEFAULT_FOREGROUND}`;
+  return ansi(value, ANSI_ACTION, ANSI_DEFAULT_FOREGROUND);
 }
 
 function renderCompletedText(action: string): string {
+  if (!supportsAnsi()) {
+    return `✓ ${action} completed.`;
+  }
+
   return `${ANSI_SUCCESS}✓${ANSI_DEFAULT_FOREGROUND} ${action} ${ANSI_SUCCESS}completed${ANSI_DEFAULT_FOREGROUND}.`;
+}
+
+function renderBackHelp(): string {
+  return ansi('Esc to go back', ANSI_DIM_INFO, ANSI_RESET);
 }
 
 async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: StartupBannerDetails): Promise<void> {
@@ -1345,62 +1356,123 @@ function moduleActionCompletedLabel(action: ModuleActionId): string {
   return 'Action';
 }
 
-async function renderModuleActionPageHeader(action: ModuleActionId, module: ListedModule, cwd: string): Promise<void> {
+function commandActionTitle(command: DailyActionCommand): string {
+  if (command === 'update') return 'Update module';
+  if (command === 'test') return 'Test module';
+  if (command === 'lint') return 'Run lint';
+  return command;
+}
+
+function commandCompletedLabel(command: DailyActionCommand): string {
+  if (command === 'install') return 'Install';
+  if (command === 'update') return 'Update';
+  if (command === 'test') return 'Test';
+  if (command === 'lint') return 'Lint';
+  if (command === 'pot') return 'Generate POT';
+  return command;
+}
+
+function shouldReturnToDailySelection(command: DailyActionCommand): boolean {
+  return ['install', 'update', 'test', 'pot'].includes(command);
+}
+
+function dailyActionSelectedLabel(command: DailyActionCommand, argv: readonly string[]): string | undefined {
+  if (['install', 'update', 'test', 'pot'].includes(command)) {
+    return argv[0];
+  }
+
+  return undefined;
+}
+
+async function renderDailyActionResultPageHeader(title: string, selectedLabel: string | undefined, cwd: string): Promise<void> {
   const status = await getEnvironmentStatus(cwd);
   const serviceStatus = await getServiceRuntimeStatus(cwd, status);
-  const title = moduleActionTitle(action);
 
   clearCockpitScreen();
   console.log(renderBanner(renderCockpitStatusLines(status, serviceStatus, `Last: ${title}`), { version: startupVersionLine() }));
   introPrompt(title);
-  console.log(renderActionText(module.moduleName));
-  console.log('');
+  if (selectedLabel) {
+    console.log(renderActionText(selectedLabel));
+    console.log('');
+  }
 }
 
-async function waitForModuleActionBack(): Promise<void> {
-  const selected = await selectPrompt({
-    message: '',
-    choices: [{ value: 'back', name: 'Back' }],
-    default: 'back',
-    loop: false,
-    hideMessage: true,
-    navigationHelp: 'back',
+async function waitForModuleActionBack(): Promise<boolean> {
+  console.log(renderBackHelp());
+  if (!process.stdin.isTTY) {
+    return false;
+  }
+
+  await new Promise<void>((resolve) => {
+    emitKeypressEvents(process.stdin);
+    const input = process.stdin;
+    const wasRaw = input.isRaw;
+    const listener = (_value: string, key: { ctrl?: boolean; name?: string; sequence?: string }) => {
+      if (key.ctrl && key.name === 'c') {
+        process.exit(1);
+      }
+      if (key.name === 'escape' || key.sequence === '\u001B') {
+        cleanup();
+        resolve();
+      }
+    };
+    const cleanup = () => {
+      input.off('keypress', listener);
+      if (typeof input.setRawMode === 'function') {
+        input.setRawMode(Boolean(wasRaw));
+      }
+      input.pause();
+    };
+
+    if (typeof input.setRawMode === 'function') {
+      input.setRawMode(true);
+    }
+    input.resume();
+    input.on('keypress', listener);
   });
 
-  try {
-    handleCancel(selected, 'back');
-  } catch (error) {
-    if (isMenuBackSignal(error)) {
-      return;
-    }
-    throw error;
-  }
+  return true;
 }
 
-async function runSelectedModuleDailyAction(action: ModuleActionId, module: ListedModule, cwd: string): Promise<void> {
-  const command = moduleDailyAction(action);
-  if (!command) {
-    return;
-  }
-
-  await renderModuleActionPageHeader(action, module, cwd);
+async function runDailyActionResultPage(
+  command: DailyActionCommand,
+  argv: string[],
+  cwd: string,
+  title = commandActionTitle(command),
+  selectedLabel = dailyActionSelectedLabel(command, argv),
+  completedLabel = commandCompletedLabel(command),
+): Promise<boolean> {
+  await renderDailyActionResultPageHeader(title, selectedLabel, cwd);
   try {
-    await runDailyActionWithStyledOutput(command, moduleDailyActionArgs(action, module), cwd);
-    notePrompt(renderCompletedText(moduleActionCompletedLabel(action)), 'Done');
+    await runDailyActionWithStyledOutput(command, argv, cwd);
+    notePrompt(renderCompletedText(completedLabel), 'Done');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     notePrompt(message, 'Error');
     await waitForModuleActionBack();
     throw error;
   }
-  await waitForModuleActionBack();
+
+  return waitForModuleActionBack();
 }
 
-async function runSelectedModuleAction(action: ModuleActionId, module: ListedModule, cwd: string): Promise<void> {
-  if (action === 'back') {
-    return;
+async function runSelectedModuleDailyAction(action: ModuleActionId, module: ListedModule, cwd: string): Promise<boolean> {
+  const command = moduleDailyAction(action);
+  if (!command) {
+    return false;
   }
 
+  return runDailyActionResultPage(
+    command,
+    moduleDailyActionArgs(action, module),
+    cwd,
+    moduleActionTitle(action),
+    module.moduleName,
+    moduleActionCompletedLabel(action),
+  );
+}
+
+async function runSelectedModuleAction(action: ModuleActionId, module: ListedModule, cwd: string): Promise<boolean> {
   if (action === 'delete') {
     const deleteFiles = await confirmPrompt({
       message: menuPromptMessage('Delete module files too? (y/N)', 'back'),
@@ -1413,15 +1485,92 @@ async function runSelectedModuleAction(action: ModuleActionId, module: ListedMod
     const removeCommand = cockpitCommands.find((entry) => entry.id === 'remove-module');
     if (removeCommand && !(await confirmCockpitCommandRisk(removeCommand))) {
       notePrompt(`Module ${module.moduleName} was not removed.`, 'Action skipped');
-      return;
+      return false;
     }
 
     await removeModuleFromSourceRepo(selectedModuleRemovalOptions(module, cwd, Boolean(deleteFiles)));
     notePrompt(`Removed module ${module.moduleName} from source repo ${module.repoPath}.`, 'Done');
+    return false;
+  }
+
+  return runSelectedModuleDailyAction(action, module, cwd);
+}
+
+async function runCockpitDailyCommand(command: CockpitCommand, cwd: string): Promise<void> {
+  if (command.target.kind !== 'daily') {
     return;
   }
 
-  await runSelectedModuleDailyAction(action, module, cwd);
+  const dailyCommand = command.target.command;
+  if (!shouldReturnToDailySelection(dailyCommand)) {
+    const argv = await collectDailyActionArgs(dailyCommand, cwd);
+    if (!(await confirmCockpitCommandRisk(command))) {
+      notePrompt(`${command.slashAlias} was not run.`, 'Action skipped');
+      return;
+    }
+
+    await runDailyAction(dailyCommand, argv, cwd);
+    notePrompt(`${command.slashAlias} completed.`, 'Done');
+    return;
+  }
+
+  while (true) {
+    let argv: string[];
+    try {
+      introPrompt(command.label);
+      argv = await collectDailyActionArgs(dailyCommand, cwd);
+    } catch (error) {
+      if (isMenuBackSignal(error)) {
+        return;
+      }
+      throw error;
+    }
+
+    if (!(await confirmCockpitCommandRisk(command))) {
+      notePrompt(`${command.slashAlias} was not run.`, 'Action skipped');
+      return;
+    }
+
+    const returnedByBack = await runDailyActionResultPage(dailyCommand, argv, cwd, command.label);
+    if (!returnedByBack) {
+      return;
+    }
+  }
+}
+
+async function runListModulesCommand(cwd: string): Promise<void> {
+  while (true) {
+    introPrompt('List modules');
+    const selectedModule = await selectModuleFromBrowser(cwd);
+    if (!selectedModule) {
+      notePrompt(
+        'No Odoo modules found.\nNext: choose "Add module" or "Add source repo" first.',
+        'List modules',
+      );
+      return;
+    }
+
+    while (true) {
+      let moduleAction: ModuleActionId | undefined;
+      try {
+        moduleAction = await selectModuleAction(selectedModule);
+      } catch (error) {
+        if (isMenuBackSignal(error)) {
+          break;
+        }
+        throw error;
+      }
+
+      if (!moduleAction) {
+        break;
+      }
+
+      const returnedByBack = await runSelectedModuleAction(moduleAction, selectedModule, cwd);
+      if (!returnedByBack) {
+        return;
+      }
+    }
+  }
 }
 
 async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<'continue' | 'exit'> {
@@ -1430,14 +1579,7 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
   }
 
   if (command.target.kind === 'daily') {
-    const argv = await collectDailyActionArgs(command.target.command, cwd);
-    if (!(await confirmCockpitCommandRisk(command))) {
-      notePrompt(`${command.slashAlias} was not run.`, 'Action skipped');
-      return 'continue';
-    }
-
-    await runDailyAction(command.target.command, argv, cwd);
-    notePrompt(`${command.slashAlias} completed.`, 'Done');
+    await runCockpitDailyCommand(command, cwd);
     return 'continue';
   }
 
@@ -1452,22 +1594,7 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
   }
 
   if (command.id === 'list-modules') {
-    introPrompt('List modules');
-    const selectedModule = await selectModuleFromBrowser(cwd);
-    if (!selectedModule) {
-      notePrompt(
-        'No Odoo modules found.\nNext: choose "Add module" or "Add source repo" first.',
-        'List modules',
-      );
-      return 'continue';
-    }
-
-    const moduleAction = await selectModuleAction(selectedModule);
-    if (!moduleAction || moduleAction === 'back') {
-      return 'continue';
-    }
-
-    await runSelectedModuleAction(moduleAction, selectedModule, cwd);
+    await runListModulesCommand(cwd);
     return 'continue';
   }
 
