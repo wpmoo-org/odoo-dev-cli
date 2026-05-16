@@ -1,15 +1,21 @@
-import { confirm, isCancel, text, type ConfirmOptions, type TextOptions } from '@clack/prompts';
+import {
+  confirmPrompt,
+  isPromptCancel,
+  textPrompt,
+  type ConfirmPromptOptions,
+  type TextPromptOptions,
+} from './prompts/index.js';
 
 import { handlePromptCancel, menuPromptMessage, type PromptCancelAction } from './menu-navigation.js';
 
 export type RepositoryUrlPromptApi = {
-  confirm(options: ConfirmOptions): Promise<boolean | symbol>;
-  text(options: TextOptions): Promise<string | symbol>;
+  confirm(options: ConfirmPromptOptions): Promise<boolean | symbol>;
+  text(options: TextPromptOptions): Promise<string | symbol>;
 };
 
 const defaultPrompt: RepositoryUrlPromptApi = {
-  confirm,
-  text,
+  confirm: confirmPrompt,
+  text: textPrompt,
 };
 
 export async function promptRepositoryUrl({
@@ -32,7 +38,7 @@ export async function promptRepositoryUrl({
       inactive: 'n',
       initialValue: true,
     });
-    if (isCancel(useSuggested)) {
+    if (isPromptCancel(useSuggested)) {
       handlePromptCancel(true, cancelAction);
     }
     if (useSuggested) {
@@ -45,7 +51,7 @@ export async function promptRepositoryUrl({
     placeholder,
     validate: (input) => (input.trim() ? undefined : `Enter the ${label.toLowerCase()}.`),
   });
-  if (isCancel(value)) {
+  if (isPromptCancel(value)) {
     handlePromptCancel(true, cancelAction);
   }
   if (typeof value === 'string' && value.trim()) {

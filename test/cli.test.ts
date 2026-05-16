@@ -16,15 +16,33 @@ const mocks = vi.hoisted(() => ({
   isUpdateCheckSkipped: vi.fn(() => false),
 }));
 
-vi.mock('@clack/prompts', () => ({
-  confirm: vi.fn(async () => false),
-  intro: vi.fn(),
-  isCancel: vi.fn(() => false),
-  note: vi.fn(),
-  outro: vi.fn(),
-  select: vi.fn(),
-  text: vi.fn(),
-}));
+vi.mock('../src/prompts/index.js', () => {
+  const confirm = vi.fn(async () => false);
+  const intro = vi.fn();
+  const isPromptCancel = vi.fn(() => false);
+  const note = vi.fn();
+  const outro = vi.fn();
+  const promptSeparator = vi.fn((label: string) => ({ type: 'separator', separator: label }));
+  const select = vi.fn();
+  const text = vi.fn();
+  return {
+    confirm,
+    confirmPrompt: confirm,
+    intro,
+    introPrompt: intro,
+    isCancel: isPromptCancel,
+    isPromptCancel,
+    note,
+    notePrompt: note,
+    outro,
+    outroPrompt: outro,
+    promptSeparator,
+    select,
+    selectPrompt: select,
+    text,
+    textPrompt: text,
+  };
+});
 
 vi.mock('../src/doctor.js', () => ({
   runDoctor: mocks.runDoctor,

@@ -289,11 +289,18 @@ describe('template rendering', () => {
     expect(readme).toContain('.agents/skills/');
   });
 
-  it('renders a large CLI banner', () => {
+  it('renders a compact boxed CLI banner', () => {
     const banner = renderBanner();
+    const plainBanner = banner.replace(/\u001B\[[0-9;]*m/g, '').trim();
 
-    expect(banner.trim()).not.toBe('');
-    expect(banner.split('\n').length).toBeGreaterThan(4);
+    expect(plainBanner).toBe(
+      [
+        '╭────────────────────────────────────────────╮',
+        '│ WPMoo                                      │',
+        '│ Workflow Platform · Micro Object Oriented  │',
+        '╰────────────────────────────────────────────╯',
+      ].join('\n'),
+    );
   });
 
   it('renders the CLI banner with the requested blue-to-pink gradient', () => {

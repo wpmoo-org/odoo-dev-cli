@@ -1,4 +1,4 @@
-import search from '@inquirer/search';
+import { isPromptCancel, searchPrompt, type SearchPromptOptions } from '../prompts/index.js';
 
 import { searchCockpitCommands, type CockpitCommand } from './command-registry.js';
 
@@ -9,18 +9,11 @@ export type CockpitCommandChoice = {
   short: string;
 };
 
-export type CockpitSearchPrompt = (config: {
-  message: string;
-  source: (
-    term: string | undefined,
-    opt: {
-      signal: AbortSignal;
-    },
-  ) => readonly CockpitCommandChoice[] | Promise<readonly CockpitCommandChoice[]>;
-  pageSize?: number;
-}) => Promise<CockpitCommand>;
+export type CockpitSearchPrompt = (
+  config: SearchPromptOptions<CockpitCommand>,
+) => Promise<CockpitCommand | symbol>;
 
-const defaultSearchPrompt: CockpitSearchPrompt = (config) => search<CockpitCommand>(config);
+const defaultSearchPrompt: CockpitSearchPrompt = (config) => searchPrompt<CockpitCommand>(config);
 
 function commandChoice(command: CockpitCommand): CockpitCommandChoice {
   return {
@@ -36,9 +29,15 @@ export async function selectCockpitCommandFromPalette(options: {
 } = {}): Promise<CockpitCommand> {
   const prompt = options.prompt ?? defaultSearchPrompt;
 
-  return prompt({
+  const selected = await prompt({
     message: 'Search commands',
     pageSize: 10,
     source: (term) => searchCockpitCommands(term).map(commandChoice),
   });
+
+  if (isPromptCancel(selected)) {
+    throw new Error('Prompt was canceled.');
+  }
+
+  return selected as CockpitCommand;
 }

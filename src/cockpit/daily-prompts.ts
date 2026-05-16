@@ -1,5 +1,3 @@
-import { isCancel, select, text } from '@clack/prompts';
-
 import type { DailyActionCommand } from '../daily-actions.js';
 import { listModulesInSourceRepo } from '../module-actions.js';
 import { listModuleRepos } from '../repo-actions.js';
@@ -9,6 +7,7 @@ import {
   menuPromptMessage,
   type PromptCancelAction,
 } from '../menu-navigation.js';
+import { isPromptCancel, selectPrompt, textPrompt } from '../prompts/index.js';
 
 export type DailyActionPromptCancelAction = PromptCancelAction;
 export type DailyActionPromptOption = {
@@ -39,14 +38,14 @@ export type DailyActionPromptDeps = {
 const manualModuleValue = '__wpmoo_manual_module_entry__';
 
 function defaultCancelHandler(value: unknown, action: DailyActionPromptCancelAction): void {
-  handlePromptCancel(isCancel(value), action);
+  handlePromptCancel(isPromptCancel(value), action);
 }
 
 function promptDeps(deps: DailyActionPromptDeps = {}): Required<DailyActionPromptDeps> {
   return {
-    select: deps.select ?? ((options) => select(options)),
-    text: deps.text ?? ((options) => text(options)),
-    list: deps.list ?? ((options) => select(options)),
+    select: deps.select ?? ((options) => selectPrompt(options)),
+    text: deps.text ?? ((options) => textPrompt(options)),
+    list: deps.list ?? ((options) => selectPrompt(options)),
     handleCancel: deps.handleCancel ?? defaultCancelHandler,
   };
 }

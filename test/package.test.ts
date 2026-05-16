@@ -40,8 +40,10 @@ describe('package metadata', () => {
     expect(packageJson.scripts['release:check']).toBe('bash scripts/release-check.sh');
     expect(packageJson.engines.node).toBe('>=20.17');
     expect(packageJson.dependencies).toMatchObject({
-      '@clack/prompts': expect.any(String),
+      '@inquirer/prompts': expect.any(String),
       '@inquirer/search': expect.any(String),
+      '@inquirer/select': expect.any(String),
     });
+    expect(packageJson.dependencies).not.toHaveProperty('@clack/prompts');
   });
 });

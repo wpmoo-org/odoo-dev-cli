@@ -41,7 +41,23 @@ const promptMocks = vi.hoisted(() => ({
   isCancel: vi.fn(() => false),
 }));
 
-vi.mock('@clack/prompts', () => promptMocks);
+vi.mock('../src/prompts/index.js', () => ({
+  intro: promptMocks.intro,
+  introPrompt: promptMocks.intro,
+  outro: promptMocks.outro,
+  outroPrompt: promptMocks.outro,
+  note: promptMocks.note,
+  notePrompt: promptMocks.note,
+  promptSeparator: vi.fn((label: string) => ({ type: 'separator', separator: label })),
+  select: promptMocks.select,
+  selectPrompt: promptMocks.select,
+  text: promptMocks.text,
+  textPrompt: promptMocks.text,
+  confirm: promptMocks.confirm,
+  confirmPrompt: promptMocks.confirm,
+  isCancel: promptMocks.isCancel,
+  isPromptCancel: promptMocks.isCancel,
+}));
 
 vi.mock('../src/repo-actions.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/repo-actions.js')>();

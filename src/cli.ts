@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { confirm, intro, isCancel, note, outro, select, text } from '@clack/prompts';
 import { realpathSync } from 'node:fs';
 import { basename, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -13,9 +12,8 @@ import {
   stripInternalFlags,
 } from './args.js';
 import type { CockpitCommand } from './cockpit/command-registry.js';
-import { selectCockpitCommandFromPalette } from './cockpit/command-palette.js';
 import { collectDailyActionArgs } from './cockpit/daily-prompts.js';
-import { selectCockpitCategoryCommand, selectCockpitTopLevelMenu } from './cockpit/menu.js';
+import { selectCockpitTopLevelMenu } from './cockpit/menu.js';
 import { confirmCockpitCommandRisk } from './cockpit/safety.js';
 import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
@@ -52,6 +50,7 @@ import {
   repositoryPreflightAvailable,
 } from './repository-preflight.js';
 import { scaffold } from './scaffold.js';
+import { confirmPrompt, introPrompt, isPromptCancel, notePrompt, outroPrompt, selectPrompt, textPrompt } from './prompts/index.js';
 import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo, SourceRepoType } from './types.js';
 import { checkForUpdate, installLatestPackage, isUpdateCheckSkipped, restartCli } from './update-check.js';
@@ -84,12 +83,12 @@ import {
 } from './menu-navigation.js';
 
 function handleCancel(value: unknown, action: PromptCancelAction): void {
-  handlePromptCancel(isCancel(value), action);
+  handlePromptCancel(isPromptCancel(value), action);
 }
 
 function showSubmenuIntro(title: string, showIntro: boolean, cancelAction: PromptCancelAction): void {
   if (showIntro) {
-    intro(menuIntroTitle(title, cancelAction));
+    introPrompt(menuIntroTitle(title, cancelAction));
   }
 }
 
@@ -119,7 +118,7 @@ async function selectDefaultGitHubOwner(
     const initialValue = accounts.some((account) => account.login === preferredOwner)
       ? preferredOwner
       : accounts[0].login;
-    const selectedOwner = await select({
+    const selectedOwner = await selectPrompt({
       message: 'GitHub account/organization',
       options: accounts.map((account) => ({
         value: account.login,
@@ -238,7 +237,7 @@ async function showStartup(argv: string[], skipUpdateCheck: boolean): Promise<vo
   const updateCheck = await checkForUpdate(packageName(), packageVersion());
   console.log(renderVersionTag(updateCheck.status === 'update-available' ? updateCheck.latestVersion : undefined));
   if (updateCheck.status === 'update-available') {
-    const shouldUpdate = await confirm({
+    const shouldUpdate = await confirmPrompt({
       message: `Update to v.${updateCheck.latestVersion}? (Y/n)`,
       active: 'Y',
       inactive: 'n',
@@ -269,20 +268,16 @@ async function selectCockpitCommandFromMenu(): Promise<CockpitCommand | 'exit'> 
     return 'exit';
   }
 
-  if (selection.kind === 'command-palette') {
-    return selectCockpitCommandFromPalette();
-  }
-
-  return selectCockpitCategoryCommand(selection.category);
+  return selection.command;
 }
 
 async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAction = 'exit'): Promise<ScaffoldOptions> {
   if (showIntro) {
-    intro('Create Odoo dev environment');
+    introPrompt('Create Odoo dev environment');
   }
 
   const product = asString(
-    await text({
+    await textPrompt({
       message: 'Product slug',
       placeholder: 'odoo_sample_module',
       validate: (value) => (value.trim() ? undefined : 'Enter a product/module slug.'),
@@ -294,7 +289,7 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   const defaultTarget = `./${product}_dev`;
   const target = resolve(
     asString(
-      await text({
+      await textPrompt({
         message: 'Environment folder',
         placeholder: defaultTarget,
         defaultValue: defaultTarget,
@@ -305,7 +300,7 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
     ),
   );
 
-  const connectGitHub = await select({
+  const connectGitHub = await selectPrompt({
     message: 'Connect this environment to Git/GitHub now?',
     options: [
       { value: true, label: 'Yes, connect Git/GitHub repositories' },
@@ -317,11 +312,11 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
 
   let selectedGitHubOwner: string | undefined;
   if (connectGitHub) {
-    note(renderRepositorySetupNote(product), 'Repository setup');
+    notePrompt(renderRepositorySetupNote(product), 'Repository setup');
     selectedGitHubOwner = await selectDefaultGitHubOwner(cancelAction);
   }
 
-  const selectedVersion = await select({
+  const selectedVersion = await selectPrompt({
     message: menuPromptMessage('Odoo version', cancelAction),
     options: supportedOdooVersions.map((version) => ({ value: version, label: version })),
     initialValue: supportedOdooVersions[0],
@@ -330,7 +325,7 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   const odooVersion = String(selectedVersion);
 
   async function promptInstallAgentSkills(): Promise<boolean> {
-    const installAgentSkills = await select({
+    const installAgentSkills = await selectPrompt({
       message: 'Install project-local Odoo Agent Skills?',
       options: [
         { value: true, label: 'Yes, install latest default skills' },
@@ -403,7 +398,7 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
       addons: [sourcePath],
     });
 
-    const shouldAddAnother = await select({
+    const shouldAddAnother = await selectPrompt({
       message: 'Add another source repo?',
       options: [
         { value: false, label: 'No' },
@@ -417,7 +412,7 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
 
   const installAgentSkills = await promptInstallAgentSkills();
 
-  const initEmpty = await select({
+  const initEmpty = await selectPrompt({
     message: 'Initialize repositories that exist but have no commits?',
     options: [
       { value: true, label: 'Yes, create the selected Odoo branch' },
@@ -476,7 +471,7 @@ async function addRepoOptionsFromPrompts(
   const owner =
     selectedOwner ??
     asString(
-      await text({
+      await textPrompt({
         message: menuPromptMessage('GitHub owner/organization', cancelAction),
         placeholder: 'example-org',
         validate: (value) => (value.trim() ? undefined : 'Enter a GitHub owner or organization.'),
@@ -485,7 +480,7 @@ async function addRepoOptionsFromPrompts(
       cancelAction,
     );
   const repoName = asString(
-    await text({
+    await textPrompt({
       message: menuPromptMessage('Source repo name', cancelAction),
       placeholder: 'odoo_sample_module_repo',
       validate: validateRepoName,
@@ -511,7 +506,7 @@ async function ensureAddRepoGitHubRepository(
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<void> {
   if (!(await repositoryPreflightAvailable())) {
-    note(
+    notePrompt(
       [
         'GitHub CLI (`gh`) is not available or not authenticated.',
         'The source repo will be used as-is. If it does not exist, create it first or authenticate gh.',
@@ -526,8 +521,8 @@ async function ensureAddRepoGitHubRepository(
     return;
   }
 
-  note(`Source repo is not accessible: ${status.slug}`, 'Repository check');
-  const shouldCreate = await select({
+  notePrompt(`Source repo is not accessible: ${status.slug}`, 'Repository check');
+  const shouldCreate = await selectPrompt({
     message: 'Create this source repository with GitHub CLI?',
     options: [
       { value: true, label: 'Yes, create it' },
@@ -541,7 +536,7 @@ async function ensureAddRepoGitHubRepository(
     throw new Error(`Source repository is not accessible: ${status.slug}`);
   }
 
-  const visibility = await select({
+  const visibility = await selectPrompt({
     message: 'Visibility for new repository',
     options: [
       { value: 'private', label: 'Private' },
@@ -569,7 +564,7 @@ async function selectSourceRepo(target: string, cancelAction: PromptCancelAction
 
   if (repoOptions.length === 0) {
     if (cancelAction === 'back') {
-      note(
+      notePrompt(
         `No source repos found under ${target}/odoo/custom/src.\nNext: choose "Add source repo" first.`,
         'Nothing to select',
       );
@@ -578,7 +573,7 @@ async function selectSourceRepo(target: string, cancelAction: PromptCancelAction
     throw new Error(`No source repos found under ${target}/odoo/custom/src`);
   }
 
-  const selected = await select({
+  const selected = await selectPrompt({
     message: menuPromptMessage('Source repo', cancelAction),
     options: repoOptions,
     initialValue: repoOptions[0].value,
@@ -632,7 +627,7 @@ async function addModuleOptionsFromPrompts(
   const target = process.cwd();
   const sourceRepo = await selectSourceRepo(target, cancelAction);
   const moduleName = asString(
-    await text({
+    await textPrompt({
       message: menuPromptMessage('Module name', cancelAction),
       placeholder: suggestedModuleName(sourceRepo.repoPath),
       validate: (value) => (value.trim() ? undefined : 'Enter the module technical name.'),
@@ -756,7 +751,7 @@ async function runSourceCommand(argv: string[]): Promise<void> {
     }
 
     console.log(renderBanner());
-    outro(`Synced source manifest in ${options.target}.`);
+    outroPrompt(`Synced source manifest in ${options.target}.`);
     return;
   }
 
@@ -767,7 +762,7 @@ async function runSourceCommand(argv: string[]): Promise<void> {
     }
     console.log(renderBanner());
     await addModuleRepo(options);
-    outro(`Added source repo under ${renderedSourceRepoPath(options.target, options.sourceType ?? 'private', options.repoPath)}.`);
+    outroPrompt(`Added source repo under ${renderedSourceRepoPath(options.target, options.sourceType ?? 'private', options.repoPath)}.`);
     return;
   }
 
@@ -778,7 +773,7 @@ async function runSourceCommand(argv: string[]): Promise<void> {
     }
     console.log(renderBanner());
     await removeModuleRepo(options);
-    outro(`Removed source repo ${options.repoPath} from ${options.target}.`);
+    outroPrompt(`Removed source repo ${options.repoPath} from ${options.target}.`);
     return;
   }
 
@@ -786,8 +781,8 @@ async function runSourceCommand(argv: string[]): Promise<void> {
 }
 
 async function confirmSafeResetFromMenu(options: SafeResetOptions): Promise<void> {
-  note(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview');
-  const confirmed = await confirm({
+  notePrompt(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview');
+  const confirmed = await confirmPrompt({
     message: menuPromptMessage('Continue with safe reset?', 'back'),
     active: 'Yes',
     inactive: 'No',
@@ -811,7 +806,7 @@ async function removeRepoOptionsFromPrompts(
   const repos = await listModuleRepos(target);
   if (repos.length === 0) {
     if (cancelAction === 'back') {
-      note(
+      notePrompt(
         `No module submodules found under ${target}/odoo/custom/src/private.\nNext: choose "Add source repo" first.`,
         'Nothing to remove',
       );
@@ -820,7 +815,7 @@ async function removeRepoOptionsFromPrompts(
     throw new Error(`No module submodules found under ${target}/odoo/custom/src/private`);
   }
 
-  const repoPath = await select({
+  const repoPath = await selectPrompt({
     message: menuPromptMessage('Repo to remove', cancelAction),
     options: repos.map((repo) => ({ value: repo, label: repo })),
     initialValue: repos[0],
@@ -863,7 +858,7 @@ async function removeModuleOptionsFromPrompts(
   const modules = await listModulesInSourceRepo(target, sourceRepo.repoPath, sourceRepo.sourceType);
   if (modules.length === 0) {
     if (cancelAction === 'back') {
-      note(
+      notePrompt(
         `No Odoo modules found under ${formatSourceRepoPromptPath(target, sourceRepo)}.\nNext: choose "Add module to source repo" first.`,
         'Nothing to remove',
       );
@@ -872,14 +867,14 @@ async function removeModuleOptionsFromPrompts(
     throw new Error(`No Odoo modules found under ${formatSourceRepoPromptPath(target, sourceRepo)}`);
   }
 
-  const moduleName = await select({
+  const moduleName = await selectPrompt({
     message: menuPromptMessage('Module to remove', cancelAction),
     options: modules.map((module) => ({ value: module, label: module })),
     initialValue: modules[0],
   });
   handleCancel(moduleName, cancelAction);
 
-  const deleteFiles = await confirm({
+  const deleteFiles = await confirmPrompt({
     message: menuPromptMessage('Delete module files too? (y/N)', cancelAction),
     active: 'Y',
     inactive: 'n',
@@ -924,14 +919,14 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
     }
 
     if (interactive) {
-      note(message, 'Repository check skipped');
+      notePrompt(message, 'Repository check skipped');
     }
     return;
   }
 
   const { accessible, inaccessible: missing } = await checkGitHubRepositories(options);
   if (interactive && accessible.length > 0) {
-    note(
+    notePrompt(
       [
         'These GitHub repositories already exist and are accessible:',
         '',
@@ -954,7 +949,7 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
     return;
   }
 
-  note(
+  notePrompt(
     [
       'These GitHub repositories are not accessible. They may not exist, or your account may not have access:',
       '',
@@ -963,7 +958,7 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
     'Repository check',
   );
 
-  const shouldCreate = await select({
+  const shouldCreate = await selectPrompt({
     message: 'Create the inaccessible repositories with GitHub CLI?',
     options: [
       { value: true, label: 'Yes, create them' },
@@ -971,7 +966,7 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
     ],
     initialValue: true,
   });
-  if (isCancel(shouldCreate)) process.exit(1);
+  handleCancel(shouldCreate, 'exit');
 
   if (!shouldCreate) {
     throw new Error(
@@ -981,7 +976,7 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
     );
   }
 
-  const visibility = await select({
+  const visibility = await selectPrompt({
     message: 'Visibility for new repositories',
     options: [
       { value: 'private', label: 'Private' },
@@ -989,7 +984,7 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
     ],
     initialValue: 'private',
   });
-  if (isCancel(visibility)) process.exit(1);
+  handleCancel(visibility, 'exit');
 
   await createGitHubRepositories(missing, visibility as RepositoryVisibility);
 }
@@ -1002,22 +997,22 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
   if (command.target.kind === 'daily') {
     const argv = await collectDailyActionArgs(command.target.command, cwd);
     if (!(await confirmCockpitCommandRisk(command))) {
-      note(`${command.slashAlias} was not run.`, 'Action skipped');
+      notePrompt(`${command.slashAlias} was not run.`, 'Action skipped');
       return 'continue';
     }
 
     await runDailyAction(command.target.command, argv, cwd);
-    note(`${command.slashAlias} completed.`, 'Done');
+    notePrompt(`${command.slashAlias} completed.`, 'Done');
     return 'continue';
   }
 
   if (command.id === 'status') {
-    note(await renderEnvironmentStatusForTarget(cwd), 'Environment status');
+    notePrompt(await renderEnvironmentStatusForTarget(cwd), 'Environment status');
     return 'continue';
   }
 
   if (command.id === 'doctor') {
-    note(await runDoctor(cwd), 'Doctor');
+    notePrompt(await runDoctor(cwd), 'Doctor');
     return 'continue';
   }
 
@@ -1025,38 +1020,38 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
     const options = await addRepoOptionsFromPrompts(false, 'back');
     await ensureAddRepoGitHubRepository(options, 'back');
     await addModuleRepo(options);
-    note(`Added source repo under ${renderedSourceRepoPath(options.target, options.sourceType ?? 'private')}.`, 'Done');
+    notePrompt(`Added source repo under ${renderedSourceRepoPath(options.target, options.sourceType ?? 'private')}.`, 'Done');
     return 'continue';
   }
 
   if (command.id === 'remove-repo') {
     const options = await removeRepoOptionsFromPrompts([], false, 'back');
     if (!(await confirmCockpitCommandRisk(command))) {
-      note(`Source repo ${options.repoPath} was not removed.`, 'Action skipped');
+      notePrompt(`Source repo ${options.repoPath} was not removed.`, 'Action skipped');
       return 'continue';
     }
 
     await removeModuleRepo(options);
-    note(`Removed source repo ${options.repoPath} from ${options.target}.`, 'Done');
+    notePrompt(`Removed source repo ${options.repoPath} from ${options.target}.`, 'Done');
     return 'continue';
   }
 
   if (command.id === 'add-module') {
     const options = await addModuleOptionsFromPrompts(false, 'back');
     await addModuleToSourceRepo(options);
-    note(`Added module ${options.moduleName} under source repo ${options.repoPath}.`, 'Done');
+    notePrompt(`Added module ${options.moduleName} under source repo ${options.repoPath}.`, 'Done');
     return 'continue';
   }
 
   if (command.id === 'remove-module') {
     const options = await removeModuleOptionsFromPrompts(false, 'back');
     if (!(await confirmCockpitCommandRisk(command))) {
-      note(`Module ${options.moduleName} was not removed.`, 'Action skipped');
+      notePrompt(`Module ${options.moduleName} was not removed.`, 'Action skipped');
       return 'continue';
     }
 
     await removeModuleFromSourceRepo(options);
-    note(`Removed module ${options.moduleName} from source repo ${options.repoPath}.`, 'Done');
+    notePrompt(`Removed module ${options.moduleName} from source repo ${options.repoPath}.`, 'Done');
     return 'continue';
   }
 
@@ -1064,11 +1059,11 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
     const options = { target: cwd, stage: true };
     await confirmSafeResetFromMenu(options);
     await safeResetEnvironment(options);
-    note(`Safe reset refreshed generated environment files in ${cwd}.`, 'Done');
+    notePrompt(`Safe reset refreshed generated environment files in ${cwd}.`, 'Done');
     return 'continue';
   }
 
-  note(`Unknown cockpit command: ${command.slashAlias}`, 'No action');
+  notePrompt(`Unknown cockpit command: ${command.slashAlias}`, 'No action');
   return 'continue';
 }
 
@@ -1095,16 +1090,16 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
       const resolvedOptions = await optionsFromPrompts();
       await ensureGitHubRepositories(resolvedOptions, true);
       await scaffold(resolvedOptions);
-      note(renderPostCreateGuidance(resolvedOptions.target, cwd), 'Next steps');
-      outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
+      notePrompt(renderPostCreateGuidance(resolvedOptions.target, cwd), 'Next steps');
+      outroPrompt(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
       return;
     }
 
-    intro('WPMoo Tool');
+    introPrompt('WPMoo Tool');
     while (true) {
       try {
         const status = await getEnvironmentStatus(cwd);
-        note(renderEnvironmentStatusSummary(status), 'Environment status');
+        notePrompt(renderEnvironmentStatusSummary(status), 'Environment status');
         const command = await selectCockpitCommandFromMenu();
 
         if (command === 'exit') {
@@ -1129,7 +1124,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     if (options) {
       console.log(renderBanner());
       await addModuleRepo(options);
-      outro(`Added source repo under ${renderedSourceRepoPath(options.target, options.sourceType ?? 'private', options.repoPath)}.`);
+      outroPrompt(`Added source repo under ${renderedSourceRepoPath(options.target, options.sourceType ?? 'private', options.repoPath)}.`);
       return;
     }
 
@@ -1137,7 +1132,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     const promptedOptions = await addRepoOptionsFromPrompts();
     await ensureAddRepoGitHubRepository(promptedOptions);
     await addModuleRepo(promptedOptions);
-    outro(`Added source repo under ${promptedOptions.target}/odoo/custom/src/private.`);
+    outroPrompt(`Added source repo under ${promptedOptions.target}/odoo/custom/src/private.`);
     return;
   }
 
@@ -1146,14 +1141,14 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     if (options) {
       console.log(renderBanner());
       await removeModuleRepo(options);
-      outro(`Removed source repo ${options.repoPath} from ${options.target}.`);
+      outroPrompt(`Removed source repo ${options.repoPath} from ${options.target}.`);
       return;
     }
 
     await showStartup(argv, skipUpdateCheck);
     const promptedOptions = await removeRepoOptionsFromPrompts(route.argv);
     await removeModuleRepo(promptedOptions);
-    outro(`Removed source repo ${promptedOptions.repoPath} from ${promptedOptions.target}.`);
+    outroPrompt(`Removed source repo ${promptedOptions.repoPath} from ${promptedOptions.target}.`);
     return;
   }
 
@@ -1167,14 +1162,14 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     if (options) {
       console.log(renderBanner());
       await addModuleToSourceRepo(options);
-      outro(`Added module ${options.moduleName} under source repo ${options.repoPath}.`);
+      outroPrompt(`Added module ${options.moduleName} under source repo ${options.repoPath}.`);
       return;
     }
 
     await showStartup(argv, skipUpdateCheck);
     const promptedOptions = await addModuleOptionsFromPrompts();
     await addModuleToSourceRepo(promptedOptions);
-    outro(`Added module ${promptedOptions.moduleName} under source repo ${promptedOptions.repoPath}.`);
+    outroPrompt(`Added module ${promptedOptions.moduleName} under source repo ${promptedOptions.repoPath}.`);
     return;
   }
 
@@ -1183,14 +1178,14 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     if (options) {
       console.log(renderBanner());
       await removeModuleFromSourceRepo(options);
-      outro(`Removed module ${options.moduleName} from source repo ${options.repoPath}.`);
+      outroPrompt(`Removed module ${options.moduleName} from source repo ${options.repoPath}.`);
       return;
     }
 
     await showStartup(argv, skipUpdateCheck);
     const promptedOptions = await removeModuleOptionsFromPrompts();
     await removeModuleFromSourceRepo(promptedOptions);
-    outro(`Removed module ${promptedOptions.moduleName} from source repo ${promptedOptions.repoPath}.`);
+    outroPrompt(`Removed module ${promptedOptions.moduleName} from source repo ${promptedOptions.repoPath}.`);
     return;
   }
 
@@ -1204,7 +1199,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
 
     const resetOptions: SafeResetOptions = { target: options.target, stage: options.stage };
     await safeResetEnvironment(resetOptions);
-    outro(`Safe reset refreshed generated environment files in ${options.target}.`);
+    outroPrompt(`Safe reset refreshed generated environment files in ${options.target}.`);
     return;
   }
 
@@ -1265,8 +1260,8 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     return;
   }
 
-  note(renderPostCreateGuidance(resolvedOptions.target, cwd), 'Next steps');
-  outro(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
+  notePrompt(renderPostCreateGuidance(resolvedOptions.target, cwd), 'Next steps');
+  outroPrompt(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
 }
 
 export function isCliEntrypoint(metaUrl: string, argvPath = process.argv[1]): boolean {

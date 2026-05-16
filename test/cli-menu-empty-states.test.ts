@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   addModuleRepo: vi.fn(async () => undefined),
   addModuleToSourceRepo: vi.fn(async () => undefined),
   addRepoGitHubCreate: vi.fn(async () => undefined),
+  cockpitSelect: vi.fn(),
   commandOdooVersion: vi.fn(async () => '19.0'),
   detectDevelopmentEnvironment: vi.fn(async () => ({ isEnvironment: true })),
   environmentGitHubOwner: vi.fn(async () => 'example-org'),
@@ -32,15 +33,33 @@ function cockpitCommand(id: string): CockpitCommand {
   return command!;
 }
 
-vi.mock('@clack/prompts', () => ({
-  confirm: vi.fn(async () => false),
-  intro: vi.fn(),
-  isCancel: vi.fn(() => false),
-  note: vi.fn(),
-  outro: vi.fn(),
-  select: vi.fn(),
-  text: vi.fn(),
-}));
+vi.mock('../src/prompts/index.js', () => {
+  const confirm = vi.fn(async () => false);
+  const intro = vi.fn();
+  const isPromptCancel = vi.fn(() => false);
+  const note = vi.fn();
+  const outro = vi.fn();
+  const promptSeparator = vi.fn((label: string) => ({ type: 'separator', separator: label }));
+  const select = vi.fn();
+  const text = vi.fn();
+  return {
+    confirm,
+    confirmPrompt: confirm,
+    intro,
+    introPrompt: intro,
+    isCancel: isPromptCancel,
+    isPromptCancel,
+    note,
+    notePrompt: note,
+    outro,
+    outroPrompt: outro,
+    promptSeparator,
+    select,
+    selectPrompt: select,
+    text,
+    textPrompt: text,
+  };
+});
 
 vi.mock('../src/environment.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/environment.js')>();
@@ -159,50 +178,43 @@ describe('cli menu empty and cancel states', () => {
   });
 
   it('shows note and loops back when remove-repo has no source repos', async () => {
-    const prompts = await import('@clack/prompts');
+    const prompts = await import('../src/prompts/index.js');
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
-    vi.mocked(prompts.select)
-      .mockResolvedValueOnce('repositories')
-      .mockResolvedValueOnce(cockpitCommand('remove-repo'))
-      .mockResolvedValueOnce('exit');
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce(cockpitCommand('remove-repo')).mockResolvedValueOnce('exit');
     mocks.listModuleRepos.mockResolvedValueOnce([]);
     const { runCli } = await loadCli();
 
     await runCli([], '/tmp/environment');
 
-    expect(prompts.note).toHaveBeenCalledWith(
+    expect(prompts.notePrompt).toHaveBeenCalledWith(
       'No module submodules found under /tmp/environment/odoo/custom/src/private.\nNext: choose "Add source repo" first.',
       'Nothing to remove',
     );
-    expect(prompts.select).toHaveBeenCalledTimes(3);
+    expect(prompts.selectPrompt).toHaveBeenCalledTimes(2);
     expect(mocks.removeModuleRepo).not.toHaveBeenCalled();
   });
 
   it('shows note and loops back when add-module has no source repos', async () => {
-    const prompts = await import('@clack/prompts');
+    const prompts = await import('../src/prompts/index.js');
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
-    vi.mocked(prompts.select)
-      .mockResolvedValueOnce('modules')
-      .mockResolvedValueOnce(cockpitCommand('add-module'))
-      .mockResolvedValueOnce('exit');
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce(cockpitCommand('add-module')).mockResolvedValueOnce('exit');
     mocks.listModuleRepos.mockResolvedValueOnce([]);
     const { runCli } = await loadCli();
 
     await runCli([], '/tmp/environment');
 
-    expect(prompts.note).toHaveBeenCalledWith(
+    expect(prompts.notePrompt).toHaveBeenCalledWith(
       'No source repos found under /tmp/environment/odoo/custom/src.\nNext: choose "Add source repo" first.',
       'Nothing to select',
     );
-    expect(prompts.select).toHaveBeenCalledTimes(3);
+    expect(prompts.selectPrompt).toHaveBeenCalledTimes(2);
     expect(mocks.addModuleToSourceRepo).not.toHaveBeenCalled();
   });
 
   it('shows note and loops back when remove-module has no modules in selected repo', async () => {
-    const prompts = await import('@clack/prompts');
+    const prompts = await import('../src/prompts/index.js');
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
-    vi.mocked(prompts.select)
-      .mockResolvedValueOnce('modules')
+    vi.mocked(prompts.selectPrompt)
       .mockResolvedValueOnce(cockpitCommand('remove-module'))
       .mockResolvedValueOnce('odoo_source_repo')
       .mockResolvedValueOnce('exit');
@@ -212,51 +224,45 @@ describe('cli menu empty and cancel states', () => {
 
     await runCli([], '/tmp/environment');
 
-    expect(prompts.note).toHaveBeenCalledWith(
+    expect(prompts.notePrompt).toHaveBeenCalledWith(
       'No Odoo modules found under /tmp/environment/odoo/custom/src/private/odoo_source_repo.\nNext: choose "Add module to source repo" first.',
       'Nothing to remove',
     );
-    expect(prompts.select).toHaveBeenCalledTimes(4);
+    expect(prompts.selectPrompt).toHaveBeenCalledTimes(3);
     expect(mocks.removeModuleFromSourceRepo).not.toHaveBeenCalled();
   });
 
   it('loops back when safe reset confirmation is false and does not call safe reset', async () => {
-    const prompts = await import('@clack/prompts');
-    vi.mocked(prompts.select)
-      .mockResolvedValueOnce('maintenance')
-      .mockResolvedValueOnce(cockpitCommand('safe-reset'))
-      .mockResolvedValueOnce('exit');
-    vi.mocked(prompts.confirm).mockResolvedValueOnce(false);
+    const prompts = await import('../src/prompts/index.js');
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce(cockpitCommand('safe-reset')).mockResolvedValueOnce('exit');
+    vi.mocked(prompts.confirmPrompt).mockResolvedValueOnce(false);
     const { runCli } = await loadCli();
 
     await runCli([], '/tmp/environment');
 
     expect(mocks.renderSafeResetPreview).toHaveBeenCalledWith('/tmp/environment', true);
-    expect(prompts.select).toHaveBeenCalledTimes(3);
+    expect(prompts.selectPrompt).toHaveBeenCalledTimes(2);
     expect(mocks.safeResetEnvironment).not.toHaveBeenCalled();
   });
 
   it('handles submenu prompt cancellation via isCancel as back and returns to menu', async () => {
-    const prompts = await import('@clack/prompts');
+    const prompts = await import('../src/prompts/index.js');
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
     vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit should not be called');
     });
-    vi.mocked(prompts.select)
-      .mockResolvedValueOnce('repositories')
+    vi.mocked(prompts.selectPrompt)
       .mockResolvedValueOnce(cockpitCommand('remove-repo'))
       .mockResolvedValueOnce('cancelled')
       .mockResolvedValueOnce('exit');
-    vi.mocked(prompts.isCancel)
+    vi.mocked(prompts.isPromptCancel)
       .mockImplementationOnce(() => false)
-      .mockImplementationOnce(() => false)
-      .mockImplementationOnce(() => true)
-      .mockImplementation(() => false);
+      .mockImplementationOnce(() => true);
     const { runCli } = await loadCli();
 
     await runCli([], '/tmp/environment');
 
-    expect(prompts.select).toHaveBeenCalledTimes(4);
+    expect(prompts.selectPrompt).toHaveBeenCalledTimes(3);
     expect(mocks.removeModuleRepo).not.toHaveBeenCalled();
   });
 });

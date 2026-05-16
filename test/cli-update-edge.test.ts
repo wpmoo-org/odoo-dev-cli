@@ -37,14 +37,22 @@ const mocks = vi.hoisted(() => ({
   installPromptCancelKeyTracker: vi.fn(),
 }));
 
-vi.mock('@clack/prompts', () => ({
+vi.mock('../src/prompts/index.js', () => ({
   confirm: mocks.confirm,
+  confirmPrompt: mocks.confirm,
   intro: mocks.intro,
+  introPrompt: mocks.intro,
   isCancel: mocks.isCancel,
+  isPromptCancel: mocks.isCancel,
   note: mocks.note,
+  notePrompt: mocks.note,
   outro: mocks.outro,
+  outroPrompt: mocks.outro,
+  promptSeparator: vi.fn((label: string) => ({ type: 'separator', separator: label })),
   select: mocks.select,
+  selectPrompt: mocks.select,
   text: mocks.text,
+  textPrompt: mocks.text,
 }));
 
 vi.mock('../src/prompt-repositories.js', () => ({

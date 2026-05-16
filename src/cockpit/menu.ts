@@ -1,38 +1,42 @@
-import { isCancel, select } from '@clack/prompts';
+import { styleText } from 'node:util';
 
 import {
   cockpitCommands,
   type CockpitCommand,
   type CockpitCommandCategory,
 } from './command-registry.js';
-import { handlePromptCancel, menuPromptMessage, MenuBackSignal } from '../menu-navigation.js';
+import { handlePromptCancel } from '../menu-navigation.js';
+import {
+  isPromptCancel,
+  promptSeparator,
+  selectPrompt,
+  type PromptSeparator,
+} from '../prompts/index.js';
 
-export const cockpitMenuBackValue = '__wpmoo_cockpit_menu_back__';
-
-type CockpitTopLevelMenuValue = 'command-palette' | 'exit' | CockpitCommandCategory;
+type CockpitTopLevelMenuValue = 'exit' | CockpitCommand;
 
 export type CockpitTopLevelMenuSelection =
   | {
-      kind: 'command-palette';
-    }
-  | {
-      kind: 'category';
-      category: CockpitCommandCategory;
+      kind: 'command';
+      command: CockpitCommand;
     }
   | {
       kind: 'exit';
     };
 
-export type CockpitMenuOption = {
-  value: CockpitTopLevelMenuValue | CockpitCommand | typeof cockpitMenuBackValue;
-  label: string;
-  hint?: string;
+export type CockpitMenuChoice = {
+  value: CockpitTopLevelMenuValue;
+  name: string;
+  short?: string;
+  description?: string;
 };
 
 export type CockpitMenuSelectPrompt = (options: {
   message: string;
-  options: CockpitMenuOption[];
-  initialValue?: CockpitMenuOption['value'];
+  choices: Array<CockpitMenuChoice | PromptSeparator>;
+  default?: CockpitMenuChoice['value'];
+  pageSize?: number;
+  loop?: boolean;
 }) => Promise<unknown>;
 
 type CockpitMenuDeps = {
@@ -49,32 +53,74 @@ const categoryLabels: Record<CockpitCommandCategory, string> = {
   maintenance: 'Maintenance',
 };
 
-const topLevelOptions = [
-  { value: 'command-palette', label: 'Command palette /' },
-  { value: 'services', label: categoryLabels.services },
-  { value: 'modules', label: categoryLabels.modules },
-  { value: 'database', label: categoryLabels.database },
-  { value: 'diagnostics', label: categoryLabels.diagnostics },
-  { value: 'repositories', label: categoryLabels.repositories },
-  { value: 'maintenance', label: categoryLabels.maintenance },
-  { value: 'exit', label: 'Exit' },
-] as const satisfies readonly CockpitMenuOption[];
-
-const categories = new Set<CockpitCommandCategory>([
+const topLevelCategoryOrder: readonly CockpitCommandCategory[] = [
   'services',
   'modules',
   'database',
   'diagnostics',
   'repositories',
   'maintenance',
-]);
+];
+
+const topLevelCommands: readonly CockpitCommand[] = topLevelCategoryOrder.flatMap((category) =>
+  cockpitCommands.filter((command) => command.category === category && command.id !== 'exit'),
+);
+const topLevelCommandLabelWidth = Math.max(...topLevelCommands.map((command) => command.label.length));
+
+function color(format: Parameters<typeof styleText>[0], value: string): string {
+  return styleText(format, value, { validateStream: false });
+}
+
+function categoryHeading(category: CockpitCommandCategory): string {
+  return color('white', categoryLabels[category]);
+}
+
+function commandName(command: CockpitCommand): string {
+  return `${color('yellow', `  ${command.label.padEnd(topLevelCommandLabelWidth)}`)}${color('dim', `  ${command.description}`)}`;
+}
+
+function categoryChoices(category: CockpitCommandCategory, index: number): readonly (CockpitMenuChoice | PromptSeparator)[] {
+  const choices: (CockpitMenuChoice | PromptSeparator)[] = [
+    promptSeparator(categoryHeading(category)),
+    ...topLevelCommands
+      .filter((command) => command.category === category)
+      .map((command) => ({
+        value: command,
+        name: commandName(command),
+        short: command.label,
+      })),
+  ];
+
+  if (index < topLevelCategoryOrder.length - 1) {
+    choices.push(promptSeparator(' '));
+  }
+
+  return choices;
+}
+
+const topLevelChoices: readonly (CockpitMenuChoice | PromptSeparator)[] = [
+  ...topLevelCategoryOrder.flatMap(categoryChoices),
+  { value: 'exit', name: 'Exit', short: 'Exit' },
+] as const;
+
+const minimumTopLevelPageSize = 8;
+const startupViewportReservedRows = 23;
+
+function topLevelPageSize(choiceCount: number): number {
+  const terminalRows = process.stdout.rows;
+  if (!terminalRows || terminalRows <= 0) {
+    return Math.min(choiceCount, 12);
+  }
+
+  return Math.min(choiceCount, Math.max(minimumTopLevelPageSize, terminalRows - startupViewportReservedRows));
+}
 
 function defaultSelect(options: Parameters<CockpitMenuSelectPrompt>[0]): Promise<unknown> {
-  return select(options);
+  return selectPrompt<CockpitTopLevelMenuValue>(options);
 }
 
 function defaultCancelHandler(value: unknown, action: 'exit' | 'back'): void {
-  handlePromptCancel(isCancel(value), action);
+  handlePromptCancel(isPromptCancel(value), action);
 }
 
 function menuDeps(deps: CockpitMenuDeps = {}): Required<CockpitMenuDeps> {
@@ -84,60 +130,32 @@ function menuDeps(deps: CockpitMenuDeps = {}): Required<CockpitMenuDeps> {
   };
 }
 
-function isCockpitCommandCategory(value: unknown): value is CockpitCommandCategory {
-  return typeof value === 'string' && categories.has(value as CockpitCommandCategory);
+function isCockpitCommand(value: unknown): value is CockpitCommand {
+  return typeof value === 'object' && value !== null && 'id' in value && 'slashAlias' in value;
 }
 
 export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): Promise<CockpitTopLevelMenuSelection> {
   const deps = menuDeps(options);
+
   const selected = await deps.select({
     message: 'What do you want to do?',
-    options: [...topLevelOptions],
-    initialValue: 'command-palette',
+    choices: [...topLevelChoices],
+    default: topLevelCommands[0],
+    pageSize: topLevelPageSize(topLevelChoices.length),
+    loop: false,
   });
   deps.handleCancel(selected, 'exit');
-
-  if (selected === 'command-palette') {
-    return { kind: 'command-palette' };
-  }
 
   if (selected === 'exit') {
     return { kind: 'exit' };
   }
 
-  if (isCockpitCommandCategory(selected)) {
+  if (isCockpitCommand(selected)) {
     return {
-      kind: 'category',
-      category: selected,
+      kind: 'command',
+      command: selected,
     };
   }
 
   return { kind: 'exit' };
-}
-
-export async function selectCockpitCategoryCommand(
-  category: CockpitCommandCategory,
-  options: CockpitMenuDeps = {},
-): Promise<CockpitCommand> {
-  const deps = menuDeps(options);
-  const commands = cockpitCommands.filter((command) => command.category === category && command.id !== 'exit');
-  const selected = await deps.select({
-    message: menuPromptMessage(categoryLabels[category], 'back'),
-    options: [
-      ...commands.map((command) => ({
-        value: command,
-        label: command.label,
-        hint: command.description,
-      })),
-      { value: cockpitMenuBackValue, label: 'Back' },
-    ],
-    initialValue: commands[0],
-  });
-  deps.handleCancel(selected, 'back');
-
-  if (selected === cockpitMenuBackValue) {
-    throw new MenuBackSignal();
-  }
-
-  return selected as CockpitCommand;
 }

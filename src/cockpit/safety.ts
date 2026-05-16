@@ -1,9 +1,8 @@
-import { confirm, isCancel, type ConfirmOptions } from '@clack/prompts';
-
 import { handlePromptCancel, menuPromptMessage, type PromptCancelAction } from '../menu-navigation.js';
 import type { CockpitCommand } from './command-registry.js';
+import { confirmPrompt, isPromptCancel, type ConfirmPromptOptions } from '../prompts/index.js';
 
-export type CockpitRiskConfirmPrompt = (options: ConfirmOptions) => Promise<boolean | symbol>;
+export type CockpitRiskConfirmPrompt = (options: ConfirmPromptOptions) => Promise<boolean | symbol>;
 
 export type CockpitSafetyDeps = {
   confirm?: CockpitRiskConfirmPrompt;
@@ -12,7 +11,7 @@ export type CockpitSafetyDeps = {
 };
 
 function defaultHandleCancel(value: unknown, action: PromptCancelAction): void {
-  handlePromptCancel(isCancel(value), action);
+  handlePromptCancel(isPromptCancel(value), action);
 }
 
 function riskConfirmationMessage(command: CockpitCommand, action: PromptCancelAction): string {
@@ -30,7 +29,7 @@ export async function confirmCockpitCommandRisk(
     return true;
   }
 
-  const prompt = deps.confirm ?? confirm;
+  const prompt = deps.confirm ?? confirmPrompt;
   const cancelAction = deps.cancelAction ?? 'back';
   const approved = await prompt({
     message: riskConfirmationMessage(command, cancelAction),

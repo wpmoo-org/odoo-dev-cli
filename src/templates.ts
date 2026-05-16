@@ -329,15 +329,10 @@ function applyBannerGradient(banner: string): string {
 export function renderBanner(): string {
   const banner = String.raw`
 
-░██       ░██ ░█████████  ░███     ░███
-░██       ░██ ░██     ░██ ░████   ░████
-░██  ░██  ░██ ░██     ░██ ░██░██ ░██░██  ░███████   ░███████
-░██ ░████ ░██ ░█████████  ░██ ░████ ░██ ░██    ░██ ░██    ░██
-░██░██ ░██░██ ░██         ░██  ░██  ░██ ░██    ░██ ░██    ░██
-░████   ░████ ░██         ░██       ░██ ░██    ░██ ░██    ░██
-░███     ░███ ░██         ░██       ░██  ░███████   ░███████
-
-░░░░░░░░░ Workflow Platform - Micro Object Oriented ░░░░░░░░░
+╭────────────────────────────────────────────╮
+│ WPMoo                                      │
+│ Workflow Platform · Micro Object Oriented  │
+╰────────────────────────────────────────────╯
 `;
 
   return `${ANSI_BOLD}${applyBannerGradient(banner)}${ANSI_RESET}`;
