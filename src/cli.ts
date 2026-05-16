@@ -38,6 +38,11 @@ import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-
 import { addModuleRepo, listModuleRepos, removeModuleRepo, type AddModuleRepoOptions, type RemoveModuleRepoOptions } from './repo-actions.js';
 import { renderSafeResetPreview, safeResetEnvironment, type SafeResetOptions } from './safe-reset.js';
 import {
+  getServiceRuntimeStatus,
+  renderServiceRuntimeStatusLine,
+  type ServiceRuntimeStatus,
+} from './service-runtime-status.js';
+import {
   listSources,
   renderSourceList,
   sourceListJson,
@@ -309,8 +314,12 @@ function renderStartupBanner(details?: StartupBannerDetails, latestVersion?: str
   return renderBanner(details?.(versionLine), details ? { version: versionLine } : undefined);
 }
 
-function renderCockpitStatusLines(status: EnvironmentStatus, lastStatus: string): string[] {
-  return [renderStartupEnvironmentLine(status), lastStatus];
+function renderCockpitStatusLines(
+  status: EnvironmentStatus,
+  serviceStatus: ServiceRuntimeStatus,
+  lastStatus: string,
+): string[] {
+  return [renderStartupEnvironmentLine(status), renderServiceRuntimeStatusLine(serviceStatus), lastStatus];
 }
 
 function renderLastCommandStatus(command: CockpitCommand): string {
@@ -368,8 +377,8 @@ async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: S
   console.log();
 }
 
-async function selectCockpitCommandFromMenu(): Promise<CockpitCommand | 'exit'> {
-  const selection = await selectCockpitTopLevelMenu();
+async function selectCockpitCommandFromMenu(serviceStatus: ServiceRuntimeStatus): Promise<CockpitCommand | 'exit'> {
+  const selection = await selectCockpitTopLevelMenu({ serviceStatus });
 
   if (selection.kind === 'exit') {
     return 'exit';
@@ -1390,11 +1399,12 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     }
 
     let lastStatus = 'Last: Ready';
-    const initialStatus = await getEnvironmentStatus(cwd);
-    await showStartup(argv, skipUpdateCheck, () => renderCockpitStatusLines(initialStatus, lastStatus));
+    let status = await getEnvironmentStatus(cwd);
+    let serviceStatus = await getServiceRuntimeStatus(cwd, status);
+    await showStartup(argv, skipUpdateCheck, () => renderCockpitStatusLines(status, serviceStatus, lastStatus));
     while (true) {
       try {
-        const command = await selectCockpitCommandFromMenu();
+        const command = await selectCockpitCommandFromMenu(serviceStatus);
 
         if (command === 'exit') {
           return;
@@ -1417,9 +1427,10 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
         if (!commandFailed) {
           lastStatus = renderLastCommandStatus(command);
         }
-        const status = await getEnvironmentStatus(cwd);
+        status = await getEnvironmentStatus(cwd);
+        serviceStatus = await getServiceRuntimeStatus(cwd, status);
         clearCockpitScreen();
-        console.log(renderBanner(renderCockpitStatusLines(status, lastStatus), { version: startupVersionLine() }));
+        console.log(renderBanner(renderCockpitStatusLines(status, serviceStatus, lastStatus), { version: startupVersionLine() }));
         console.log();
       } catch (error) {
         if (isMenuBackSignal(error)) {

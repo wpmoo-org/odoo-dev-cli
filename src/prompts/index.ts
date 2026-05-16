@@ -16,6 +16,7 @@ export type PromptChoice<T> = {
   name?: string;
   description?: string;
   short?: string;
+  disabled?: boolean | string;
 };
 export type SelectPromptOptions<T> =
   | {

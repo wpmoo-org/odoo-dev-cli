@@ -350,6 +350,19 @@ describe('template rendering', () => {
     expect(banner).toContain(`${nearWhiteMeta}Last:\u001B[0m${dimInfo} Start services\u001B[0m${successGreen} ✓ completed\u001B[39m`);
   });
 
+  it('renders service runtime status with green and orange state dots', () => {
+    const banner = renderBanner(['Status: ● Services running', 'Status: ● Docker not running'], {
+      version: 'v0.8.69',
+    });
+    const nearWhiteMeta = '\u001B[38;2;218;236;246m';
+    const statusText = '\u001B[38;2;120;157;181m';
+    const successGreen = '\u001B[32m';
+    const warningOrange = '\u001B[33m';
+
+    expect(banner).toContain(`${nearWhiteMeta}Status:\u001B[0m ${successGreen}●\u001B[39m${statusText} Services running\u001B[0m`);
+    expect(banner).toContain(`${nearWhiteMeta}Status:\u001B[0m ${warningOrange}●\u001B[39m${statusText} Docker not running\u001B[0m`);
+  });
+
   it('renders failed cockpit status results with a red error marker and readable detail', () => {
     const banner = renderBanner(['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Start services ✗ Error: docker unavailable'], {
       version: 'v0.8.69',

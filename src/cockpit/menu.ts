@@ -5,6 +5,7 @@ import {
   type CockpitCommand,
   type CockpitCommandCategory,
 } from './command-registry.js';
+import type { ServiceRuntimeStatus } from '../service-runtime-status.js';
 import { handlePromptCancel } from '../menu-navigation.js';
 import {
   isPromptCancel,
@@ -29,6 +30,7 @@ export type CockpitMenuChoice = {
   name: string;
   short?: string;
   description?: string;
+  disabled?: boolean | string;
 };
 
 export type CockpitMenuSelectPrompt = (options: {
@@ -43,6 +45,7 @@ export type CockpitMenuSelectPrompt = (options: {
 type CockpitMenuDeps = {
   select?: CockpitMenuSelectPrompt;
   handleCancel?: (value: unknown, action: 'exit' | 'back') => void;
+  serviceStatus?: ServiceRuntimeStatus;
 };
 
 const categoryLabels: Record<CockpitCommandCategory, string> = {
@@ -84,16 +87,34 @@ function commandName(command: CockpitCommand): string {
   return `${rgb(226, 184, 96, ` ${command.label.padEnd(topLevelCommandLabelWidth)}`)}${dim(`  ${command.description}`)}`;
 }
 
-function categoryChoices(category: CockpitCommandCategory, index: number): readonly (CockpitMenuChoice | PromptSeparator)[] {
+function disabledReason(command: CockpitCommand, serviceStatus?: ServiceRuntimeStatus): string | undefined {
+  if (command.category !== 'services' || !serviceStatus) return undefined;
+  if (serviceStatus.kind === 'docker-not-running') return 'Docker is not running.';
+  if (serviceStatus.kind === 'running' && command.id === 'start') return 'Services are already running.';
+  if (serviceStatus.kind === 'stopped' && ['stop', 'restart', 'logs', 'shell'].includes(command.id)) {
+    return 'Services are not running.';
+  }
+  return undefined;
+}
+
+function categoryChoices(
+  category: CockpitCommandCategory,
+  index: number,
+  serviceStatus?: ServiceRuntimeStatus,
+): readonly (CockpitMenuChoice | PromptSeparator)[] {
   const choices: (CockpitMenuChoice | PromptSeparator)[] = [
     promptSeparator(categoryHeading(category)),
     ...topLevelCommands
       .filter((command) => command.category === category)
-      .map((command) => ({
-        value: command,
-        name: commandName(command),
-        short: command.label,
-      })),
+      .map((command) => {
+        const disabled = disabledReason(command, serviceStatus);
+        return {
+          value: command,
+          name: commandName(command),
+          short: command.label,
+          disabled,
+        };
+      }),
   ];
 
   if (index < topLevelCategoryOrder.length - 1) {
@@ -102,10 +123,6 @@ function categoryChoices(category: CockpitCommandCategory, index: number): reado
 
   return choices;
 }
-
-const topLevelChoices: readonly (CockpitMenuChoice | PromptSeparator)[] = [
-  ...topLevelCategoryOrder.flatMap(categoryChoices),
-] as const;
 
 const minimumTopLevelPageSize = 8;
 const startupViewportReservedRows = 11;
@@ -127,7 +144,7 @@ function defaultCancelHandler(value: unknown, action: 'exit' | 'back'): void {
   handlePromptCancel(isPromptCancel(value), action);
 }
 
-function menuDeps(deps: CockpitMenuDeps = {}): Required<CockpitMenuDeps> {
+function menuDeps(deps: CockpitMenuDeps = {}): Required<Pick<CockpitMenuDeps, 'select' | 'handleCancel'>> {
   return {
     select: deps.select ?? defaultSelect,
     handleCancel: deps.handleCancel ?? defaultCancelHandler,
@@ -138,14 +155,29 @@ function isCockpitCommand(value: unknown): value is CockpitCommand {
   return typeof value === 'object' && value !== null && 'id' in value && 'slashAlias' in value;
 }
 
+function topLevelChoices(serviceStatus?: ServiceRuntimeStatus): readonly (CockpitMenuChoice | PromptSeparator)[] {
+  return topLevelCategoryOrder.flatMap((category, index) => categoryChoices(category, index, serviceStatus));
+}
+
+function defaultCommand(serviceStatus?: ServiceRuntimeStatus): CockpitCommand {
+  if (serviceStatus?.kind === 'running') {
+    return cockpitCommands.find((command) => command.id === 'stop') ?? topLevelCommands[0];
+  }
+  if (serviceStatus?.kind === 'docker-not-running') {
+    return cockpitCommands.find((command) => command.id === 'status') ?? topLevelCommands[0];
+  }
+  return cockpitCommands.find((command) => command.id === 'start') ?? topLevelCommands[0];
+}
+
 export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): Promise<CockpitTopLevelMenuSelection> {
   const deps = menuDeps(options);
+  const choices = topLevelChoices(options.serviceStatus);
 
   const selected = await deps.select({
     message: '',
-    choices: [...topLevelChoices],
-    default: topLevelCommands[0],
-    pageSize: topLevelPageSize(topLevelChoices.length),
+    choices: [...choices],
+    default: defaultCommand(options.serviceStatus),
+    pageSize: topLevelPageSize(choices.length),
     loop: false,
     hideMessage: true,
   });

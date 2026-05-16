@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getGitHubRepositoryStatus: vi.fn(async () => ({ status: 'accessible', slug: 'example-org/repo' })),
   installPromptCancelKeyTracker: vi.fn(),
   isUpdateCheckSkipped: vi.fn(() => true),
+  getServiceRuntimeStatus: vi.fn(async () => ({ kind: 'stopped' as const })),
   listSources: vi.fn(async () => [
     {
       type: 'private',
@@ -118,6 +119,14 @@ vi.mock('../src/safe-reset.js', async (importOriginal) => {
     ...actual,
     renderSafeResetPreview: mocks.renderSafeResetPreview,
     safeResetEnvironment: mocks.safeResetEnvironment,
+  };
+});
+
+vi.mock('../src/service-runtime-status.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/service-runtime-status.js')>();
+  return {
+    ...actual,
+    getServiceRuntimeStatus: mocks.getServiceRuntimeStatus,
   };
 });
 
@@ -231,7 +240,7 @@ describe('cli menu environment routes', () => {
     expect(mocks.safeResetEnvironment).not.toHaveBeenCalled();
     expect(mocks.getEnvironmentStatus).toHaveBeenCalledWith('/tmp/environment');
     expect(mocks.renderBanner).toHaveBeenCalledWith(
-      ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Ready'],
+      ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Status: ● Services stopped', 'Last: Ready'],
       { version: `v${packageVersion()}` },
     );
     expect(mocks.renderEnvironmentStatusSummary).not.toHaveBeenCalled();
@@ -279,7 +288,11 @@ describe('cli menu environment routes', () => {
     });
     expect(mocks.renderBanner).toHaveBeenNthCalledWith(
       2,
-      ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Add source repo ✓ completed'],
+      [
+        'Environment: Odoo 19.0 · 1 repo · 0 modules',
+        'Status: ● Services stopped',
+        'Last: Add source repo ✓ completed',
+      ],
       { version: `v${packageVersion()}` },
     );
     expect(vi.mocked(console.log).mock.calls.filter((call) => call.length === 0)).toHaveLength(2);
@@ -305,7 +318,11 @@ describe('cli menu environment routes', () => {
 
     expect(mocks.renderBanner).toHaveBeenNthCalledWith(
       2,
-      ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Add source repo ✗ Error: submodule add failed'],
+      [
+        'Environment: Odoo 19.0 · 1 repo · 0 modules',
+        'Status: ● Services stopped',
+        'Last: Add source repo ✗ Error: submodule add failed',
+      ],
       { version: `v${packageVersion()}` },
     );
     expect(vi.mocked(prompts.selectPrompt)).toHaveBeenCalledTimes(4);

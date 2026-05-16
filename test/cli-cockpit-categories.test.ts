@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { cockpitCommands } from '../src/cockpit/command-registry.js';
+import { cockpitCommands, type CockpitCommand } from '../src/cockpit/command-registry.js';
 import {
   selectCockpitTopLevelMenu,
   type CockpitMenuChoice,
@@ -46,6 +46,10 @@ function dim(value: string): string {
 
 function inlineCommand(label: string, description: string): string {
   return `${command(` ${label.padEnd(22)}`)}${dim(`  ${description}`)}`;
+}
+
+function disabledValue(choice: CockpitMenuChoice | undefined): unknown {
+  return (choice as { disabled?: unknown } | undefined)?.disabled;
 }
 
 describe('cockpit top-level menu', () => {
@@ -194,5 +198,94 @@ describe('cockpit top-level menu', () => {
       kind: 'exit',
     });
     expect(handleCancel).toHaveBeenCalledWith(promptCancelled, 'exit');
+  });
+
+  it('keeps service commands visible but disables start when services are running', async () => {
+    const startCommand = cockpitCommands.find((command) => command.id === 'start');
+    const stopCommand = cockpitCommands.find((command) => command.id === 'stop');
+    const logsCommand = cockpitCommands.find((command) => command.id === 'logs');
+    expect(startCommand).toBeDefined();
+    expect(stopCommand).toBeDefined();
+    expect(logsCommand).toBeDefined();
+
+    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
+      const config = options as MenuPromptConfig;
+      const choices = (config.choices ?? []).filter(isMenuChoice);
+
+      expect(menuChoiceLabels(config)).toContain(inlineCommand('Start services', 'Start the Odoo development services.'));
+      expect(disabledValue(choices.find((choice) => choice.value === startCommand))).toBe('Services are already running.');
+      expect(disabledValue(choices.find((choice) => choice.value === stopCommand))).toBeUndefined();
+      expect(disabledValue(choices.find((choice) => choice.value === logsCommand))).toBeUndefined();
+      expect(config.default).toBe(stopCommand);
+      return stopCommand;
+    });
+
+    await expect(selectCockpitTopLevelMenu({
+      select: prompt,
+      serviceStatus: { kind: 'running' },
+    })).resolves.toEqual({
+      kind: 'command',
+      command: stopCommand,
+    });
+  });
+
+  it('keeps service commands visible but disables dependent service actions when services are stopped', async () => {
+    const startCommand = cockpitCommands.find((command) => command.id === 'start');
+    const stopCommand = cockpitCommands.find((command) => command.id === 'stop');
+    const restartCommand = cockpitCommands.find((command) => command.id === 'restart');
+    const logsCommand = cockpitCommands.find((command) => command.id === 'logs');
+    const shellCommand = cockpitCommands.find((command) => command.id === 'shell');
+    expect(startCommand).toBeDefined();
+    expect(stopCommand).toBeDefined();
+    expect(restartCommand).toBeDefined();
+    expect(logsCommand).toBeDefined();
+    expect(shellCommand).toBeDefined();
+
+    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
+      const config = options as MenuPromptConfig;
+      const choices = (config.choices ?? []).filter(isMenuChoice);
+
+      expect(disabledValue(choices.find((choice) => choice.value === startCommand))).toBeUndefined();
+      expect(disabledValue(choices.find((choice) => choice.value === stopCommand))).toBe('Services are not running.');
+      expect(disabledValue(choices.find((choice) => choice.value === restartCommand))).toBe('Services are not running.');
+      expect(disabledValue(choices.find((choice) => choice.value === logsCommand))).toBe('Services are not running.');
+      expect(disabledValue(choices.find((choice) => choice.value === shellCommand))).toBe('Services are not running.');
+      expect(config.default).toBe(startCommand);
+      return startCommand;
+    });
+
+    await expect(selectCockpitTopLevelMenu({
+      select: prompt,
+      serviceStatus: { kind: 'stopped' },
+    })).resolves.toEqual({
+      kind: 'command',
+      command: startCommand,
+    });
+  });
+
+  it('disables all service actions when Docker is not running', async () => {
+    const startCommand = cockpitCommands.find((command) => command.id === 'start');
+    const statusCommand = cockpitCommands.find((command) => command.id === 'status');
+    expect(startCommand).toBeDefined();
+    expect(statusCommand).toBeDefined();
+
+    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
+      const config = options as MenuPromptConfig;
+      const choices = (config.choices ?? []).filter(isMenuChoice);
+      const serviceChoices = choices.filter((choice) => isMenuChoice(choice) && (choice.value as CockpitCommand).category === 'services');
+
+      expect(serviceChoices).toHaveLength(5);
+      expect(serviceChoices.every((choice) => disabledValue(choice) === 'Docker is not running.')).toBe(true);
+      expect(config.default).toBe(statusCommand);
+      return statusCommand;
+    });
+
+    await expect(selectCockpitTopLevelMenu({
+      select: prompt,
+      serviceStatus: { kind: 'docker-not-running' },
+    })).resolves.toEqual({
+      kind: 'command',
+      command: statusCommand,
+    });
   });
 });

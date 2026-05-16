@@ -306,6 +306,7 @@ const ANSI_TAGLINE = '\u001B[38;2;120;157;181m';
 const ANSI_META = '\u001B[38;2;218;236;246m';
 const ANSI_SUCCESS = '\u001B[32m';
 const ANSI_ERROR = '\u001B[31m';
+const ANSI_WARNING = '\u001B[33m';
 const ANSI_DEFAULT_FOREGROUND = '\u001B[39m';
 const ANSI_RESET = '\u001B[0m';
 const BANNER_TAGLINE = 'Development, staging and production workflows for Odoo projects.';
@@ -354,18 +355,32 @@ function renderErrorInfo(value: string): string {
   return `${ANSI_ERROR}${value}${ANSI_DEFAULT_FOREGROUND}`;
 }
 
+function renderWarningInfo(value: string): string {
+  return `${ANSI_WARNING}${value}${ANSI_DEFAULT_FOREGROUND}`;
+}
+
 function renderTaglineInfo(value: string): string {
   return `${ANSI_TAGLINE}${value}${ANSI_RESET}`;
 }
 
 function renderBannerDetail(value: string): string {
-  const match = /^(Environment|Last):(.*)$/u.exec(value);
+  const match = /^(Environment|Status|Last):(.*)$/u.exec(value);
   if (!match) {
     return renderDimInfo(value);
   }
 
   const label = match[1];
   const detail = match[2] ?? '';
+
+  if (label === 'Status') {
+    const statusMatch = /^ (●) (.*)$/u.exec(detail);
+    if (statusMatch) {
+      const marker = statusMatch[1] ?? '';
+      const message = statusMatch[2] ?? '';
+      const renderMarker = message === 'Services running' ? renderSuccessInfo : renderWarningInfo;
+      return `${renderMetaInfo(`${label}:`)} ${renderMarker(marker)}${renderTaglineInfo(` ${message}`)}`;
+    }
+  }
 
   if (label === 'Last') {
     const completedMatch = /^(.*?)( ✓ completed)$/u.exec(detail);
