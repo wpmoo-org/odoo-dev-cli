@@ -30,6 +30,12 @@ export type DailyActionPlan = {
 };
 
 export type DailyActionRunner = (plan: DailyActionPlan) => Promise<void>;
+export type DailyActionOutputWriter = (chunk: string) => void;
+
+const ANSI_DIM_INFO = '\u001B[2m\u001B[38;2;120;157;181m';
+const ANSI_WARNING = '\u001B[33m';
+const ANSI_DEFAULT_FOREGROUND = '\u001B[39m';
+const ANSI_RESET = '\u001B[0m';
 
 const dailyActionCommandSet = new Set<string>(dailyActionCommands);
 
@@ -193,6 +199,47 @@ async function spawnDailyAction(plan: DailyActionPlan): Promise<void> {
   }
 }
 
+function renderDailyActionOutputLine(line: string): string {
+  if (line.startsWith('WARNING:')) {
+    return `${ANSI_WARNING}WARNING:${ANSI_DEFAULT_FOREGROUND}${ANSI_DIM_INFO}${line.slice('WARNING:'.length)}${ANSI_RESET}`;
+  }
+
+  if (line === "Running as user 'root' is a security risk.") {
+    return `${ANSI_DIM_INFO}${line}${ANSI_RESET}`;
+  }
+
+  return line;
+}
+
+export function renderDailyActionOutput(output: string): string {
+  return output
+    .split(/(\r?\n)/u)
+    .map((part) => (part === '\n' || part === '\r\n' ? part : renderDailyActionOutputLine(part)))
+    .join('');
+}
+
+async function spawnDailyActionWithStyledOutput(
+  plan: DailyActionPlan,
+  writer: DailyActionOutputWriter,
+): Promise<void> {
+  const child = spawn(plan.scriptPath, plan.args, {
+    cwd: plan.cwd,
+    stdio: ['inherit', 'pipe', 'pipe'],
+  });
+
+  child.stdout?.on('data', (chunk: Buffer) => writer(renderDailyActionOutput(chunk.toString('utf8'))));
+  child.stderr?.on('data', (chunk: Buffer) => writer(renderDailyActionOutput(chunk.toString('utf8'))));
+
+  const exitCode = await new Promise<number | null>((resolve, reject) => {
+    child.on('error', reject);
+    child.on('close', resolve);
+  });
+
+  if (exitCode !== 0) {
+    throw new Error(`Daily action script exited with code ${exitCode ?? 'unknown'}: ${plan.scriptPath}`);
+  }
+}
+
 export async function runDailyAction(
   command: DailyActionCommand,
   argv: string[],
@@ -200,4 +247,13 @@ export async function runDailyAction(
   runner: DailyActionRunner = spawnDailyAction,
 ): Promise<void> {
   await runner(await dailyActionPlan(command, argv, cwd));
+}
+
+export async function runDailyActionWithStyledOutput(
+  command: DailyActionCommand,
+  argv: string[],
+  cwd = process.cwd(),
+  writer: DailyActionOutputWriter = (chunk) => process.stdout.write(chunk),
+): Promise<void> {
+  await spawnDailyActionWithStyledOutput(await dailyActionPlan(command, argv, cwd), writer);
 }

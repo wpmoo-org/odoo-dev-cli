@@ -4,7 +4,13 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { dailyActionPlan, isDailyActionCommand, runDailyAction } from '../src/daily-actions.js';
+import {
+  dailyActionPlan,
+  isDailyActionCommand,
+  renderDailyActionOutput,
+  runDailyAction,
+  runDailyActionWithStyledOutput,
+} from '../src/daily-actions.js';
 import { markerPath } from '../src/environment.js';
 
 async function makeEnvironment(options: { scripts?: string[] } = {}): Promise<string> {
@@ -228,6 +234,50 @@ describe('daily actions', () => {
         args: ['--dry-run', 'snapshot-name', 'customdb'],
       },
     ]);
+  });
+
+  it('styles warning output while keeping regular output unchanged', () => {
+    expect(
+      renderDailyActionOutput(
+        [
+          '[+] Creating 1/1',
+          "WARNING: Skipping /usr/lib/python3.12/dist-packages/charset_normalizer-3.3.2.dist-info due to invalid metadata entry 'name'",
+          "Running as user 'root' is a security risk.",
+          'Done',
+          '',
+        ].join('\n'),
+      ),
+    ).toBe(
+      [
+        '[+] Creating 1/1',
+        "\u001B[33mWARNING:\u001B[39m\u001B[2m\u001B[38;2;120;157;181m Skipping /usr/lib/python3.12/dist-packages/charset_normalizer-3.3.2.dist-info due to invalid metadata entry 'name'\u001B[0m",
+        "\u001B[2m\u001B[38;2;120;157;181mRunning as user 'root' is a security risk.\u001B[0m",
+        'Done',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('runs daily action scripts through a styled output writer', async () => {
+    const target = await makeEnvironment({ scripts: ['update.sh'] });
+    const scriptPath = join(target, 'scripts', 'update.sh');
+    await writeFile(
+      scriptPath,
+      [
+        '#!/usr/bin/env bash',
+        'echo "regular output"',
+        'echo "WARNING: streamed warning" >&2',
+        '',
+      ].join('\n'),
+    );
+    await chmod(scriptPath, 0o755);
+    const chunks: string[] = [];
+
+    await runDailyActionWithStyledOutput('update', ['sale'], target, (chunk) => chunks.push(chunk));
+
+    expect(chunks.join('')).toContain('regular output');
+    expect(chunks.join('')).toContain('\u001B[33mWARNING:\u001B[39m');
+    expect(chunks.join('')).toContain('\u001B[2m\u001B[38;2;120;157;181m streamed warning\u001B[0m');
   });
 
   it('rejects invalid test arguments with existing error wording', async () => {

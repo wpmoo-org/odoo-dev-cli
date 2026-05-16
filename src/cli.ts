@@ -21,7 +21,7 @@ import { confirmCockpitCommandRisk } from './cockpit/safety.js';
 import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
 import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
-import { isDailyActionCommand, runDailyAction } from './daily-actions.js';
+import { isDailyActionCommand, runDailyAction, runDailyActionWithStyledOutput, type DailyActionCommand } from './daily-actions.js';
 import { getDoctorReport, runDoctor, type DoctorCommandOptions } from './doctor.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
@@ -337,6 +337,18 @@ function clearCockpitScreen(): void {
   if (process.stdout.isTTY) {
     process.stdout.write('\u001B[2J\u001B[H');
   }
+}
+
+const ANSI_ACTION = '\u001B[38;2;226;184;96m';
+const ANSI_SUCCESS = '\u001B[32m';
+const ANSI_DEFAULT_FOREGROUND = '\u001B[39m';
+
+function renderActionText(value: string): string {
+  return `${ANSI_ACTION}${value}${ANSI_DEFAULT_FOREGROUND}`;
+}
+
+function renderCompletedText(action: string): string {
+  return `${ANSI_SUCCESS}✓${ANSI_DEFAULT_FOREGROUND} ${action} ${ANSI_SUCCESS}completed${ANSI_DEFAULT_FOREGROUND}.`;
 }
 
 async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: StartupBannerDetails): Promise<void> {
@@ -1303,6 +1315,87 @@ function selectedModuleRemovalOptions(
   };
 }
 
+function moduleDailyAction(action: ModuleActionId): DailyActionCommand | undefined {
+  if (action === 'update') return 'update';
+  if (action === 'test') return 'test';
+  if (action === 'lint') return 'lint';
+  return undefined;
+}
+
+function moduleDailyActionArgs(action: ModuleActionId, module: ListedModule): string[] {
+  if (action === 'update' || action === 'test') {
+    return [module.moduleName];
+  }
+
+  return [];
+}
+
+function moduleActionTitle(action: ModuleActionId): string {
+  if (action === 'update') return 'Update module';
+  if (action === 'test') return 'Test module';
+  if (action === 'lint') return 'Run lint';
+  if (action === 'delete') return 'Delete module';
+  return 'Module action';
+}
+
+function moduleActionCompletedLabel(action: ModuleActionId): string {
+  if (action === 'update') return 'Update';
+  if (action === 'test') return 'Test';
+  if (action === 'lint') return 'Lint';
+  return 'Action';
+}
+
+async function renderModuleActionPageHeader(action: ModuleActionId, module: ListedModule, cwd: string): Promise<void> {
+  const status = await getEnvironmentStatus(cwd);
+  const serviceStatus = await getServiceRuntimeStatus(cwd, status);
+  const title = moduleActionTitle(action);
+
+  clearCockpitScreen();
+  console.log(renderBanner(renderCockpitStatusLines(status, serviceStatus, `Last: ${title}`), { version: startupVersionLine() }));
+  introPrompt(title);
+  console.log(renderActionText(module.moduleName));
+  console.log('');
+}
+
+async function waitForModuleActionBack(): Promise<void> {
+  const selected = await selectPrompt({
+    message: '',
+    choices: [{ value: 'back', name: 'Back' }],
+    default: 'back',
+    loop: false,
+    hideMessage: true,
+    navigationHelp: 'back',
+  });
+
+  try {
+    handleCancel(selected, 'back');
+  } catch (error) {
+    if (isMenuBackSignal(error)) {
+      return;
+    }
+    throw error;
+  }
+}
+
+async function runSelectedModuleDailyAction(action: ModuleActionId, module: ListedModule, cwd: string): Promise<void> {
+  const command = moduleDailyAction(action);
+  if (!command) {
+    return;
+  }
+
+  await renderModuleActionPageHeader(action, module, cwd);
+  try {
+    await runDailyActionWithStyledOutput(command, moduleDailyActionArgs(action, module), cwd);
+    notePrompt(renderCompletedText(moduleActionCompletedLabel(action)), 'Done');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    notePrompt(message, 'Error');
+    await waitForModuleActionBack();
+    throw error;
+  }
+  await waitForModuleActionBack();
+}
+
 async function runSelectedModuleAction(action: ModuleActionId, module: ListedModule, cwd: string): Promise<void> {
   if (action === 'back') {
     return;
@@ -1328,20 +1421,7 @@ async function runSelectedModuleAction(action: ModuleActionId, module: ListedMod
     return;
   }
 
-  if (action === 'update') {
-    await runDailyAction('update', [module.moduleName], cwd);
-    notePrompt(`Updated module ${module.moduleName}.`, 'Done');
-    return;
-  }
-
-  if (action === 'test') {
-    await runDailyAction('test', [module.moduleName], cwd);
-    notePrompt(`Test completed for module ${module.moduleName}.`, 'Done');
-    return;
-  }
-
-  await runDailyAction('lint', [], cwd);
-  notePrompt('Lint completed.', 'Done');
+  await runSelectedModuleDailyAction(action, module, cwd);
 }
 
 async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<'continue' | 'exit'> {

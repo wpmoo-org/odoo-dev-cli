@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   removeModuleFromSourceRepo: vi.fn(async () => undefined),
   removeModuleRepo: vi.fn(async () => undefined),
   runDailyAction: vi.fn(async () => undefined),
+  runDailyActionWithStyledOutput: vi.fn(async () => undefined),
   renderBanner: vi.fn(() => 'mock banner'),
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
   repositoryPreflightAvailable: vi.fn(async () => true),
@@ -101,6 +102,7 @@ vi.mock('../src/daily-actions.js', async (importOriginal) => {
   return {
     ...actual,
     runDailyAction: mocks.runDailyAction,
+    runDailyActionWithStyledOutput: mocks.runDailyActionWithStyledOutput,
   };
 });
 
@@ -476,30 +478,42 @@ describe('cli menu environment routes', () => {
   });
 
   it.each([
-    ['update', 'update', ['odoo_sample_module_base']],
-    ['test', 'test', ['odoo_sample_module_base']],
-    ['lint', 'lint', []],
-  ] as const)('routes list-modules selected module action %s to the existing daily action', async (moduleAction, dailyAction, argv) => {
+    ['update', 'update', ['odoo_sample_module_base'], 'Update module'],
+    ['test', 'test', ['odoo_sample_module_base'], 'Test module'],
+    ['lint', 'lint', [], 'Run lint'],
+  ] as const)('routes list-modules selected module action %s to a result page', async (moduleAction, dailyAction, argv, title) => {
     const prompts = await import('../src/prompts/index.js');
     const selectedModule = {
       moduleName: 'odoo_sample_module_base',
       repoPath: 'odoo_sample_module',
       sourceType: 'private' as const,
     };
+    const originalIsTTY = process.stdout.isTTY;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as never);
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
     mocks.listModulesInEnvironment.mockResolvedValueOnce([selectedModule]);
     vi.mocked(prompts.selectPrompt)
       .mockResolvedValueOnce(cockpitCommand('list-modules'))
       .mockResolvedValueOnce(selectedModule)
       .mockResolvedValueOnce(moduleAction)
+      .mockResolvedValueOnce('back')
       .mockResolvedValueOnce('exit');
     const { runCli } = await loadCli();
 
-    await runCli([], '/tmp/environment');
+    try {
+      await runCli([], '/tmp/environment');
 
-    expect(mocks.listModulesInEnvironment).toHaveBeenCalledWith('/tmp/environment');
-    expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith('List modules');
-    expect(mocks.runDailyAction).toHaveBeenCalledWith(dailyAction, argv, '/tmp/environment');
+      expect(mocks.listModulesInEnvironment).toHaveBeenCalledWith('/tmp/environment');
+      expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith('List modules');
+      expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith(title);
+      expect(writeSpy).toHaveBeenCalledWith('\u001B[2J\u001B[H');
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledWith(dailyAction, argv, '/tmp/environment');
+      expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(expect.stringContaining('completed'), 'Done');
+    } finally {
+      writeSpy.mockRestore();
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTTY });
+    }
   });
 
   it('routes list-modules delete action to selected module removal', async () => {
