@@ -3,6 +3,7 @@ import { isCancel, select, text } from '@clack/prompts';
 import type { DailyActionCommand } from '../daily-actions.js';
 import { listModulesInSourceRepo } from '../module-actions.js';
 import { listModuleRepos } from '../repo-actions.js';
+import { listSources } from '../source-actions.js';
 import {
   handlePromptCancel,
   menuPromptMessage,
@@ -65,11 +66,15 @@ function requiredString(value: unknown, message: string, deps: Required<DailyAct
 
 async function detectedModules(cwd: string): Promise<string[]> {
   try {
-    const repos = await listModuleRepos(cwd);
+    const sources = await listSources(cwd);
+    const repos =
+      sources.length > 0
+        ? sources.map((source) => ({ path: source.path, sourceType: source.type }))
+        : (await listModuleRepos(cwd)).map((path) => ({ path, sourceType: 'private' as const }));
     const modules = await Promise.all(
       repos.map(async (repo) => {
         try {
-          return await listModulesInSourceRepo(cwd, repo);
+          return await listModulesInSourceRepo(cwd, repo.path, repo.sourceType);
         } catch {
           return [];
         }

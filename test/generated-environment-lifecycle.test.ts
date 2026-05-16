@@ -59,10 +59,12 @@ describe('generated environment lifecycle and maintenance matrix', () => {
     const composeTemplateUrl = await writeLocalComposeFixture(root);
     const baseRemote = join(root, 'odoo_sample_module.git');
     const reportsRemote = join(root, 'odoo_sample_module_reports.git');
+    const ocaRemote = join(root, 'odoo_sample_module_oca.git');
     const target = join(root, 'odoo_sample_module_dev');
 
     await git(root, ['init', '--bare', baseRemote]);
     await git(root, ['init', '--bare', reportsRemote]);
+    await git(root, ['init', '--bare', ocaRemote]);
     await git(root, ['init', target]);
     await git(target, ['config', 'user.name', 'Test User']);
     await git(target, ['config', 'user.email', 'test@example.com']);
@@ -98,10 +100,32 @@ describe('generated environment lifecycle and maintenance matrix', () => {
       stage: true,
     });
 
+    await addModuleRepo({
+      target,
+      repoUrl: ocaRemote,
+      repoPath: 'odoo_sample_module_oca',
+      sourceType: 'oca',
+      odooVersion: '19.0',
+      initEmptyRepos: true,
+      stage: true,
+    });
+
+    const ocaModuleName = 'odoo_sample_module_oca_extra';
+    const ocaModuleDir = join(target, 'odoo/custom/src/oca/odoo_sample_module_oca', ocaModuleName);
+    await mkdir(ocaModuleDir, { recursive: true });
+    await writeFile(join(ocaModuleDir, '__manifest__.py'), '{}\n', 'utf8');
+
     await expect(readFile(join(target, '.gitmodules'), 'utf8')).resolves.toContain(
       'path = odoo/custom/src/private/odoo_sample_module_reports',
     );
-    await expect(listModuleRepos(target)).resolves.toEqual(['odoo_sample_module', 'odoo_sample_module_reports']);
+    await expect(readFile(join(target, '.gitmodules'), 'utf8')).resolves.toContain(
+      'path = odoo/custom/src/oca/odoo_sample_module_oca',
+    );
+    await expect(listModuleRepos(target)).resolves.toEqual([
+      'odoo_sample_module',
+      'odoo_sample_module_oca',
+      'odoo_sample_module_reports',
+    ]);
     await expect(readFile(join(target, 'etc/odoo.conf'), 'utf8')).resolves.toContain('/mnt/wpmoo-addons');
 
     const moduleName = 'odoo_sample_module_reports_extra';
@@ -134,7 +158,9 @@ describe('generated environment lifecycle and maintenance matrix', () => {
 
     await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module'))).resolves.toBeTruthy();
     await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module_reports'))).resolves.toBeTruthy();
+    await expect(stat(join(target, 'odoo/custom/src/oca/odoo_sample_module_oca'))).resolves.toBeTruthy();
     await expect(stat(moduleDir)).resolves.toBeTruthy();
+    await expect(stat(ocaModuleDir)).resolves.toBeTruthy();
     await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain('./scripts/up.sh');
     await expect(readFile(join(target, 'etc/odoo.conf'), 'utf8')).resolves.toContain('/mnt/wpmoo-addons');
     await expect(readFile(join(target, 'compose.yaml'), 'utf8')).resolves.toBe('name: base-compose\n');

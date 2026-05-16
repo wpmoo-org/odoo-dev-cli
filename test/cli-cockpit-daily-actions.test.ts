@@ -36,12 +36,22 @@ async function makeEnvironment(): Promise<string> {
   const target = await mkdtemp(join(tmpdir(), 'wpmoo-cockpit-daily-'));
   await mkdir(join(target, 'odoo/custom/src/private/source_repo/sale'), { recursive: true });
   await mkdir(join(target, 'odoo/custom/src/private/source_repo/stock'), { recursive: true });
+  await mkdir(join(target, 'odoo/custom/src/oca/oca_repo/purchase'), { recursive: true });
   await writeFile(
     join(target, '.gitmodules'),
-    '[submodule "odoo/custom/src/private/source_repo"]\n\tpath = odoo/custom/src/private/source_repo\n',
+    [
+      '[submodule "odoo/custom/src/private/source_repo"]',
+      '\tpath = odoo/custom/src/private/source_repo',
+      '\turl = https://github.com/example-org/source_repo.git',
+      '[submodule "odoo/custom/src/oca/oca_repo"]',
+      '\tpath = odoo/custom/src/oca/oca_repo',
+      '\turl = https://github.com/OCA/oca_repo.git',
+      '',
+    ].join('\n'),
   );
   await writeFile(join(target, 'odoo/custom/src/private/source_repo/sale/__manifest__.py'), '{}');
   await writeFile(join(target, 'odoo/custom/src/private/source_repo/stock/__manifest__.py'), '{}');
+  await writeFile(join(target, 'odoo/custom/src/oca/oca_repo/purchase/__manifest__.py'), '{}');
   return target;
 }
 
@@ -97,6 +107,22 @@ describe('cockpit daily action prompts', () => {
         }),
       ),
     ).resolves.toEqual(['sale', 'devel', 'i18n/sale.pot']);
+  });
+
+  it('offers modules from non-private source repositories', async () => {
+    const target = await makeEnvironment();
+
+    await expect(
+      collectDailyActionArgs('install', target, {
+        async select(options) {
+          expect(options.options.map((option) => option.value)).toContain('purchase');
+          return 'purchase';
+        },
+        async text(options) {
+          return options.defaultValue ?? '';
+        },
+      }),
+    ).resolves.toEqual(['purchase']);
   });
 
   it('requires restore-snapshot snapshot name before db', async () => {

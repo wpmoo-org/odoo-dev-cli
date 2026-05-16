@@ -142,8 +142,8 @@ npx @wpmoo/odoo doctor
 npx @wpmoo/odoo doctor --fix
 npx @wpmoo/odoo add-repo --repo-url https://github.com/example-org/odoo_sample_module_reports.git
 npx @wpmoo/odoo remove-repo --repo odoo_sample_module_reports
-npx @wpmoo/odoo add-module --repo odoo_sample_module --module odoo_sample_module_base
-npx @wpmoo/odoo remove-module --repo odoo_sample_module --module odoo_sample_module_base
+npx @wpmoo/odoo add-module --repo odoo_sample_module --module odoo_sample_module_base --source-type private
+npx @wpmoo/odoo remove-module --repo odoo_sample_module --module odoo_sample_module_base --source-type private
 npx @wpmoo/odoo reset --dry-run
 npx @wpmoo/odoo reset
 
@@ -275,10 +275,13 @@ GitHub CLI is optional for repository setup. When it is available and authentica
 
 Add a minimal Odoo module skeleton to a source repository:
 
+For module actions, `--source-type` selects the source directory (`private`, `oca`, or `external`). Default is `private`.
+
 ```bash
 npx @wpmoo/odoo add-module \
   --repo odoo_sample_module \
-  --module odoo_sample_module_base
+  --module odoo_sample_module_base \
+  --source-type oca
 ```
 
 Remove a module registration while keeping files:
@@ -286,7 +289,8 @@ Remove a module registration while keeping files:
 ```bash
 npx @wpmoo/odoo remove-module \
   --repo odoo_sample_module \
-  --module odoo_sample_module_base
+  --module odoo_sample_module_base \
+  --source-type oca
 ```
 
 Delete module files as well:

@@ -181,6 +181,77 @@ describe('status', () => {
     expect(renderEnvironmentStatusSummary(status)).toContain('Environment ready');
   });
 
+  it('counts module candidates from source-aware repo sourceType directories', async () => {
+    const target = await makeTarget('wpmoo-status-source-types-');
+    const metadata = {
+      ...validMetadata,
+      sourceRepos: [
+        { url: 'https://github.com/example/private.git', path: 'private_repo', addons: [] },
+        { url: 'https://github.com/example/oca.git', path: 'oca_repo', sourceType: 'oca', addons: [] },
+        {
+          url: 'https://github.com/example/external.git',
+          path: 'external_repo',
+          sourceType: 'external',
+          addons: [],
+        },
+      ],
+    };
+
+    await writeMetadata(target, JSON.stringify(metadata, null, 2));
+    await writeCoreFiles(target, '19.0');
+    await mkdir(join(target, 'odoo/custom/src/private/private_repo/private_mod'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/private/private_repo/private_mod/__manifest__.py'),
+      '{}',
+    );
+    await mkdir(join(target, 'odoo/custom/src/oca/oca_repo/oca_mod'), { recursive: true });
+    await writeFile(join(target, 'odoo/custom/src/oca/oca_repo/oca_mod/__manifest__.py'), '{}');
+    await mkdir(join(target, 'odoo/custom/src/external/external_repo/external_mod'), {
+      recursive: true,
+    });
+    await writeFile(
+      join(target, 'odoo/custom/src/external/external_repo/external_mod/__manifest__.py'),
+      '{}',
+    );
+
+    const status = await getEnvironmentStatus(target);
+    expect(status.kind).toBe('environment');
+    if (status.kind !== 'environment') return;
+
+    expect(status.sourceRepoCount).toBe(3);
+    expect(status.sourceRepoPaths).toEqual(['private_repo', 'oca_repo', 'external_repo']);
+    expect(status.invalidSourceRepoPaths).toEqual([]);
+    expect(status.moduleCandidateCount).toBe(3);
+    expect(renderEnvironmentStatusSummary(status)).toContain('Environment ready');
+  });
+
+  it('defaults legacy sourceRepos entries to private paths', async () => {
+    const target = await makeTarget('wpmoo-status-legacy-source-type-');
+    const metadata = {
+      ...validMetadata,
+      sourceRepos: [
+        { url: 'https://github.com/example/legacy.git', path: 'legacy_repo', addons: [] },
+      ],
+    };
+
+    await writeMetadata(target, JSON.stringify(metadata, null, 2));
+    await writeCoreFiles(target, '19.0');
+    await mkdir(join(target, 'odoo/custom/src/private/legacy_repo/legacy_mod'), { recursive: true });
+    await writeFile(join(target, 'odoo/custom/src/private/legacy_repo/legacy_mod/__manifest__.py'), '{}');
+
+    const status = await getEnvironmentStatus(target);
+    expect(status.kind).toBe('environment');
+    if (status.kind !== 'environment') return;
+
+    expect(status.sourceRepoCount).toBe(1);
+    expect(status.sourceRepoPaths).toEqual(['legacy_repo']);
+    expect(status.moduleCandidateCount).toBe(1);
+    expect(status.invalidSourceRepoPaths).toEqual([]);
+    expect(status.recommendedNextAction).toBe(
+      'Run npx @wpmoo/odoo doctor for deep checks or ./moo start.',
+    );
+  });
+
   it('reports invalid source repo paths without scanning outside private sources', async () => {
     const target = await makeTarget('wpmoo-status-invalid-source-path-');
     const metadata = {
@@ -190,6 +261,7 @@ describe('status', () => {
         { url: 'https://github.com/example/escape.git', path: '../escape', addons: [] },
       ],
     };
+
     await writeMetadata(target, JSON.stringify(metadata, null, 2));
     await writeCoreFiles(target, '19.0');
     await mkdir(join(target, 'odoo/custom/src/private/repo_a/mod_one'), { recursive: true });

@@ -342,6 +342,36 @@ describe('cli direct command routes', () => {
     expect(promptMocks.outro).toHaveBeenCalledWith('Added module sale_demo under source repo odoo_sample_module.');
   });
 
+  it('routes add-module with --source-type oca to addModuleToSourceRepo', async () => {
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-add-module-oca');
+
+    await runCli(
+      [
+        'add-module',
+        '--repo',
+        'odoo_sample_module',
+        '--source-type',
+        'oca',
+        '--module',
+        'sale_demo',
+        '--target',
+        target,
+        '--stage=false',
+      ],
+      '/tmp/ignored-cwd',
+    );
+
+    expect(mocks.addModuleToSourceRepo).toHaveBeenCalledWith({
+      target,
+      repoPath: 'odoo_sample_module',
+      sourceType: 'oca',
+      moduleName: 'sale_demo',
+      odooVersion: '18.0-mocked',
+      stage: false,
+    });
+  });
+
   it('routes remove-module with full args to removeModuleFromSourceRepo and prints banner/outro', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const { runCli } = await loadCli();
@@ -371,6 +401,37 @@ describe('cli direct command routes', () => {
     });
     expect(logSpy).toHaveBeenCalledWith('mock banner');
     expect(promptMocks.outro).toHaveBeenCalledWith('Removed module sale_demo from source repo odoo_sample_module.');
+  });
+
+  it('routes remove-module with --source-type external to removeModuleFromSourceRepo', async () => {
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-remove-module-external');
+
+    await runCli(
+      [
+        'remove-module',
+        '--repo',
+        'odoo_sample_module',
+        '--source-type',
+        'external',
+        '--module',
+        'sale_demo',
+        '--target',
+        target,
+        '--delete-files=false',
+        '--stage=false',
+      ],
+      '/tmp/ignored-cwd',
+    );
+
+    expect(mocks.removeModuleFromSourceRepo).toHaveBeenCalledWith({
+      target,
+      repoPath: 'odoo_sample_module',
+      sourceType: 'external',
+      moduleName: 'sale_demo',
+      deleteFiles: false,
+      stage: false,
+    });
   });
 
   it('throws doctor usage error when doctor is called with unexpected argv', async () => {

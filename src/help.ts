@@ -13,8 +13,8 @@ Usage:
   npx @wpmoo/odoo source sync
   npx @wpmoo/odoo source add --repo-url <url> [--source-type private|oca|external]
   npx @wpmoo/odoo source remove --repo <name> [--source-type private|oca|external]
-  npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
-  npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name>
+  npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name> [--source-type <category>]
+  npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name> [--source-type <category>]
   npx @wpmoo/odoo reset [--dry-run]
   npx @wpmoo/odoo doctor [--fix]
   npx @wpmoo/odoo start
@@ -49,7 +49,7 @@ Options:
   --http-port <port>           Host HTTP port written to .env.example.
   --gevent-port <port>         Host gevent/live chat port written to .env.example.
   --repo-url <url>             Source repo URL for add-repo.
-  --source-type <category>     Source repo category for add-repo/remove-repo. One of private, oca, external. Default: private.
+  --source-type <category>     Source repo category for add-repo/remove-repo/add-module/remove-module. One of private, oca, external. Default: private.
   --repo <name>                Source repo folder name for repo/module actions.
   --module <name>              Odoo module technical name for module actions.
   --delete-files               Also delete module files in remove-module. Default: false.
@@ -101,7 +101,11 @@ Task recipes:
     npx @wpmoo/odoo source list
     npx @wpmoo/odoo source sync
   Add module:
-    npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name>
+    npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name> --source-type private|oca|external
+  Remove module:
+    npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name> --source-type private|oca|external
+  Add OCA module:
+    npx @wpmoo/odoo add-module --repo sale-workflow --module sale_order_line_no_discount --source-type oca
   Run tests:
     npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
   Safe reset and recover:

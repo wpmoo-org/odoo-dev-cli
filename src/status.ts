@@ -39,12 +39,28 @@ export type EnvironmentStatus = NoEnvironmentStatus | InvalidMetadataStatus | Va
 
 type MetadataSourceRepo = {
   path: string;
+  sourceType?: string;
 };
+
+type SourceType = 'private' | 'oca' | 'external';
 
 type Metadata = {
   odooVersion?: string;
   sourceRepos?: MetadataSourceRepo[];
 };
+
+const validSourceTypes: ReadonlyArray<SourceType> = ['private', 'oca', 'external'];
+
+function normalizeSourceType(sourceType?: string): SourceType {
+  if (typeof sourceType === 'string' && validSourceTypes.includes(sourceType as SourceType)) {
+    return sourceType as SourceType;
+  }
+  return 'private';
+}
+
+function sourceRepoPath(target: string, sourceType: SourceType, path: string): string {
+  return join(target, 'odoo/custom/src', sourceType, path);
+}
 
 async function pathExists(path: string): Promise<boolean> {
   try {
@@ -73,11 +89,15 @@ function parseMetadata(content: string): Metadata {
 
 function sourceRepoPathsFromMetadata(metadata: Metadata): {
   sourceRepoPaths: string[];
+  sourceRepoLocations: Array<{ sourceType: SourceType; path: string }>;
   invalidSourceRepoPaths: string[];
 } {
   const sourceRepoPaths: string[] = [];
+  const sourceRepoLocations: Array<{ sourceType: SourceType; path: string }> = [];
   const invalidSourceRepoPaths: string[] = [];
-  if (!Array.isArray(metadata.sourceRepos)) return { sourceRepoPaths, invalidSourceRepoPaths };
+  if (!Array.isArray(metadata.sourceRepos)) {
+    return { sourceRepoPaths, sourceRepoLocations, invalidSourceRepoPaths };
+  }
 
   for (const repo of metadata.sourceRepos) {
     const path = repo && typeof repo.path === 'string' ? repo.path.trim() : '';
@@ -86,10 +106,13 @@ function sourceRepoPathsFromMetadata(metadata: Metadata): {
       invalidSourceRepoPaths.push(path);
       continue;
     }
-    sourceRepoPaths.push(validateRepoPath(path));
+    const sourceType = normalizeSourceType(typeof repo.sourceType === 'string' ? repo.sourceType : undefined);
+    const normalizedPath = validateRepoPath(path);
+    sourceRepoPaths.push(normalizedPath);
+    sourceRepoLocations.push({ sourceType, path: normalizedPath });
   }
 
-  return { sourceRepoPaths, invalidSourceRepoPaths };
+  return { sourceRepoPaths, sourceRepoLocations, invalidSourceRepoPaths };
 }
 
 async function missingCoreFiles(
@@ -197,8 +220,10 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
     typeof metadata.odooVersion === 'string' && metadata.odooVersion.trim()
       ? metadata.odooVersion.trim()
       : defaultOdooVersion;
-  const { sourceRepoPaths, invalidSourceRepoPaths } = sourceRepoPathsFromMetadata(metadata);
-  const repoRoots = sourceRepoPaths.map((path) => join(target, 'odoo/custom/src/private', path));
+  const { sourceRepoPaths, sourceRepoLocations, invalidSourceRepoPaths } = sourceRepoPathsFromMetadata(
+    metadata,
+  );
+  const repoRoots = sourceRepoLocations.map(({ sourceType, path }) => sourceRepoPath(target, sourceType, path));
 
   let moduleCandidateCount = 0;
   for (const repoRoot of repoRoots) {

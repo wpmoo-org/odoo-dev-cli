@@ -257,4 +257,103 @@ describe('module actions', () => {
       }),
     ).rejects.toThrow('Invalid repo path');
   });
+
+  it('writes module files under the requested source directory for OCA repos', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-oca-'));
+    await mkdir(join(target, 'odoo/custom/src/oca/odoo_oca_module'), { recursive: true });
+
+    await addModuleToSourceRepo({
+      target,
+      repoPath: 'odoo_oca_module',
+      sourceType: 'oca',
+      moduleName: 'odoo_oca_module_base',
+      odooVersion: '19.0',
+      stage: false,
+    });
+
+    const modulePath = join(target, 'odoo/custom/src/oca/odoo_oca_module/odoo_oca_module_base');
+    await expect(readFile(join(modulePath, '__init__.py'), 'utf8')).resolves.toBe('from . import models\n');
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
+  });
+
+  it('lists modules by selected source type', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-list-source-type-'));
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module/private_module'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/oca/odoo_oca_module'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/oca/odoo_oca_module/oca_module'), { recursive: true });
+    await writeFile(join(target, 'odoo/custom/src/private/odoo_sample_module/private_module/__manifest__.py'), '{}\n', 'utf8');
+    await writeFile(join(target, 'odoo/custom/src/oca/odoo_oca_module/oca_module/__manifest__.py'), '{}\n', 'utf8');
+
+    await expect(listModulesInSourceRepo(target, 'odoo_sample_module')).resolves.toEqual(['private_module']);
+    await expect(listModulesInSourceRepo(target, 'odoo_oca_module', 'oca')).resolves.toEqual(['oca_module']);
+  });
+
+  it('removes module files from a selected source repo when deleteFiles=true and stages the selected source path', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-delete-oca-'));
+    const git = recordingGit();
+    await mkdir(join(target, 'odoo/custom/src/oca/odoo_oca_module/odoo_oca_module_base/models'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/oca/odoo_oca_module/odoo_oca_module_base/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+
+    await removeModuleFromSourceRepo(
+      {
+        target,
+        repoPath: 'odoo_oca_module',
+        sourceType: 'oca',
+        moduleName: 'odoo_oca_module_base',
+        deleteFiles: true,
+        stage: true,
+      },
+      git,
+    );
+
+    await expect(
+      stat(join(target, 'odoo/custom/src/oca/odoo_oca_module/odoo_oca_module_base')),
+    ).rejects.toThrow();
+    expect(git.calls).toContainEqual({
+      cwd: join(target, 'odoo/custom/src/oca/odoo_oca_module'),
+      args: ['add', '.'],
+    });
+    expect(git.calls).toContainEqual({ cwd: target, args: ['add', '.'] });
+  });
+
+  it('does not touch addons.yaml for non-private source types', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-nonprivate-addons-'));
+    const git = recordingGit();
+    await mkdir(join(target, 'odoo/custom/src/external/odoo_sample_external_module'), { recursive: true });
+
+    await addModuleToSourceRepo({
+      target,
+      repoPath: 'odoo_sample_external_module',
+      sourceType: 'external',
+      moduleName: 'odoo_sample_external_module_base',
+      odooVersion: '19.0',
+      stage: false,
+    });
+
+    await removeModuleFromSourceRepo(
+      {
+        target,
+        repoPath: 'odoo_sample_external_module',
+        sourceType: 'external',
+        moduleName: 'odoo_sample_external_module_base',
+        deleteFiles: true,
+        stage: true,
+      },
+      git,
+    );
+
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
+    expect(git.calls).toContainEqual({
+      cwd: join(target, 'odoo/custom/src/external/odoo_sample_external_module'),
+      args: ['add', '.'],
+    });
+    expect(git.calls).toContainEqual({ cwd: target, args: ['add', '.'] });
+    await expect(
+      stat(join(target, 'odoo/custom/src/external/odoo_sample_external_module/odoo_sample_external_module_base')),
+    ).rejects.toThrow();
+  });
 });

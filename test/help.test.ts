@@ -59,6 +59,25 @@ describe('help', () => {
     expect(output).toContain('Inspect and sync source manifest:');
   });
 
+  it('documents source-type for module actions with non-private examples', () => {
+    const output = renderHelp();
+
+    expect(output).toContain('npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name> [--source-type <category>]');
+    expect(output).toContain('npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name> [--source-type <category>]');
+    expect(output).toContain('npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name> --source-type private|oca|external');
+    expect(output).toContain('npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name> --source-type private|oca|external');
+    expect(output).toContain('npx @wpmoo/odoo add-module --repo sale-workflow --module sale_order_line_no_discount --source-type oca');
+    expect(output).toContain('--source-type <category>     Source repo category for add-repo/remove-repo/add-module/remove-module. One of private, oca, external. Default: private.');
+  });
+
+  it('documents source-type defaults for module commands in README examples', () => {
+    expect(readme).toContain('`private`, `oca`, or `external`');
+    expect(readmeText).toContain('npx @wpmoo/odoo add-module');
+    expect(readmeText).toContain('npx @wpmoo/odoo remove-module');
+    expect(readmeText).toContain('--source-type oca');
+    expect(readmeText).toContain('Default is `private`');
+  });
+
   it('documents local-only wizard setup and custom environment folder support', () => {
     const output = renderHelp();
 

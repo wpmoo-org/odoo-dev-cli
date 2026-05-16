@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getGitHubRepositoryStatus: vi.fn(async () => ({ status: 'accessible', slug: 'example-org/repo' })),
   installPromptCancelKeyTracker: vi.fn(),
   isUpdateCheckSkipped: vi.fn(() => true),
+  listSources: vi.fn(async () => [] as { type: 'private' | 'oca' | 'external'; path: string; url: string; addons: string[] }[]),
   listModuleRepos: vi.fn(async () => ['odoo_source_repo']),
   listModulesInSourceRepo: vi.fn(async () => ['odoo_module_old']),
   removeModuleFromSourceRepo: vi.fn(async () => undefined),
@@ -141,6 +142,10 @@ vi.mock('../src/status.js', async (importOriginal) => {
   };
 });
 
+vi.mock('../src/source-actions.js', () => ({
+  listSources: mocks.listSources,
+}));
+
 async function loadCli() {
   vi.resetModules();
   return import('../src/cli.js');
@@ -186,7 +191,7 @@ describe('cli menu empty and cancel states', () => {
     await runCli([], '/tmp/environment');
 
     expect(prompts.note).toHaveBeenCalledWith(
-      'No source repos found under /tmp/environment/odoo/custom/src/private.\nNext: choose "Add source repo" first.',
+      'No source repos found under /tmp/environment/odoo/custom/src.\nNext: choose "Add source repo" first.',
       'Nothing to select',
     );
     expect(prompts.select).toHaveBeenCalledTimes(3);

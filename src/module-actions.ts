@@ -9,12 +9,14 @@ import { readEnvironmentMetadata } from './environment.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
 import { pathUnderBase, validateModuleName, validateRepoPath } from './path-validation.js';
 import { readAddonsYaml, writeAddonsYaml } from './repo-actions.js';
+import type { SourceRepoType } from './types.js';
 
 export type AddModuleOptions = {
   target: string;
   repoPath: string;
   moduleName: string;
   odooVersion: string;
+  sourceType?: SourceRepoType;
   stage: boolean;
 };
 
@@ -22,16 +24,23 @@ export type RemoveModuleOptions = {
   target: string;
   repoPath: string;
   moduleName: string;
+  sourceType?: SourceRepoType;
   deleteFiles: boolean;
   stage: boolean;
 };
 
-function sourceRepoPath(target: string, repoPath: string): string {
-  return pathUnderBase(join(target, 'odoo/custom/src/private'), repoPath, 'repo path');
+const validSourceTypes: SourceRepoType[] = ['private', 'oca', 'external'];
+
+function normalizeSourceType(value?: SourceRepoType): SourceRepoType {
+  return validSourceTypes.includes(value as SourceRepoType) ? (value as SourceRepoType) : 'private';
 }
 
-function modulePath(target: string, repoPath: string, moduleName: string): string {
-  return pathUnderBase(sourceRepoPath(target, repoPath), moduleName, 'module name');
+function sourceRepoPath(target: string, sourceType: SourceRepoType, repoPath: string): string {
+  return pathUnderBase(join(target, `odoo/custom/src/${sourceType}`), repoPath, 'repo path');
+}
+
+function modulePath(target: string, sourceType: SourceRepoType, repoPath: string, moduleName: string): string {
+  return pathUnderBase(sourceRepoPath(target, sourceType, repoPath), moduleName, 'module name');
 }
 
 function titleizeModule(moduleName: string): string {
@@ -78,7 +87,8 @@ export async function addModuleToSourceRepo(
 ): Promise<void> {
   const repoPath = validateRepoPath(options.repoPath);
   const moduleName = validateModuleName(options.moduleName);
-  const destination = modulePath(options.target, repoPath, moduleName);
+  const sourceType = normalizeSourceType(options.sourceType);
+  const destination = modulePath(options.target, sourceType, repoPath, moduleName);
   await mkdir(join(destination, 'models'), { recursive: true });
   await mkdir(join(destination, 'security'), { recursive: true });
   await mkdir(join(destination, 'views'), { recursive: true });
@@ -92,7 +102,7 @@ export async function addModuleToSourceRepo(
   );
   await writeIfMissing(join(destination, 'views/.gitkeep'), '');
 
-  if (await usesAddonsYaml(options.target)) {
+  if (sourceType === 'private' && (await usesAddonsYaml(options.target))) {
     const addonsYaml = await readAddonsYaml(options.target);
     await writeAddonsYaml(
       options.target,
@@ -101,21 +111,29 @@ export async function addModuleToSourceRepo(
   }
 
   if (options.stage) {
-    await stageAll(git, sourceRepoPath(options.target, repoPath));
+    await stageAll(git, sourceRepoPath(options.target, sourceType, repoPath));
     await stageAll(git, options.target);
   }
 }
 
-export async function listModulesInSourceRepo(target: string, repoPath: string): Promise<string[]> {
+export async function listModulesInSourceRepo(
+  target: string,
+  repoPath: string,
+  sourceType?: SourceRepoType,
+): Promise<string[]> {
   const safeRepoPath = validateRepoPath(repoPath);
+  const resolvedSourceType = normalizeSourceType(sourceType);
   try {
-    const entries = await readdir(sourceRepoPath(target, safeRepoPath), { withFileTypes: true });
+    const entries = await readdir(sourceRepoPath(target, resolvedSourceType, safeRepoPath), { withFileTypes: true });
     const modules = await Promise.all(
       entries
         .filter((entry) => entry.isDirectory())
         .map(async (entry) => {
           try {
-            await readFile(join(sourceRepoPath(target, safeRepoPath), entry.name, '__manifest__.py'), 'utf8');
+            await readFile(
+              join(sourceRepoPath(target, resolvedSourceType, safeRepoPath), entry.name, '__manifest__.py'),
+              'utf8',
+            );
             return entry.name;
           } catch {
             return undefined;
@@ -135,8 +153,9 @@ export async function removeModuleFromSourceRepo(
 ): Promise<void> {
   const repoPath = validateRepoPath(options.repoPath);
   const moduleName = validateModuleName(options.moduleName);
+  const sourceType = normalizeSourceType(options.sourceType);
 
-  if (await usesAddonsYaml(options.target)) {
+  if (sourceType === 'private' && (await usesAddonsYaml(options.target))) {
     const addonsYaml = await readAddonsYaml(options.target);
     await writeAddonsYaml(
       options.target,
@@ -145,12 +164,12 @@ export async function removeModuleFromSourceRepo(
   }
 
   if (options.deleteFiles) {
-    await rm(modulePath(options.target, repoPath, moduleName), { recursive: true, force: true });
+    await rm(modulePath(options.target, sourceType, repoPath, moduleName), { recursive: true, force: true });
   }
 
   if (options.stage) {
     if (options.deleteFiles) {
-      await stageAll(git, sourceRepoPath(options.target, repoPath));
+      await stageAll(git, sourceRepoPath(options.target, sourceType, repoPath));
     }
     await stageAll(git, options.target);
   }

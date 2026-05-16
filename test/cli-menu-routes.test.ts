@@ -13,6 +13,14 @@ const mocks = vi.hoisted(() => ({
   getGitHubRepositoryStatus: vi.fn(async () => ({ status: 'accessible', slug: 'example-org/repo' })),
   installPromptCancelKeyTracker: vi.fn(),
   isUpdateCheckSkipped: vi.fn(() => true),
+  listSources: vi.fn(async () => [
+    {
+      type: 'private',
+      path: 'odoo_sample_module',
+      url: 'https://github.com/example-org/odoo_sample_module.git',
+      addons: ['odoo_sample_module'],
+    },
+  ]),
   listModuleRepos: vi.fn(async () => ['odoo_sample_module']),
   listModulesInSourceRepo: vi.fn(async () => ['odoo_sample_module_base']),
   removeModuleFromSourceRepo: vi.fn(async () => undefined),
@@ -64,6 +72,11 @@ vi.mock('../src/module-actions.js', async (importOriginal) => {
     removeModuleFromSourceRepo: mocks.removeModuleFromSourceRepo,
   };
 });
+
+vi.mock('../src/source-actions.js', () => ({
+  listSources: mocks.listSources,
+  renderSourceList: vi.fn(),
+}));
 
 vi.mock('../src/safe-reset.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/safe-reset.js')>();
@@ -246,6 +259,60 @@ describe('cli menu environment routes', () => {
     expect(mocks.addModuleToSourceRepo).toHaveBeenCalledWith({
       target: '/tmp/environment',
       repoPath: 'odoo_source_repo',
+      sourceType: 'private',
+      moduleName: 'odoo_module_new',
+      odooVersion: '19.0',
+      stage: true,
+    });
+  });
+
+  it('shows source-repo context and routes add-module with selected repo type', async () => {
+    const prompts = await import('@clack/prompts');
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    mocks.listSources.mockResolvedValueOnce([
+      {
+        type: 'private',
+        path: 'odoo_source_repo',
+        url: 'https://github.com/example-org/odoo_source_repo.git',
+        addons: ['odoo_source_repo'],
+      },
+      {
+        type: 'oca',
+        path: 'odoo_source_repo',
+        url: 'https://github.com/OCA/odoo_source_repo.git',
+        addons: ['odoo_source_repo'],
+      },
+      {
+        type: 'external',
+        path: 'external_repo',
+        url: 'https://github.com/example-org/external_repo.git',
+        addons: ['external_repo'],
+      },
+    ]);
+
+    vi.mocked(prompts.select)
+      .mockResolvedValueOnce('modules')
+      .mockResolvedValueOnce(cockpitCommand('add-module'))
+      .mockResolvedValueOnce({ repoPath: 'odoo_source_repo', sourceType: 'oca' })
+      .mockResolvedValueOnce('exit');
+    vi.mocked(prompts.text).mockResolvedValueOnce('odoo_module_new');
+
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    const repoSelectionArgs = vi.mocked(prompts.select).mock.calls[2]?.[0];
+    expect(repoSelectionArgs).toMatchObject({
+      options: [
+        { value: { repoPath: 'odoo_source_repo', sourceType: 'private' }, label: 'private/odoo_source_repo' },
+        { value: { repoPath: 'odoo_source_repo', sourceType: 'oca' }, label: 'oca/odoo_source_repo' },
+        { value: { repoPath: 'external_repo', sourceType: 'external' }, label: 'external/external_repo' },
+      ],
+    });
+    expect(mocks.addModuleToSourceRepo).toHaveBeenCalledWith({
+      target: '/tmp/environment',
+      repoPath: 'odoo_source_repo',
+      sourceType: 'oca',
       moduleName: 'odoo_module_new',
       odooVersion: '19.0',
       stage: true,
@@ -271,6 +338,7 @@ describe('cli menu environment routes', () => {
     expect(mocks.removeModuleFromSourceRepo).toHaveBeenCalledWith({
       target: '/tmp/environment',
       repoPath: 'odoo_source_repo',
+      sourceType: 'private',
       moduleName: 'odoo_module_old',
       deleteFiles: false,
       stage: true,
