@@ -10,6 +10,19 @@ const mocks = vi.hoisted(() => ({
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
   listSources: vi.fn(async () => [] as unknown[]),
   renderSourceList: vi.fn(() => 'mock source list'),
+  sourceListJson: vi.fn((sources: unknown[]) => ({
+    schemaVersion: 1,
+    command: 'source list',
+    ok: true,
+    sources,
+  })),
+  sourceSyncJson: vi.fn((sources: unknown[], target: string) => ({
+    schemaVersion: 1,
+    command: 'source sync',
+    ok: true,
+    target,
+    sources,
+  })),
   syncSources: vi.fn(async () => [] as unknown[]),
   runDoctor: vi.fn(async () => 'doctor report'),
   renderBanner: vi.fn(() => 'mock banner'),
@@ -62,6 +75,8 @@ vi.mock('../src/safe-reset.js', async (importOriginal) => {
 vi.mock('../src/source-actions.js', () => ({
   listSources: mocks.listSources,
   renderSourceList: mocks.renderSourceList,
+  sourceListJson: mocks.sourceListJson,
+  sourceSyncJson: mocks.sourceSyncJson,
   syncSources: mocks.syncSources,
 }));
 
@@ -243,6 +258,37 @@ describe('cli direct command routes', () => {
     expect(logSpy).toHaveBeenCalledWith('mock source list');
   });
 
+  it('routes source list --json to machine-readable source output without banner', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-source-list-json');
+    const sources = [
+      {
+        type: 'oca' as const,
+        path: 'server-tools',
+        url: 'https://github.com/OCA/server-tools.git',
+        branch: '19.0',
+        addons: ['queue_job'],
+      },
+    ];
+    mocks.listSources.mockResolvedValueOnce(sources);
+
+    await runCli(['source', 'list', '--target', target, '--json'], '/tmp/ignored-cwd');
+
+    expect(mocks.listSources).toHaveBeenCalledWith(target);
+    expect(mocks.sourceListJson).toHaveBeenCalledWith(sources);
+    expect(mocks.renderSourceList).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      JSON.stringify({
+        schemaVersion: 1,
+        command: 'source list',
+        ok: true,
+        sources,
+      }),
+    );
+  });
+
   it('routes source sync to regenerate source manifest state', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const { runCli } = await loadCli();
@@ -256,6 +302,41 @@ describe('cli direct command routes', () => {
     });
     expect(logSpy).toHaveBeenCalledWith('mock banner');
     expect(promptMocks.outro).toHaveBeenCalledWith(`Synced source manifest in ${target}.`);
+  });
+
+  it('routes source sync --json to machine-readable sync output without banner or outro', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-source-sync-json');
+    const sources = [
+      {
+        type: 'private' as const,
+        path: 'product',
+        url: 'https://github.com/example/product.git',
+        branch: '19.0',
+        addons: ['product'],
+      },
+    ];
+    mocks.syncSources.mockResolvedValueOnce(sources);
+
+    await runCli(['source', 'sync', '--target', target, '--stage=false', '--json'], '/tmp/ignored-cwd');
+
+    expect(mocks.syncSources).toHaveBeenCalledWith({
+      target,
+      stage: false,
+    });
+    expect(mocks.sourceSyncJson).toHaveBeenCalledWith(sources, target);
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(promptMocks.outro).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      JSON.stringify({
+        schemaVersion: 1,
+        command: 'source sync',
+        ok: true,
+        target,
+        sources,
+      }),
+    );
   });
 
   it('routes source add as an alias for add-repo', async () => {

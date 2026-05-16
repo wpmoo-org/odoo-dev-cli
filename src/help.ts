@@ -7,16 +7,20 @@ Usage:
   npx @wpmoo/odoo
   npx @wpmoo/odoo create --product <slug> [--target <path>] --dev-repo-url <url> --source-repo-url <url>
   npx @wpmoo/odoo status
+  npx @wpmoo/odoo status --json
   npx @wpmoo/odoo add-repo --repo-url <url> [--source-type private|oca|external]
   npx @wpmoo/odoo remove-repo --repo <name>
   npx @wpmoo/odoo source list
+  npx @wpmoo/odoo source list --json
   npx @wpmoo/odoo source sync
+  npx @wpmoo/odoo source sync --json
   npx @wpmoo/odoo source add --repo-url <url> [--source-type private|oca|external]
   npx @wpmoo/odoo source remove --repo <name> [--source-type private|oca|external]
   npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name> [--source-type <category>]
   npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name> [--source-type <category>]
   npx @wpmoo/odoo reset [--dry-run]
   npx @wpmoo/odoo doctor [--fix]
+  npx @wpmoo/odoo doctor --json
   npx @wpmoo/odoo start
   npx @wpmoo/odoo stop
   npx @wpmoo/odoo logs [service]
@@ -48,6 +52,7 @@ Options:
   --postgres-version <value>   PostgreSQL image version written to compose .env.example.
   --http-port <port>           Host HTTP port written to .env.example.
   --gevent-port <port>         Host gevent/live chat port written to .env.example.
+  --json                      Emit machine-readable JSON. Human-readable output remains the default.
   --repo-url <url>             Source repo URL for add-repo.
   --source-type <category>     Source repo category for add-repo/remove-repo/add-module/remove-module. One of private, oca, external. Default: private.
   --repo <name>                Source repo folder name for repo/module actions.
@@ -120,6 +125,13 @@ Task recipes:
     npx @wpmoo/odoo doctor --fix
     npx @wpmoo/odoo logs [service]
     npx @wpmoo/odoo restart
+
+Machine-readable JSON output:
+  for automation and VS Code cockpit integration while keeping default human-readable output.
+    npx @wpmoo/odoo status --json
+    npx @wpmoo/odoo source list --json
+    npx @wpmoo/odoo source sync --json
+    npx @wpmoo/odoo doctor --json
 
 Example:
   npx @wpmoo/odoo create \\

@@ -4,8 +4,8 @@ import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { getDoctorReport, runDoctor, type DoctorCommandRunner } from '../src/doctor.js';
 import { dailyActionScripts } from '../src/daily-actions.js';
-import { runDoctor, type DoctorCommandRunner } from '../src/doctor.js';
 import { markerPath } from '../src/environment.js';
 import { sourceManifestPath } from '../src/source-manifest.js';
 
@@ -493,5 +493,60 @@ describe('doctor', () => {
     });
 
     await expect(runDoctor(target, runner)).resolves.toContain('WARN GitHub CLI auth: not logged in');
+  });
+
+  it('returns a structured report for a passing environment', async () => {
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+
+    const report = await getDoctorReport(target, passingDockerRunner());
+
+    expect(report).toMatchObject({
+      schemaVersion: 1,
+      command: 'doctor',
+      ok: true,
+      target,
+      checks: expect.arrayContaining(['OK metadata .wpmoo/odoo.json']),
+      warnings: [],
+      errors: [],
+      appliedFixes: [],
+    });
+    expect(report.checks).toContain('OK source repos 1 checked');
+  });
+
+  it('returns ok=true with populated warnings when GitHub CLI auth is unavailable', async () => {
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const runner = doctorRunner({
+      responses: {
+        'gh auth status': new Error('not logged in'),
+      },
+    });
+
+    const report = await getDoctorReport(target, runner);
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual([expect.stringContaining('GitHub CLI auth: not logged in')]);
+    expect(report.errors).toEqual([]);
+  });
+
+  it('captures failures in structured errors instead of throwing', async () => {
+    const target = await makeEnvironment({
+      composeVersions: ['19.0'],
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+      composeFiles: {
+        'docker-compose_19.0.yml':
+          'services:\n  db:\n    image: postgres:18\n    volumes:\n      - pg-data:/var/lib/postgresql/data\n',
+      },
+    });
+
+    const report = await getDoctorReport(target, passingDockerRunner());
+
+    expect(report.ok).toBe(false);
+    expect(report.errors).toContain(
+      "PostgreSQL 18 compatibility issue in 'docker-compose_19.0.yml': mount target '/var/lib/postgresql/data' is invalid; recommend using '/var/lib/postgresql'",
+    );
   });
 });

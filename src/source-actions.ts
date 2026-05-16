@@ -15,6 +15,28 @@ export type SourceSyncOptions = {
   stage: boolean;
 };
 
+export type SourceListJsonPayload = {
+  schemaVersion: 1;
+  command: 'source list';
+  ok: true;
+  sources: SourceManifestEntry[];
+};
+
+export type SourceSyncJsonPayload = {
+  schemaVersion: 1;
+  command: 'source sync';
+  ok: true;
+  target: string;
+  sources: SourceManifestEntry[];
+};
+
+function cloneSourceEntries(entries: SourceManifestEntry[]): SourceManifestEntry[] {
+  return entries.map((entry) => ({
+    ...entry,
+    addons: [...entry.addons],
+  }));
+}
+
 export async function listSources(target: string): Promise<SourceManifestEntry[]> {
   const metadata = await readEnvironmentMetadata(target);
   const manifest = await readSourceManifest(target);
@@ -45,6 +67,28 @@ export function renderSourceList(entries: SourceManifestEntry[]): string {
       return `${entry.type}/${entry.path}${branch} -> ${entry.url}${addons}`;
     })
     .join('\n');
+}
+
+export function sourceListJson(entries: SourceManifestEntry[]): SourceListJsonPayload {
+  return {
+    schemaVersion: 1,
+    command: 'source list',
+    ok: true,
+    sources: cloneSourceEntries(entries),
+  };
+}
+
+export function sourceSyncJson(
+  entries: SourceManifestEntry[],
+  target: string,
+): SourceSyncJsonPayload {
+  return {
+    schemaVersion: 1,
+    command: 'source sync',
+    ok: true,
+    target,
+    sources: cloneSourceEntries(entries),
+  };
 }
 
 export async function syncSources(

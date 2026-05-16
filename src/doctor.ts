@@ -29,6 +29,17 @@ export type DoctorCommandOptions = {
   fix?: boolean;
 };
 
+export type DoctorReport = {
+  schemaVersion: 1;
+  command: 'doctor';
+  ok: boolean;
+  target: string;
+  checks: string[];
+  warnings: string[];
+  errors: string[];
+  appliedFixes: string[];
+};
+
 const realCommandRunner: DoctorCommandRunner = async (command, args, options) => {
   const result = await execa(command, args, { cwd: options.cwd });
   return { stdout: result.stdout, stderr: result.stderr };
@@ -66,6 +77,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isDoctorOptions(value: DoctorCommandRunner | DoctorCommandOptions): value is DoctorCommandOptions {
   return isRecord(value);
+}
+
+function isMetadataError(message: string): boolean {
+  return (
+    message.startsWith('Missing metadata file:') ||
+    message.startsWith('Invalid metadata JSON in .wpmoo/odoo.json') ||
+    message.startsWith('Invalid sourceRepos entry in .wpmoo/odoo.json')
+  );
 }
 
 const incompatiblePostgres18MountTargets = ['/var/lib/postgresql/data', '/var/lib/postgresql/18/docker'];
@@ -363,29 +382,48 @@ async function repairSourceManifestFromDiscoveredState(
   await replaceSourceRepos(target, sourceReposFromManifest(entries));
 }
 
-export async function runDoctor(
+export async function getDoctorReport(
   target = process.cwd(),
   runnerOrOptions: DoctorCommandRunner | DoctorCommandOptions = realCommandRunner,
   options: DoctorCommandOptions = {},
-): Promise<string> {
+): Promise<DoctorReport> {
   const actualRunner = isDoctorOptions(runnerOrOptions) ? realCommandRunner : runnerOrOptions;
   const actualOptions = isDoctorOptions(runnerOrOptions) ? runnerOrOptions : options;
-  const appliedFixes: string[] = [];
-  const lines = ['WPMoo doctor'];
   const errors: string[] = [];
   const warnings: string[] = [];
-  const metadata = await readMetadata(target);
-  lines.push(`OK metadata ${markerPath}`);
+  const checks: string[] = [];
+  const appliedFixes: string[] = [];
+
+  const report: DoctorReport = {
+    schemaVersion: 1,
+    command: 'doctor',
+    ok: false,
+    target,
+    checks,
+    warnings,
+    errors,
+    appliedFixes,
+  };
+
+  let metadata: Record<string, unknown>;
+  try {
+    metadata = await readMetadata(target);
+  } catch (error) {
+    errors.push(errorMessage(error));
+    return report;
+  }
+
+  checks.push(`OK metadata ${markerPath}`);
 
   const engine = metadataString(metadata, 'engine') ?? 'compose';
   if (engine !== 'compose') {
     errors.push(`Unsupported environment engine: ${engine}`);
   } else {
-    lines.push('OK engine compose');
+    checks.push('OK engine compose');
   }
 
   const odooVersion = metadataString(metadata, 'odooVersion') ?? defaultOdooVersion;
-  lines.push(`OK Odoo version ${odooVersion}`);
+  checks.push(`OK Odoo version ${odooVersion}`);
 
   const env = await readEnvFile(target);
   const composeVersions = new Set([odooVersion]);
@@ -401,7 +439,7 @@ export async function runDoctor(
   if (composeLayout.kind === 'missing') {
     errors.push(...composeLayout.errors);
   } else {
-    lines.push(`OK compose files ${composeLayout.files.join(', ')}`);
+    checks.push(`OK compose files ${composeLayout.files.join(', ')}`);
     const postgresVersion = inferPostgresVersion(metadata, odooVersion, env);
     if (postgresVersion === '18') {
       for (const file of composeLayout.files) {
@@ -419,7 +457,9 @@ export async function runDoctor(
           if (normalization.fixed.length > 0) {
             await writeFile(composePath, normalization.content, 'utf8');
             for (const target of normalization.fixedTargets) {
-              appliedFixes.push(`Normalized PostgreSQL 18 mount target in '${file}': replaced '${target}' -> '/var/lib/postgresql'`);
+              appliedFixes.push(
+                `Normalized PostgreSQL 18 mount target in '${file}': replaced '${target}' -> '/var/lib/postgresql'`,
+              );
             }
             continue;
           }
@@ -444,17 +484,23 @@ export async function runDoctor(
     }
   }
   if (errors.length === scriptErrorCount) {
-    lines.push(`OK scripts ${scriptNames.length} checked`);
+    checks.push(`OK scripts ${scriptNames.length} checked`);
   }
 
-  const sourceRepos = sourceReposFromMetadata(metadata);
+  let sourceRepos: SourceRepo[];
+  try {
+    sourceRepos = sourceReposFromMetadata(metadata);
+  } catch (error) {
+    errors.push(errorMessage(error));
+    return report;
+  }
   for (const repo of sourceRepos) {
     const relativePath = sourceRepoPath(normalizeSourceType(repo.sourceType), repo.path);
     if (!(await exists(join(target, relativePath))) && repo.path) {
       errors.push(`Missing source repo path: ${relativePath}`);
     }
   }
-  lines.push(`OK source repos ${sourceRepos.length} checked`);
+  checks.push(`OK source repos ${sourceRepos.length} checked`);
 
   const manifestPath = join(target, sourceManifestPath);
   const hasManifest = await exists(manifestPath);
@@ -506,20 +552,20 @@ export async function runDoctor(
       errors.push('HTTP_PORT and GEVENT_PORT in .env must not be equal');
     }
     if (/^\d+$/.test(httpPort) && /^\d+$/.test(geventPort) && httpPort !== geventPort) {
-      lines.push(`OK .env ports HTTP_PORT=${httpPort} GEVENT_PORT=${geventPort}`);
+      checks.push(`OK .env ports HTTP_PORT=${httpPort} GEVENT_PORT=${geventPort}`);
     }
   }
 
   try {
     await actualRunner('docker', ['version'], { cwd: target });
-    lines.push('OK docker CLI');
+    checks.push('OK docker CLI');
   } catch (error) {
     errors.push(`Docker CLI check failed: ${errorMessage(error)}`);
   }
 
   try {
     await actualRunner('docker', ['compose', 'version'], { cwd: target });
-    lines.push('OK docker compose');
+    checks.push('OK docker compose');
   } catch (error) {
     errors.push(`Docker Compose check failed: ${errorMessage(error)}`);
   }
@@ -530,11 +576,11 @@ export async function runDoctor(
       const submoduleErrors = sourceSubmoduleStatusErrors(result.stdout, sourceRepos);
       errors.push(...submoduleErrors);
       if (submoduleErrors.length === 0) {
-        lines.push(`OK git submodules ${sourceRepos.length} checked`);
+        checks.push(`OK git submodules ${sourceRepos.length} checked`);
       }
     } catch (error) {
       if (isNotGitCheckoutError(error)) {
-        lines.push('OK git submodules skipped (not a git checkout)');
+        checks.push('OK git submodules skipped (not a git checkout)');
       } else {
         errors.push(`Git submodule status check failed: ${errorMessage(error)}`);
       }
@@ -543,33 +589,55 @@ export async function runDoctor(
 
   try {
     await actualRunner('gh', ['auth', 'status'], { cwd: target });
-    lines.push('OK GitHub CLI auth');
+    checks.push('OK GitHub CLI auth');
   } catch (error) {
-    warnings.push(`WARN GitHub CLI auth: ${errorMessage(error)}`);
+    warnings.push(`GitHub CLI auth: ${errorMessage(error)}`);
   }
 
-  if (errors.length > 0) {
-    if (actualOptions.fix && appliedFixes.length > 0) {
+  report.ok = errors.length === 0;
+  return report;
+}
+
+export async function runDoctor(
+  target = process.cwd(),
+  runnerOrOptions: DoctorCommandRunner | DoctorCommandOptions = realCommandRunner,
+  options: DoctorCommandOptions = {},
+): Promise<string> {
+  const report = await getDoctorReport(target, runnerOrOptions, options);
+  const actualRunner = isDoctorOptions(runnerOrOptions) ? realCommandRunner : runnerOrOptions;
+  const actualOptions = isDoctorOptions(runnerOrOptions) ? runnerOrOptions : options;
+
+  if (!report.ok) {
+    if (report.errors.some(isMetadataError)) {
+      throw new Error(report.errors[0]);
+    }
+    if (actualOptions.fix && report.appliedFixes.length > 0) {
       return [
         'Doctor auto-fixes were not enough to satisfy all checks.',
-        ...appliedFixes.map((fix) => `- ${fix}`),
-        renderFailure(errors),
+        ...report.appliedFixes.map((fix) => `- ${fix}`),
+        renderFailure(report.errors),
       ].join('\n');
     }
-    throw new Error(renderFailure(errors));
+
+    throw new Error(renderFailure(report.errors));
   }
 
-  lines.push(...warnings);
-  lines.push('Doctor checks passed.');
-  const report = lines.join('\n');
-  if (actualOptions.fix && appliedFixes.length > 0) {
+  const renderedReport = [
+    'WPMoo doctor',
+    ...report.checks,
+    ...report.warnings.map((warning) => `WARN ${warning}`),
+    'Doctor checks passed.',
+  ];
+
+  if (report.appliedFixes.length > 0) {
     const postFixReport = await runDoctor(target, actualRunner, { ...actualOptions, fix: false });
     return [
       'Applied safe doctor fixes:',
-      ...appliedFixes.map((fix) => `- ${fix}`),
+      ...report.appliedFixes.map((fix) => `- ${fix}`),
       '',
       postFixReport,
     ].join('\n');
   }
-  return report;
+
+  return renderedReport.join('\n');
 }

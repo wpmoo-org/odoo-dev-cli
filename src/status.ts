@@ -49,6 +49,13 @@ type Metadata = {
   sourceRepos?: MetadataSourceRepo[];
 };
 
+type StatusJsonPayload = {
+  schemaVersion: 1;
+  command: 'status';
+  ok: boolean;
+  status: EnvironmentStatus;
+};
+
 const validSourceTypes: ReadonlyArray<SourceType> = ['private', 'oca', 'external'];
 
 function normalizeSourceType(sourceType?: string): SourceType {
@@ -188,6 +195,24 @@ function summaryText(status: EnvironmentStatus): string {
       ? 'Environment needs attention'
       : 'Environment ready';
   return `${prefix}: Odoo ${status.odooVersion}, source repos ${status.sourceRepoCount}, module candidates ${status.moduleCandidateCount}.`;
+}
+
+function isStatusHealthy(status: EnvironmentStatus): boolean {
+  if (status.kind !== 'environment') return false;
+  return (
+    status.missingCoreFiles.length === 0 &&
+    status.invalidSourceRepoPaths.length === 0 &&
+    status.composeErrors.length === 0
+  );
+}
+
+export function environmentStatusJson(status: EnvironmentStatus): StatusJsonPayload {
+  return {
+    schemaVersion: 1,
+    command: 'status',
+    ok: isStatusHealthy(status),
+    status,
+  };
 }
 
 export async function getEnvironmentStatus(target: string): Promise<EnvironmentStatus> {

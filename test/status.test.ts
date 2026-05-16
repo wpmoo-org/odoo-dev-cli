@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getEnvironmentStatus,
+  environmentStatusJson,
   renderEnvironmentStatus,
   renderEnvironmentStatusForTarget,
   renderEnvironmentStatusSummary,
@@ -311,5 +312,86 @@ describe('status', () => {
     const output = await renderEnvironmentStatusForTarget(target);
     expect(output).toContain('Status: Environment ready: Odoo 19.0, source repos 0, module candidates 0.');
     expect(output).toContain('Next: Run npx @wpmoo/odoo add-repo ...');
+  });
+
+  it('renders machine-readable status payload for ready environments', async () => {
+    const target = await makeTarget('wpmoo-status-json-ready-');
+    await writeMetadata(target, JSON.stringify(validMetadata, null, 2));
+    await writeCoreFiles(target, '19.0');
+
+    const status = await getEnvironmentStatus(target);
+    expect(status.kind).toBe('environment');
+    if (status.kind !== 'environment') return;
+
+    const payload = environmentStatusJson(status);
+    expect(payload).toEqual({
+      schemaVersion: 1,
+      command: 'status',
+      ok: true,
+      status: {
+        kind: 'environment',
+        target,
+        metadataPath: '.wpmoo/odoo.json',
+        odooVersion: '19.0',
+        sourceRepoCount: 0,
+        sourceRepoPaths: [],
+        invalidSourceRepoPaths: [],
+        moduleCandidateCount: 0,
+        composeFiles: ['docker-compose_19.0.yml'],
+        composeErrors: [],
+        missingCoreFiles: [],
+        recommendedNextAction: 'Run npx @wpmoo/odoo add-repo ...',
+      },
+    });
+  });
+
+  it('returns ok=false for no_environment JSON payload', async () => {
+    const target = await makeTarget('wpmoo-status-json-none-');
+    const status = await getEnvironmentStatus(target);
+    const payload = environmentStatusJson(status);
+
+    expect(payload.schemaVersion).toBe(1);
+    expect(payload.command).toBe('status');
+    expect(payload.ok).toBe(false);
+    expect(payload.status.kind).toBe('no_environment');
+    expect(payload.status.target).toBe(target);
+  });
+
+  it('returns ok=false for invalid metadata JSON payload', async () => {
+    const target = await makeTarget('wpmoo-status-json-invalid-');
+    await writeMetadata(target, '{bad json');
+
+    const status = await getEnvironmentStatus(target);
+    const payload = environmentStatusJson(status);
+
+    expect(payload.schemaVersion).toBe(1);
+    expect(payload.command).toBe('status');
+    expect(payload.ok).toBe(false);
+    expect(payload.status.kind).toBe('invalid_metadata');
+    expect(payload.status.metadataPath).toBe('.wpmoo/odoo.json');
+    expect(payload.status).toHaveProperty('metadataError');
+  });
+
+  it('returns ok=false for needs-attention environments', async () => {
+    const target = await makeTarget('wpmoo-status-json-attention-');
+    const metadata = {
+      ...validMetadata,
+      sourceRepos: [{ url: 'https://github.com/example/escape.git', path: '../escape', addons: [] }],
+    };
+    await writeMetadata(target, JSON.stringify(metadata, null, 2));
+    await writeCoreFiles(target, '19.0');
+
+    const status = await getEnvironmentStatus(target);
+    const payload = environmentStatusJson(status);
+
+    expect(status.kind).toBe('environment');
+    if (status.kind !== 'environment') return;
+    expect(status.invalidSourceRepoPaths).toEqual(['../escape']);
+    expect(payload.ok).toBe(false);
+    expect(payload.status.kind).toBe('environment');
+    if (payload.status.kind === 'environment') {
+      expect(payload.status.invalidSourceRepoPaths).toEqual(['../escape']);
+    }
+    expect(() => JSON.stringify(payload)).not.toThrow();
   });
 });

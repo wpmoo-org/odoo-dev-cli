@@ -21,7 +21,7 @@ import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
 import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
 import { isDailyActionCommand, runDailyAction } from './daily-actions.js';
-import { runDoctor, type DoctorCommandOptions } from './doctor.js';
+import { getDoctorReport, runDoctor, type DoctorCommandOptions } from './doctor.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
 import {
@@ -37,7 +37,14 @@ import { promptRepositoryUrl } from './prompt-repositories.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import { addModuleRepo, listModuleRepos, removeModuleRepo, type AddModuleRepoOptions, type RemoveModuleRepoOptions } from './repo-actions.js';
 import { renderSafeResetPreview, safeResetEnvironment, type SafeResetOptions } from './safe-reset.js';
-import { listSources, renderSourceList, syncSources, type SourceSyncOptions } from './source-actions.js';
+import {
+  listSources,
+  renderSourceList,
+  sourceListJson,
+  sourceSyncJson,
+  syncSources,
+  type SourceSyncOptions,
+} from './source-actions.js';
 import {
   checkGitHubRepositories,
   createGitHubRepositories,
@@ -50,6 +57,7 @@ import type { ScaffoldOptions, SourceRepo, SourceRepoType } from './types.js';
 import { checkForUpdate, installLatestPackage, isUpdateCheckSkipped, restartCli } from './update-check.js';
 import { packageName, packageVersion, renderVersion, renderVersionTag } from './version.js';
 import {
+  environmentStatusJson,
   getEnvironmentStatus,
   renderEnvironmentStatusForTarget,
   renderEnvironmentStatusSummary,
@@ -160,6 +168,14 @@ function booleanOption(values: Record<string, string | boolean>, key: string, fa
   if (['false', '0', 'no', 'n'].includes(normalized)) return false;
 
   throw new Error(`Invalid boolean value for --${key}: ${value}`);
+}
+
+function jsonOption(values: Record<string, string | boolean>): boolean {
+  return booleanOption(values, 'json', false);
+}
+
+function printJson(value: unknown): void {
+  console.log(JSON.stringify(value));
 }
 
 function yellow(value: string): string {
@@ -664,38 +680,52 @@ function resetCommandOptionsFromArgs(argv: string[]): ResetCommandOptions {
   };
 }
 
-function doctorOptionsFromArgs(argv: string[]): DoctorCommandOptions {
-  if (argv.length === 0) {
-    return {};
-  }
+type DoctorCliOptions = DoctorCommandOptions & {
+  json: boolean;
+};
 
+function doctorOptionsFromArgs(argv: string[]): DoctorCliOptions {
   const { values } = parseArgs(argv);
   const keys = Object.keys(values);
-  if (keys.length !== 1 || !Object.hasOwn(values, 'fix')) {
+  const allowedKeys = new Set(['fix', 'json']);
+  if (!keys.every((key) => allowedKeys.has(key))) {
     throw new Error('Usage: wpmoo doctor');
   }
 
-  return {
-    fix: booleanOption(values, 'fix', false),
+  const options: DoctorCliOptions = {
+    json: jsonOption(values),
   };
+  if (Object.hasOwn(values, 'fix')) {
+    options.fix = booleanOption(values, 'fix', false);
+  }
+
+  return options;
 }
 
 function sourceUsage(): string {
   return 'Usage: wpmoo source <list|sync|add|remove> [options]';
 }
 
-function sourceSyncOptionsFromArgs(argv: string[]): SourceSyncOptions {
+type SourceSyncCliOptions = SourceSyncOptions & {
+  json: boolean;
+};
+
+function sourceSyncOptionsFromArgs(argv: string[]): SourceSyncCliOptions {
   const { values } = parseArgs(argv);
 
   return {
     target: resolve(stringOption(values, 'target') ?? process.cwd()),
     stage: booleanOption(values, 'stage', true),
+    json: jsonOption(values),
   };
 }
 
-function sourceListTargetFromArgs(argv: string[]): string {
+function sourceListOptionsFromArgs(argv: string[]): { target: string; json: boolean } {
   const { values } = parseArgs(argv);
-  return resolve(stringOption(values, 'target') ?? process.cwd());
+  return {
+    target: resolve(stringOption(values, 'target') ?? process.cwd()),
+    json: jsonOption(values),
+  };
 }
 
 async function runSourceCommand(argv: string[]): Promise<void> {
@@ -705,16 +735,27 @@ async function runSourceCommand(argv: string[]): Promise<void> {
   }
 
   if (subcommand === 'list') {
+    const options = sourceListOptionsFromArgs(subcommandArgv);
+    const sources = await listSources(options.target);
+    if (options.json) {
+      printJson(sourceListJson(sources));
+      return;
+    }
+
     console.log(renderBanner());
-    const target = sourceListTargetFromArgs(subcommandArgv);
-    console.log(renderSourceList(await listSources(target)));
+    console.log(renderSourceList(sources));
     return;
   }
 
   if (subcommand === 'sync') {
-    console.log(renderBanner());
     const options = sourceSyncOptionsFromArgs(subcommandArgv);
-    await syncSources(options);
+    const sources = await syncSources({ target: options.target, stage: options.stage });
+    if (options.json) {
+      printJson(sourceSyncJson(sources, options.target));
+      return;
+    }
+
+    console.log(renderBanner());
     outro(`Synced source manifest in ${options.target}.`);
     return;
   }
@@ -1169,15 +1210,31 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
 
   if (route.command === 'doctor') {
     const options = doctorOptionsFromArgs(route.argv);
+    const doctorOptions: DoctorCommandOptions = {};
+    if (options.fix !== undefined) {
+      doctorOptions.fix = options.fix;
+    }
+    if (options.json) {
+      printJson(await getDoctorReport(cwd, doctorOptions));
+      return;
+    }
+
     console.log(renderBanner());
-    console.log(options.fix === undefined ? await runDoctor(cwd) : await runDoctor(cwd, options));
+    console.log(options.fix === undefined ? await runDoctor(cwd) : await runDoctor(cwd, doctorOptions));
     return;
   }
 
   if (route.command === 'status') {
-    if (route.argv.length > 0) {
+    const { values } = parseArgs(route.argv);
+    const keys = Object.keys(values);
+    if (!keys.every((key) => key === 'json')) {
       throw new Error('Usage: wpmoo status');
     }
+    if (jsonOption(values)) {
+      printJson(environmentStatusJson(await getEnvironmentStatus(cwd)));
+      return;
+    }
+
     console.log(renderBanner());
     console.log(await renderEnvironmentStatusForTarget(cwd));
     return;

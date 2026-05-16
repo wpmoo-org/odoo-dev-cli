@@ -6,7 +6,13 @@ import { mkdtemp } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 import { markerPath, renderEnvironmentMetadata } from '../src/environment.js';
-import { listSources, renderSourceList, syncSources } from '../src/source-actions.js';
+import {
+  listSources,
+  renderSourceList,
+  sourceListJson,
+  sourceSyncJson,
+  syncSources,
+} from '../src/source-actions.js';
 import { sourceManifestPath } from '../src/source-manifest.js';
 import type { ScaffoldOptions } from '../src/types.js';
 
@@ -105,5 +111,82 @@ describe('source actions', () => {
         },
       ]),
     ).toBe('private/product @ 19.0 -> https://github.com/example/product.git addons: product, product_sale');
+  });
+
+  it('serializes empty source list output as machine-readable payload', () => {
+    expect(sourceListJson([])).toEqual({
+      schemaVersion: 1,
+      command: 'source list',
+      ok: true,
+      sources: [],
+    });
+  });
+
+  it('serializes source list output with source type and addons intact', () => {
+    expect(
+      sourceListJson([
+        {
+          type: 'oca',
+          path: 'server-tools',
+          url: 'https://github.com/OCA/server-tools.git',
+          branch: '19.0',
+          addons: ['queue_job', 'base_action_rule'],
+        },
+      ]),
+    ).toEqual({
+      schemaVersion: 1,
+      command: 'source list',
+      ok: true,
+      sources: [
+        {
+          type: 'oca',
+          path: 'server-tools',
+          url: 'https://github.com/OCA/server-tools.git',
+          branch: '19.0',
+          addons: ['queue_job', 'base_action_rule'],
+        },
+      ],
+    });
+  });
+
+  it('serializes empty source sync output as machine-readable payload', () => {
+    expect(sourceSyncJson([], '/tmp/source-sync-target')).toEqual({
+      schemaVersion: 1,
+      command: 'source sync',
+      ok: true,
+      target: '/tmp/source-sync-target',
+      sources: [],
+    });
+  });
+
+  it('serializes source sync output with source type and addons intact', () => {
+    expect(
+      sourceSyncJson(
+        [
+          {
+            type: 'private',
+            path: 'odoo_module_repo',
+            url: 'https://github.com/example/odoo-module-repo.git',
+            branch: '18.0',
+            addons: ['custom_module', 'stock'],
+          },
+        ],
+        '/tmp/source-sync-target',
+      ),
+    ).toEqual({
+      schemaVersion: 1,
+      command: 'source sync',
+      ok: true,
+      target: '/tmp/source-sync-target',
+      sources: [
+        {
+          type: 'private',
+          path: 'odoo_module_repo',
+          url: 'https://github.com/example/odoo-module-repo.git',
+          branch: '18.0',
+          addons: ['custom_module', 'stock'],
+        },
+      ],
+    });
   });
 });

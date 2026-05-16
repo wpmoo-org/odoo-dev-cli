@@ -70,6 +70,19 @@ describe('help', () => {
     expect(output).toContain('--source-type <category>     Source repo category for add-repo/remove-repo/add-module/remove-module. One of private, oca, external. Default: private.');
   });
 
+  it('documents JSON output options for automation and cockpit integration', () => {
+    const output = renderHelp();
+
+    expect(output).toContain('Machine-readable JSON output:');
+    expect(output).toContain('--json');
+    expect(output).toContain('for automation and VS Code cockpit integration');
+    expect(output).toContain('default human-readable output');
+    expect(output).toContain('npx @wpmoo/odoo status --json');
+    expect(output).toContain('npx @wpmoo/odoo source list --json');
+    expect(output).toContain('npx @wpmoo/odoo source sync --json');
+    expect(output).toContain('npx @wpmoo/odoo doctor --json');
+  });
+
   it('documents source-type defaults for module commands in README examples', () => {
     expect(readme).toContain('`private`, `oca`, or `external`');
     expect(readmeText).toContain('npx @wpmoo/odoo add-module');
@@ -97,5 +110,14 @@ describe('help', () => {
     expect(readmeText).toContain(
       'Direct `create` commands keep the existing repo URL options; use `--target <path>` to choose a custom folder.',
     );
+  });
+
+  it('documents JSON output usage in README for automation and cockpit integration', () => {
+    expect(readme).toContain('For automation and VS Code cockpit integration');
+    expect(readmeText).toContain('npx @wpmoo/odoo status --json');
+    expect(readmeText).toContain('npx @wpmoo/odoo source list --json');
+    expect(readmeText).toContain('npx @wpmoo/odoo source sync --json');
+    expect(readmeText).toContain('npx @wpmoo/odoo doctor --json');
+    expect(readmeText).toContain('JSON output is optional; human-readable output remains the default.');
   });
 });

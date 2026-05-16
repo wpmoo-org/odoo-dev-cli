@@ -1,8 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  getEnvironmentStatus: vi.fn(async () => ({ kind: 'environment', target: '/tmp/example-environment' })),
+  environmentStatusJson: vi.fn((status: unknown) => ({
+    schemaVersion: 1,
+    command: 'status',
+    ok: true,
+    status,
+  })),
   renderBanner: vi.fn(() => 'mock banner'),
   renderEnvironmentStatusForTarget: vi.fn(async () => 'full status report'),
+  getDoctorReport: vi.fn(async () => ({
+    schemaVersion: 1,
+    command: 'doctor',
+    ok: true,
+    target: '/tmp/example-environment',
+    checks: ['OK metadata .wpmoo/odoo.json'],
+    warnings: [],
+    errors: [],
+    appliedFixes: [],
+  })),
   runDoctor: vi.fn(async () => 'doctor report'),
   getGitHubAccounts: vi.fn(async () => [{ login: 'example-org', type: 'organization' }]),
   installPromptCancelKeyTracker: vi.fn(),
@@ -31,11 +48,14 @@ vi.mock('../src/status.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/status.js')>();
   return {
     ...actual,
+    getEnvironmentStatus: mocks.getEnvironmentStatus,
+    environmentStatusJson: mocks.environmentStatusJson,
     renderEnvironmentStatusForTarget: mocks.renderEnvironmentStatusForTarget,
   };
 });
 
 vi.mock('../src/doctor.js', () => ({
+  getDoctorReport: mocks.getDoctorReport,
   runDoctor: mocks.runDoctor,
 }));
 
@@ -86,6 +106,28 @@ describe('cli status route', () => {
     expect(mocks.getGitHubAccounts).not.toHaveBeenCalled();
   });
 
+  it('prints machine-readable status JSON without banner', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const status = { kind: 'environment', target: '/tmp/example-environment' };
+    mocks.getEnvironmentStatus.mockResolvedValueOnce(status);
+
+    await runCli(['status', '--json'], '/tmp/example-environment');
+
+    expect(mocks.getEnvironmentStatus).toHaveBeenCalledWith('/tmp/example-environment');
+    expect(mocks.environmentStatusJson).toHaveBeenCalledWith(status);
+    expect(mocks.renderEnvironmentStatusForTarget).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      JSON.stringify({
+        schemaVersion: 1,
+        command: 'status',
+        ok: true,
+        status,
+      }),
+    );
+  });
+
   it('rejects unexpected status args with usage message', async () => {
     const { runCli } = await loadCli();
 
@@ -93,5 +135,28 @@ describe('cli status route', () => {
     expect(mocks.renderEnvironmentStatusForTarget).not.toHaveBeenCalled();
     expect(mocks.runDoctor).not.toHaveBeenCalled();
     expect(mocks.getGitHubAccounts).not.toHaveBeenCalled();
+  });
+
+  it('prints machine-readable doctor JSON without banner', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await runCli(['doctor', '--json'], '/tmp/example-environment');
+
+    expect(mocks.getDoctorReport).toHaveBeenCalledWith('/tmp/example-environment', {});
+    expect(mocks.runDoctor).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      JSON.stringify({
+        schemaVersion: 1,
+        command: 'doctor',
+        ok: true,
+        target: '/tmp/example-environment',
+        checks: ['OK metadata .wpmoo/odoo.json'],
+        warnings: [],
+        errors: [],
+        appliedFixes: [],
+      }),
+    );
   });
 });

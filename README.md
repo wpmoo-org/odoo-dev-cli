@@ -138,8 +138,11 @@ npx @wpmoo/odoo --help
 npx @wpmoo/odoo --version
 
 npx @wpmoo/odoo status
+npx @wpmoo/odoo status --json
 npx @wpmoo/odoo doctor
+npx @wpmoo/odoo doctor --json
 npx @wpmoo/odoo doctor --fix
+npx @wpmoo/odoo source list --json
 npx @wpmoo/odoo add-repo --repo-url https://github.com/example-org/odoo_sample_module_reports.git
 npx @wpmoo/odoo remove-repo --repo odoo_sample_module_reports
 npx @wpmoo/odoo add-module --repo odoo_sample_module --module odoo_sample_module_base --source-type private
@@ -319,12 +322,14 @@ Inspect configured sources:
 
 ```bash
 npx @wpmoo/odoo source list
+npx @wpmoo/odoo source list --json
 ```
 
 Regenerate the manifest and metadata from the current metadata/gitmodule state:
 
 ```bash
 npx @wpmoo/odoo source sync
+npx @wpmoo/odoo source sync --json
 ```
 
 `source add` and `source remove` are direct aliases for the same repository
@@ -344,9 +349,22 @@ npx @wpmoo/odoo source remove --repo server-tools --source-type oca
 
 ```bash
 npx @wpmoo/odoo status
+npx @wpmoo/odoo status --json
 ```
 
 It reports whether the environment is detected, which Odoo version is selected, how many source repos are configured, how many module candidates are present, which core files are missing, and the recommended next action.
+
+For automation and VS Code cockpit integration, all of these commands also support
+`--json`:
+
+```bash
+npx @wpmoo/odoo status --json
+npx @wpmoo/odoo source list --json
+npx @wpmoo/odoo source sync --json
+npx @wpmoo/odoo doctor --json
+```
+
+JSON output is optional; human-readable output remains the default.
 
 `doctor` performs deeper checks:
 
