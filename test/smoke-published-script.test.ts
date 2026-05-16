@@ -164,14 +164,14 @@ describe('published package smoke script', () => {
   it('uses the local package version as the default package spec and creates a temporary npm cache', async () => {
     const { argsLogPath, cacheLogPath, root, stubPath, tmpRoot } = await createSmokeFixture(
       '9.8.7',
-      '@wpmoo/odoo@9.8.7',
+      '@wpmoo/toolkit@9.8.7',
     );
 
     runSmoke(root, stubPath, [], { TMPDIR: tmpRoot });
 
     expect(readFileSync(argsLogPath, 'utf8').trim().split('\n')).toEqual([
-      '--yes --package @wpmoo/odoo@9.8.7 wpmoo --version',
-      '--yes --package @wpmoo/odoo@9.8.7 wpmoo --help',
+      '--yes --package @wpmoo/toolkit@9.8.7 wpmoo --version',
+      '--yes --package @wpmoo/toolkit@9.8.7 wpmoo --help',
     ]);
     const cachePaths = readFileSync(cacheLogPath, 'utf8').trim().split('\n');
     expect(cachePaths).toHaveLength(2);
@@ -180,42 +180,42 @@ describe('published package smoke script', () => {
   });
 
   it('uses an environment package spec override', async () => {
-    const { argsLogPath, root, stubPath } = await createSmokeFixture('9.8.7', '@wpmoo/odoo@next');
+    const { argsLogPath, root, stubPath } = await createSmokeFixture('9.8.7', '@wpmoo/toolkit@next');
 
-    runSmoke(root, stubPath, [], { WPMOO_PUBLISHED_PACKAGE_SPEC: '@wpmoo/odoo@next' });
+    runSmoke(root, stubPath, [], { WPMOO_PUBLISHED_PACKAGE_SPEC: '@wpmoo/toolkit@next' });
 
     expect(readFileSync(argsLogPath, 'utf8').trim().split('\n')).toEqual([
-      '--yes --package @wpmoo/odoo@next wpmoo --version',
-      '--yes --package @wpmoo/odoo@next wpmoo --help',
+      '--yes --package @wpmoo/toolkit@next wpmoo --version',
+      '--yes --package @wpmoo/toolkit@next wpmoo --help',
     ]);
   });
 
   it('treats a positional version override as a version for the local package', async () => {
-    const { argsLogPath, root, stubPath } = await createSmokeFixture('9.8.7', '@wpmoo/odoo@9.8.8');
+    const { argsLogPath, root, stubPath } = await createSmokeFixture('9.8.7', '@wpmoo/toolkit@9.8.8');
 
-    runSmoke(root, stubPath, ['9.8.8'], { WPMOO_PUBLISHED_PACKAGE_SPEC: '@wpmoo/odoo@next' });
+    runSmoke(root, stubPath, ['9.8.8'], { WPMOO_PUBLISHED_PACKAGE_SPEC: '@wpmoo/toolkit@next' });
 
     expect(readFileSync(argsLogPath, 'utf8').trim().split('\n')).toEqual([
-      '--yes --package @wpmoo/odoo@9.8.8 wpmoo --version',
-      '--yes --package @wpmoo/odoo@9.8.8 wpmoo --help',
+      '--yes --package @wpmoo/toolkit@9.8.8 wpmoo --version',
+      '--yes --package @wpmoo/toolkit@9.8.8 wpmoo --help',
     ]);
   });
 
   it('runs the generated environment acceptance flow when enabled', async () => {
     const { argsLogPath, root, stubPath, tmpRoot } = await createAcceptanceFixture(
       '9.8.7',
-      '@wpmoo/odoo@9.8.7',
+      '@wpmoo/toolkit@9.8.7',
     );
 
     runSmoke(root, stubPath, [], { TMPDIR: tmpRoot, WPMOO_SMOKE_ENVIRONMENT: '1' });
 
     const commands = readFileSync(argsLogPath, 'utf8').trim().split('\n');
-    expect(commands).toContain('--yes --package @wpmoo/odoo@9.8.7 wpmoo --version');
-    expect(commands).toContain('--yes --package @wpmoo/odoo@9.8.7 wpmoo --help');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo --version');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo --help');
     expect(commands.some((command) => command.includes(' wpmoo create '))).toBe(true);
-    expect(commands).toContain('--yes --package @wpmoo/odoo@9.8.7 wpmoo source list');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo source list');
     expect(commands.some((command) => command.includes(' wpmoo reset --dry-run '))).toBe(true);
-    expect(commands).toContain('--yes --package @wpmoo/odoo@9.8.7 wpmoo doctor --fix');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo doctor --fix');
     expect(commands).toContain('moo:snapshot devel smoke-before');
     expect(commands).toContain('moo:restore-snapshot --dry-run smoke-before devel');
   });

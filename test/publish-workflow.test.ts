@@ -22,8 +22,15 @@ describe('publish workflow', () => {
     expect(workflow).toContain('npm run build');
     expect(workflow).toContain('expected_tag="v$VERSION"');
     expect(workflow).toContain('if [[ "${GITHUB_REF_NAME}" != "$expected_tag" ]]');
-    expect(workflow).toContain('npm view "@wpmoo/odoo@$VERSION" version');
+    expect(workflow).toContain('node scripts/sync-alias-packages.mjs --check');
+    expect(workflow).toContain('"@wpmoo/toolkit@$VERSION"');
+    expect(workflow).toContain('"wpmoo@$VERSION"');
+    expect(workflow).toContain('"@wpmoo/odoo@$VERSION"');
+    expect(workflow).toContain('"@wpmoo/odoo-dev@$VERSION"');
     expect(workflow).toContain('npm publish --access public');
+    expect(workflow).toContain('npm publish --access public ./packages/wpmoo');
+    expect(workflow).toContain('npm publish --access public ./packages/odoo-compat');
+    expect(workflow).toContain('npm publish --access public ./packages/odoo-dev-compat');
     expect(workflow).not.toContain('NODE_AUTH_TOKEN');
     expect(workflow).not.toContain('secrets.NPM_TOKEN');
   });

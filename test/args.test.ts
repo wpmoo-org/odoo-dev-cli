@@ -209,18 +209,18 @@ describe('args', () => {
   it('renders help for url-first usage', () => {
     expect(renderHelp()).toContain('--source-repo-url');
     expect(renderHelp()).toContain('--dev-repo-url');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo doctor');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo start');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo stop');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo logs [service]');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo update <module[,module]> [db]');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update]');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo resetdb [db] [module[,module]]');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo snapshot [db] [snapshot-name]');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo restore-snapshot [--dry-run] <snapshot-name> [db]');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo lint');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo pot <module[,module]> [db] [output]');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit doctor');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit start');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit stop');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit logs [service]');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit update <module[,module]> [db]');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode init|update]');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit resetdb [db] [module[,module]]');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit snapshot [db] [snapshot-name]');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit restore-snapshot [--dry-run] <snapshot-name> [db]');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit lint');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit pot <module[,module]> [db] [output]');
   });
 
   it('routes explicit subcommands and create args', () => {

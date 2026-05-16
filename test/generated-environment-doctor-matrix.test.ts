@@ -9,7 +9,7 @@ import { runDoctor, type DoctorCommandRunner } from '../src/doctor.js';
 import { markerPath } from '../src/environment.js';
 
 const metadata = {
-  tool: '@wpmoo/odoo',
+  tool: '@wpmoo/toolkit',
   version: '0.8.35',
   product: 'matrix_module',
   odooVersion: '19.0',

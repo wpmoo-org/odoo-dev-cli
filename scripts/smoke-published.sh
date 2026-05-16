@@ -11,7 +11,7 @@ if [[ "$#" -gt 1 ]]; then
 fi
 
 if [[ ! -f package.json ]]; then
-  echo "Run this script from the wpmoo-odoo repository root." >&2
+  echo "Run this script from the wpmoo-toolkit repository root." >&2
   exit 1
 fi
 

@@ -103,7 +103,7 @@ describe('safe reset', () => {
       join(target, '.wpmoo/odoo.json'),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo',
+          tool: '@wpmoo/toolkit',
           version: '0.8.0',
           product: 'odoo_sample_module',
           odooVersion: '19.0',
@@ -156,7 +156,7 @@ describe('safe reset', () => {
       join(target, '.wpmoo/odoo.json'),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo',
+          tool: '@wpmoo/toolkit',
           version: '0.8.0',
           product: 'odoo_sample_module',
           odooVersion: '19.0',
@@ -192,7 +192,7 @@ describe('safe reset', () => {
       join(target, '.wpmoo/odoo.json'),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo',
+          tool: '@wpmoo/toolkit',
           version: '0.7.0',
           product: 'odoo_sample_module',
           odooVersion: '19.0',
@@ -279,7 +279,7 @@ describe('safe reset', () => {
       join(target, '.wpmoo/odoo.json'),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo',
+          tool: '@wpmoo/toolkit',
           version: '0.8.0',
           product: 'odoo_sample_module',
           odooVersion: '18.0',
@@ -365,7 +365,7 @@ describe('safe reset', () => {
       join(target, '.wpmoo/odoo.json'),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo',
+          tool: '@wpmoo/toolkit',
           version: '0.8.0',
           product: 'odoo_sample_module',
           odooVersion: '19.0',
@@ -410,7 +410,7 @@ describe('safe reset', () => {
       join(target, '.wpmoo/odoo.json'),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo',
+          tool: '@wpmoo/toolkit',
           version: '0.8.0',
           product: 'odoo_sample_module',
           odooVersion: '19.0',
@@ -460,7 +460,7 @@ describe('safe reset', () => {
       join(target, '.wpmoo/odoo.json'),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo',
+          tool: '@wpmoo/toolkit',
           version: '0.8.0',
           odooVersion: '19.0',
           devRepo: 'odoo_sample_module_dev',
@@ -513,7 +513,7 @@ describe('safe reset', () => {
       join(target, '.wpmoo/odoo.json'),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo',
+          tool: '@wpmoo/toolkit',
           version: '0.8.0',
           product: 'odoo_sample_module',
           odooVersion: '19.0',

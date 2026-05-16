@@ -25,5 +25,5 @@ unless a coordinator explicitly requests a fallback.
 
 Current command standard:
 
-- Use `npx @wpmoo/odoo ...` for package/operator commands.
+- Use `npx @wpmoo/toolkit ...` for package/operator commands.
 - Use generated environment `./moo ...` for local compose daily commands.

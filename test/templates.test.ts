@@ -127,7 +127,7 @@ describe('template rendering', () => {
     });
 
     expect(readme).toContain('This environment was scaffolded without source repository submodules.');
-    expect(readme).toContain('Add source repositories later from the cockpit or with `npx @wpmoo/odoo add-repo`.');
+    expect(readme).toContain('Add source repositories later from the cockpit or with `npx @wpmoo/toolkit add-repo`.');
     expect(readme).toContain('odoo/custom/src/private');
     expect(readme).toContain('odoo/custom/src/oca');
     expect(readme).toContain('odoo/custom/src/external');

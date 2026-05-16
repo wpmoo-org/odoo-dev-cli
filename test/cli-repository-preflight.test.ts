@@ -119,7 +119,7 @@ vi.mock('../src/version.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/version.js')>();
   return {
     ...actual,
-    packageName: () => '@wpmoo/odoo',
+    packageName: () => '@wpmoo/toolkit',
     packageVersion: () => '0.0.0-test',
     renderVersionTag: mocks.renderVersionTag,
   };

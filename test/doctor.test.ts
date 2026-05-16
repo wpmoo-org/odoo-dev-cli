@@ -10,7 +10,7 @@ import { markerPath } from '../src/environment.js';
 import { sourceManifestPath } from '../src/source-manifest.js';
 
 const baseMetadata = {
-  tool: '@wpmoo/odoo',
+  tool: '@wpmoo/toolkit',
   version: '0.8.35',
   product: 'odoo_sample_module',
   odooVersion: '19.0',

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Raise `@wpmoo/odoo` test coverage materially above the current baseline while preserving CLI behavior.
+**Goal:** Raise `@wpmoo/toolkit` test coverage materially above the current baseline while preserving CLI behavior.
 
 **Architecture:** Add behavior-focused Vitest coverage around the largest uncovered surfaces. Prioritize real unit tests over configuration exclusions; keep production changes minimal and only when needed to make code testable.
 
@@ -129,9 +129,9 @@ Add tests for:
 
 ```ts
 compareVersions('v1.2.3-beta.1', '1.2.3') === 0
-checkForUpdate('@wpmoo/odoo', '0.5.0', runnerReturningDottedTarball) resolves current/update
-checkForUpdate('@wpmoo/odoo', '0.4.1', runnerReturningEmptyStdout) resolves unavailable
-installLatestPackage('@wpmoo/odoo', '0.8.44', runner) calls ['install', '-g', '@wpmoo/odoo@0.8.44']
+checkForUpdate('@wpmoo/toolkit', '0.5.0', runnerReturningDottedTarball) resolves current/update
+checkForUpdate('@wpmoo/toolkit', '0.4.1', runnerReturningEmptyStdout) resolves unavailable
+installLatestPackage('@wpmoo/toolkit', '0.8.44', runner) calls ['install', '-g', '@wpmoo/toolkit@0.8.44']
 ```
 
 - [ ] **Step 2: Add GitHub branch tests**
@@ -231,4 +231,4 @@ Acceptance criteria:
 - Full test suite passes.
 - `npm run test:coverage` line coverage is above the 66.95% baseline.
 - No secret values are added to the repository.
-- `wpmoo-odoo` release still follows `npm run release:check`, version bump commit if needed, annotated tag, GitHub Actions Publish workflow, then `npm view`.
+- `wpmoo-toolkit` release still follows `npm run release:check`, version bump commit if needed, annotated tag, GitHub Actions Publish workflow, then `npm view`.

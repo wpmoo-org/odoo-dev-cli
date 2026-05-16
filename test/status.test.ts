@@ -13,7 +13,7 @@ import {
 } from '../src/status.js';
 
 const validMetadata = {
-  tool: '@wpmoo/odoo',
+  tool: '@wpmoo/toolkit',
   version: '0.8.45',
   product: 'sample',
   odooVersion: '19.0',
@@ -62,7 +62,7 @@ describe('status', () => {
     const status = await getEnvironmentStatus(target);
 
     expect(status.kind).toBe('no_environment');
-    expect(status.recommendedNextAction).toBe('Run npx @wpmoo/odoo create ...');
+    expect(status.recommendedNextAction).toBe('Run npx @wpmoo/toolkit create ...');
     expect(renderEnvironmentStatusSummary(status)).toBe('No WPMoo environment detected.');
     expect(renderEnvironmentStatus(status)).toContain('Metadata: missing .wpmoo/odoo.json');
   });
@@ -74,7 +74,7 @@ describe('status', () => {
     await expect(getEnvironmentStatus(target)).resolves.toMatchObject({
       kind: 'invalid_metadata',
       recommendedNextAction:
-        'Fix .wpmoo/odoo.json or run npx @wpmoo/odoo reset from a valid environment.',
+        'Fix .wpmoo/odoo.json or run npx @wpmoo/toolkit reset from a valid environment.',
     });
   });
 
@@ -94,7 +94,7 @@ describe('status', () => {
     expect(status.missingCoreFiles).toEqual([]);
     expect(status.composeFiles).toEqual(['docker-compose_19.0.yml']);
     expect(status.composeErrors).toEqual([]);
-    expect(status.recommendedNextAction).toBe('Run npx @wpmoo/odoo add-repo ...');
+    expect(status.recommendedNextAction).toBe('Run npx @wpmoo/toolkit add-repo ...');
     expect(renderEnvironmentStatus(status)).toContain('Compose files: docker-compose_19.0.yml');
   });
 
@@ -177,7 +177,7 @@ describe('status', () => {
     expect(status.invalidSourceRepoPaths).toEqual([]);
     expect(status.moduleCandidateCount).toBe(3);
     expect(status.recommendedNextAction).toBe(
-      'Run npx @wpmoo/odoo doctor for deep checks or ./moo start.',
+      'Run npx @wpmoo/toolkit doctor for deep checks or ./moo start.',
     );
     expect(renderEnvironmentStatusSummary(status)).toContain('Environment ready');
   });
@@ -249,7 +249,7 @@ describe('status', () => {
     expect(status.moduleCandidateCount).toBe(1);
     expect(status.invalidSourceRepoPaths).toEqual([]);
     expect(status.recommendedNextAction).toBe(
-      'Run npx @wpmoo/odoo doctor for deep checks or ./moo start.',
+      'Run npx @wpmoo/toolkit doctor for deep checks or ./moo start.',
     );
   });
 
@@ -276,7 +276,7 @@ describe('status', () => {
     expect(status.invalidSourceRepoPaths).toEqual(['../escape']);
     expect(status.moduleCandidateCount).toBe(1);
     expect(status.recommendedNextAction).toBe(
-      'Fix invalid source repo paths in .wpmoo/odoo.json, then run npx @wpmoo/odoo doctor.',
+      'Fix invalid source repo paths in .wpmoo/odoo.json, then run npx @wpmoo/toolkit doctor.',
     );
     expect(renderEnvironmentStatus(status)).toContain('Invalid source repo paths: ../escape');
     expect(renderEnvironmentStatusSummary(status)).toContain('Environment needs attention');
@@ -299,7 +299,7 @@ describe('status', () => {
       expect.arrayContaining(['moo', 'README.md', 'AGENTS.md', 'docker-compose_19.0.yml', 'scripts/']),
     );
     expect(status.recommendedNextAction).toBe(
-      'Run npx @wpmoo/odoo reset, then npx @wpmoo/odoo doctor.',
+      'Run npx @wpmoo/toolkit reset, then npx @wpmoo/toolkit doctor.',
     );
     expect(renderEnvironmentStatus(status)).toContain('Missing core files:');
   });
@@ -311,7 +311,7 @@ describe('status', () => {
 
     const output = await renderEnvironmentStatusForTarget(target);
     expect(output).toContain('Status: Environment ready: Odoo 19.0, source repos 0, module candidates 0.');
-    expect(output).toContain('Next: Run npx @wpmoo/odoo add-repo ...');
+    expect(output).toContain('Next: Run npx @wpmoo/toolkit add-repo ...');
   });
 
   it('renders machine-readable status payload for ready environments', async () => {
@@ -340,7 +340,7 @@ describe('status', () => {
         composeFiles: ['docker-compose_19.0.yml'],
         composeErrors: [],
         missingCoreFiles: [],
-        recommendedNextAction: 'Run npx @wpmoo/odoo add-repo ...',
+        recommendedNextAction: 'Run npx @wpmoo/toolkit add-repo ...',
       },
     });
   });

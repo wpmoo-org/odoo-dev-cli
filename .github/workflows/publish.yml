@@ -37,6 +37,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check alias package metadata
+        run: node scripts/sync-alias-packages.mjs --check
+
       - name: Check tag version
         run: |
           VERSION="$(node -p "require('./package.json').version")"
@@ -50,14 +53,32 @@ jobs:
       - name: Check package version
         run: |
           VERSION="$(node -p "require('./package.json').version")"
-          if npm view "@wpmoo/odoo@$VERSION" version >/dev/null 2>&1; then
-            echo "@wpmoo/odoo@$VERSION already exists on npm."
-            echo "Bump package.json and package-lock.json before publishing."
-            exit 1
-          fi
+          package_specs=(
+            "@wpmoo/toolkit@$VERSION"
+            "wpmoo@$VERSION"
+            "@wpmoo/odoo@$VERSION"
+            "@wpmoo/odoo-dev@$VERSION"
+          )
+          for spec in "${package_specs[@]}"; do
+            if npm view "$spec" version >/dev/null 2>&1; then
+              echo "$spec already exists on npm."
+              echo "Bump package.json and package-lock.json before publishing."
+              exit 1
+            fi
+          done
 
       - name: Check package dry run
-        run: npm pack --dry-run
+        run: |
+          npm pack --dry-run
+          npm pack --dry-run ./packages/wpmoo
+          npm pack --dry-run ./packages/odoo-compat
+          npm pack --dry-run ./packages/odoo-dev-compat
 
-      - name: Publish to npm
+      - name: Publish toolkit to npm
         run: npm publish --access public
+
+      - name: Publish aliases to npm
+        run: |
+          npm publish --access public ./packages/wpmoo
+          npm publish --access public ./packages/odoo-compat
+          npm publish --access public ./packages/odoo-dev-compat

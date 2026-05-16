@@ -3,11 +3,14 @@ set -euo pipefail
 
 NPM_BIN="${WPMOO_NPM_BIN:-npm}"
 NODE_BIN="${WPMOO_NODE_BIN:-node}"
-PACKAGE_NAME="@wpmoo/odoo"
+PACKAGE_NAME="@wpmoo/toolkit"
+PACKAGE_NAMES=("@wpmoo/toolkit" "wpmoo" "@wpmoo/odoo" "@wpmoo/odoo-dev")
+ALIAS_PACKAGE_DIRS=("./packages/wpmoo" "./packages/odoo-compat" "./packages/odoo-dev-compat")
 PACKAGE_TEST="test/package.test.ts"
+SYNC_ALIAS_SCRIPT="scripts/sync-alias-packages.mjs"
 
 if [[ ! -f package.json ]]; then
-  echo "Run this script from the wpmoo-odoo repository root." >&2
+  echo "Run this script from the wpmoo-toolkit repository root." >&2
   exit 1
 fi
 
@@ -45,14 +48,35 @@ npm_version_exists() {
   exit "$status"
 }
 
+sync_alias_packages() {
+  "$NODE_BIN" "$SYNC_ALIAS_SCRIPT"
+}
+
+any_package_version_exists() {
+  local version="$1"
+  local package_name
+
+  for package_name in "${PACKAGE_NAMES[@]}"; do
+    if npm_version_exists "$package_name@$version"; then
+      echo "$package_name@$version already exists on npm."
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+sync_alias_packages
+
 current_version="$("$NODE_BIN" -p "require('./package.json').version")"
-if npm_version_exists "$PACKAGE_NAME@$current_version"; then
-  echo "$PACKAGE_NAME@$current_version already exists on npm; bumping patch version."
+if any_package_version_exists "$current_version"; then
+  echo "Bumping patch version."
   "$NPM_BIN" version patch --no-git-tag-version
+  sync_alias_packages
   current_version="$("$NODE_BIN" -p "require('./package.json').version")"
 
-  if npm_version_exists "$PACKAGE_NAME@$current_version"; then
-    echo "$PACKAGE_NAME@$current_version also exists on npm after one patch bump." >&2
+  if any_package_version_exists "$current_version"; then
+    echo "A package target for $current_version also exists on npm after one patch bump." >&2
     echo "Bump the version manually and rerun this script." >&2
     exit 1
   fi
@@ -61,7 +85,7 @@ if npm_version_exists "$PACKAGE_NAME@$current_version"; then
   echo "Commit package.json and package-lock.json, push them, then rerun this script."
   exit 1
 else
-  echo "$PACKAGE_NAME@$current_version is not published yet; keeping current version."
+  echo "Package version $current_version is not published for any target; keeping current version."
 fi
 
 echo "Running package metadata test..."
@@ -69,3 +93,6 @@ echo "Running package metadata test..."
 
 echo "Running npm pack --dry-run..."
 "$NPM_BIN" pack --dry-run
+for package_dir in "${ALIAS_PACKAGE_DIRS[@]}"; do
+  "$NPM_BIN" pack --dry-run "$package_dir"
+done

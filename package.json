@@ -1,21 +1,24 @@
 {
-  "name": "@wpmoo/odoo",
-  "version": "0.8.69",
-  "description": "WPMoo Tool for Odoo development, staging, and production lifecycle workflows.",
+  "name": "@wpmoo/toolkit",
+  "version": "0.9.0",
+  "description": "WPMoo Toolkit for development, staging, and production lifecycle workflows.",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wpmoo-org/wpmoo-odoo.git"
+    "url": "git+https://github.com/wpmoo-org/wpmoo-toolkit.git"
   },
-  "homepage": "https://github.com/wpmoo-org/wpmoo-odoo",
+  "homepage": "https://github.com/wpmoo-org/wpmoo-toolkit",
   "bugs": {
-    "url": "https://github.com/wpmoo-org/wpmoo-odoo/issues"
+    "url": "https://github.com/wpmoo-org/wpmoo-toolkit/issues"
   },
   "readmeFilename": "README.md",
   "main": "./dist/cli.js",
   "exports": "./dist/cli.js",
   "keywords": [
     "odoo",
+    "wpmoo",
+    "wpmoo toolkit",
+    "toolkit",
     "odoo development",
     "odoo cli",
     "odoo lifecycle",

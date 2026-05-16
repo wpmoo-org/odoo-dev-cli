@@ -189,7 +189,7 @@ describe('module actions', () => {
     await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
     await writeFile(
       join(target, '.wpmoo/odoo.json'),
-      JSON.stringify({ tool: '@wpmoo/odoo', version: '0.8.0', engine: 'compose' }, null, 2),
+      JSON.stringify({ tool: '@wpmoo/toolkit', version: '0.8.0', engine: 'compose' }, null, 2),
       'utf8',
     );
 

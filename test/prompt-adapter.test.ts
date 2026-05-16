@@ -217,11 +217,11 @@ describe('prompt adapter', () => {
   it('renders intro, note, and outro output with ASCII text', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    introPrompt('WPMoo Tool');
+    introPrompt('WPMoo Toolkit');
     notePrompt('Add Odoo module paths', 'Repository setup');
     outroPrompt('Created environment.');
 
-    expect(spy).toHaveBeenCalledWith('WPMoo Tool');
+    expect(spy).toHaveBeenCalledWith('WPMoo Toolkit');
     expect(spy).toHaveBeenCalledWith('[Repository setup]');
     expect(spy).toHaveBeenCalledWith('  Add Odoo module paths');
     expect(spy).toHaveBeenCalledWith('Done: Created environment.');

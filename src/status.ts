@@ -222,7 +222,7 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
       kind: 'no_environment',
       target,
       metadataPath: markerPath,
-      recommendedNextAction: 'Run npx @wpmoo/odoo create ...',
+      recommendedNextAction: 'Run npx @wpmoo/toolkit create ...',
     };
   }
 
@@ -237,7 +237,7 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
       metadataPath: markerPath,
       metadataError: errorMessage(error),
       recommendedNextAction:
-        'Fix .wpmoo/odoo.json or run npx @wpmoo/odoo reset from a valid environment.',
+        'Fix .wpmoo/odoo.json or run npx @wpmoo/toolkit reset from a valid environment.',
     };
   }
 
@@ -261,16 +261,16 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
     composeErrors,
   } = await missingCoreFiles(target, odooVersion);
 
-  let recommendedNextAction = 'Run npx @wpmoo/odoo doctor for deep checks or ./moo start.';
+  let recommendedNextAction = 'Run npx @wpmoo/toolkit doctor for deep checks or ./moo start.';
   if (invalidSourceRepoPaths.length > 0) {
     recommendedNextAction =
-      'Fix invalid source repo paths in .wpmoo/odoo.json, then run npx @wpmoo/odoo doctor.';
+      'Fix invalid source repo paths in .wpmoo/odoo.json, then run npx @wpmoo/toolkit doctor.';
   } else if (missingFiles.length > 0) {
-    recommendedNextAction = 'Run npx @wpmoo/odoo reset, then npx @wpmoo/odoo doctor.';
+    recommendedNextAction = 'Run npx @wpmoo/toolkit reset, then npx @wpmoo/toolkit doctor.';
   } else if (composeErrors.length > 0) {
-    recommendedNextAction = 'Fix compose layout errors, then run npx @wpmoo/odoo doctor.';
+    recommendedNextAction = 'Fix compose layout errors, then run npx @wpmoo/toolkit doctor.';
   } else if (sourceRepoPaths.length === 0) {
-    recommendedNextAction = 'Run npx @wpmoo/odoo add-repo ...';
+    recommendedNextAction = 'Run npx @wpmoo/toolkit add-repo ...';
   }
 
   return {

@@ -35,22 +35,22 @@ describe('update check', () => {
   });
 
   it('detects an available npm update', async () => {
-    const runner = npmRunner('{"version":"0.5.0","dist":{"tarball":"https://registry.npmjs.org/@wpmoo/odoo/-/odoo-0.5.0.tgz"}}\n');
+    const runner = npmRunner('{"version":"0.5.0","dist":{"tarball":"https://registry.npmjs.org/@wpmoo/toolkit/-/odoo-0.5.0.tgz"}}\n');
 
-    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', runner)).resolves.toEqual({
+    await expect(checkForUpdate('@wpmoo/toolkit', '0.4.1', runner)).resolves.toEqual({
       status: 'update-available',
       currentVersion: '0.4.1',
       latestVersion: '0.5.0',
-      tarball: 'https://registry.npmjs.org/@wpmoo/odoo/-/odoo-0.5.0.tgz',
+      tarball: 'https://registry.npmjs.org/@wpmoo/toolkit/-/odoo-0.5.0.tgz',
     });
     expect(runner.calls).toEqual([
-      ['view', '@wpmoo/odoo@latest', 'version', 'dist.tarball', '--json'],
-      ['view', '@wpmoo/odoo@0.5.0', 'version', 'dist.tarball', '--json'],
+      ['view', '@wpmoo/toolkit@latest', 'version', 'dist.tarball', '--json'],
+      ['view', '@wpmoo/toolkit@0.5.0', 'version', 'dist.tarball', '--json'],
     ]);
   });
 
   it('continues quietly when the npm registry cannot be checked', async () => {
-    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', npmRunner('', true))).resolves.toEqual({
+    await expect(checkForUpdate('@wpmoo/toolkit', '0.4.1', npmRunner('', true))).resolves.toEqual({
       status: 'unavailable',
       currentVersion: '0.4.1',
     });
@@ -58,19 +58,19 @@ describe('update check', () => {
 
   it('treats dotted tarball metadata as valid and current when versions match', async () => {
     const runner = npmRunner(
-      '{"version":"0.5.0","dist.tarball":"https://registry.npmjs.org/@wpmoo/odoo/-/odoo-0.5.0.tgz"}\n',
+      '{"version":"0.5.0","dist.tarball":"https://registry.npmjs.org/@wpmoo/toolkit/-/odoo-0.5.0.tgz"}\n',
     );
 
-    await expect(checkForUpdate('@wpmoo/odoo', '0.5.0', runner)).resolves.toEqual({
+    await expect(checkForUpdate('@wpmoo/toolkit', '0.5.0', runner)).resolves.toEqual({
       status: 'current',
       currentVersion: '0.5.0',
       latestVersion: '0.5.0',
     });
-    expect(runner.calls).toEqual([['view', '@wpmoo/odoo@latest', 'version', 'dist.tarball', '--json']]);
+    expect(runner.calls).toEqual([['view', '@wpmoo/toolkit@latest', 'version', 'dist.tarball', '--json']]);
   });
 
   it('treats empty npm metadata output as unavailable', async () => {
-    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', npmRunner('\n'))).resolves.toEqual({
+    await expect(checkForUpdate('@wpmoo/toolkit', '0.4.1', npmRunner('\n'))).resolves.toEqual({
       status: 'unavailable',
       currentVersion: '0.4.1',
     });
@@ -81,10 +81,10 @@ describe('update check', () => {
     const runner: NpmRunner = {
       async run(args) {
         calls.push(args);
-        if (args[0] === 'view' && args[1] === '@wpmoo/odoo@latest') {
+        if (args[0] === 'view' && args[1] === '@wpmoo/toolkit@latest') {
           return {
             stdout:
-              '{"version":"0.5.0","dist":{"tarball":"https://registry.npmjs.org/@wpmoo/odoo/-/odoo-0.5.0.tgz"}}',
+              '{"version":"0.5.0","dist":{"tarball":"https://registry.npmjs.org/@wpmoo/toolkit/-/odoo-0.5.0.tgz"}}',
             stderr: '',
           };
         }
@@ -92,25 +92,25 @@ describe('update check', () => {
       },
     };
 
-    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', runner)).resolves.toEqual({
+    await expect(checkForUpdate('@wpmoo/toolkit', '0.4.1', runner)).resolves.toEqual({
       status: 'unavailable',
       currentVersion: '0.4.1',
     });
     expect(calls).toEqual([
-      ['view', '@wpmoo/odoo@latest', 'version', 'dist.tarball', '--json'],
-      ['view', '@wpmoo/odoo@0.5.0', 'version', 'dist.tarball', '--json'],
+      ['view', '@wpmoo/toolkit@latest', 'version', 'dist.tarball', '--json'],
+      ['view', '@wpmoo/toolkit@0.5.0', 'version', 'dist.tarball', '--json'],
     ]);
   });
 
   it('treats malformed npm metadata as unavailable', async () => {
-    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', npmRunner('{not-json'))).resolves.toEqual({
+    await expect(checkForUpdate('@wpmoo/toolkit', '0.4.1', npmRunner('{not-json'))).resolves.toEqual({
       status: 'unavailable',
       currentVersion: '0.4.1',
     });
   });
 
   it('treats latest metadata without version or tarball as unavailable', async () => {
-    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', npmRunner('{"dist":{}}\n'))).resolves.toEqual({
+    await expect(checkForUpdate('@wpmoo/toolkit', '0.4.1', npmRunner('{"dist":{}}\n'))).resolves.toEqual({
       status: 'unavailable',
       currentVersion: '0.4.1',
     });
@@ -121,38 +121,38 @@ describe('update check', () => {
     const runner: NpmRunner = {
       async run(args) {
         calls.push(args);
-        if (args[1] === '@wpmoo/odoo@latest') {
+        if (args[1] === '@wpmoo/toolkit@latest') {
           return {
             stdout:
-              '{"version":"0.5.0","dist":{"tarball":"https://registry.npmjs.org/@wpmoo/odoo/-/odoo-0.5.0.tgz"}}',
+              '{"version":"0.5.0","dist":{"tarball":"https://registry.npmjs.org/@wpmoo/toolkit/-/odoo-0.5.0.tgz"}}',
             stderr: '',
           };
         }
         return {
           stdout:
-            '{"version":"0.5.1","dist":{"tarball":"https://registry.npmjs.org/@wpmoo/odoo/-/odoo-0.5.1.tgz"}}',
+            '{"version":"0.5.1","dist":{"tarball":"https://registry.npmjs.org/@wpmoo/toolkit/-/odoo-0.5.1.tgz"}}',
           stderr: '',
         };
       },
     };
 
-    await expect(checkForUpdate('@wpmoo/odoo', '0.4.1', runner)).resolves.toEqual({
+    await expect(checkForUpdate('@wpmoo/toolkit', '0.4.1', runner)).resolves.toEqual({
       status: 'unavailable',
       currentVersion: '0.4.1',
     });
     expect(calls).toEqual([
-      ['view', '@wpmoo/odoo@latest', 'version', 'dist.tarball', '--json'],
-      ['view', '@wpmoo/odoo@0.5.0', 'version', 'dist.tarball', '--json'],
+      ['view', '@wpmoo/toolkit@latest', 'version', 'dist.tarball', '--json'],
+      ['view', '@wpmoo/toolkit@0.5.0', 'version', 'dist.tarball', '--json'],
     ]);
   });
 
   it('builds an exact package spec and restart args', () => {
-    expect(packageSpec('@wpmoo/odoo', '0.5.0')).toBe('@wpmoo/odoo@0.5.0');
-    expect(restartArgs('@wpmoo/odoo', '0.5.0', ['--foo'])).toEqual([
+    expect(packageSpec('@wpmoo/toolkit', '0.5.0')).toBe('@wpmoo/toolkit@0.5.0');
+    expect(restartArgs('@wpmoo/toolkit', '0.5.0', ['--foo'])).toEqual([
       'exec',
       '--yes',
       '--package',
-      '@wpmoo/odoo@0.5.0',
+      '@wpmoo/toolkit@0.5.0',
       '--',
       'wpmoo',
       '--foo',
@@ -162,9 +162,9 @@ describe('update check', () => {
   it('installs a specific package version globally', async () => {
     const runner = npmRunner('');
 
-    await installLatestPackage('@wpmoo/odoo', '0.8.44', runner);
+    await installLatestPackage('@wpmoo/toolkit', '0.8.44', runner);
 
-    expect(runner.calls).toEqual([['install', '-g', '@wpmoo/odoo@0.8.44']]);
+    expect(runner.calls).toEqual([['install', '-g', '@wpmoo/toolkit@0.8.44']]);
   });
 
   it('skips update checks only for explicit opt outs and updater restarts', () => {

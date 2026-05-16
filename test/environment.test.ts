@@ -50,9 +50,9 @@ describe('development environment detection', () => {
 
     await scaffold(await scaffoldOptions(target));
 
-    await expect(readFile(join(target, markerPath), 'utf8')).resolves.toContain('"tool": "@wpmoo/odoo"');
+    await expect(readFile(join(target, markerPath), 'utf8')).resolves.toContain('"tool": "@wpmoo/toolkit"');
     await expect(readEnvironmentMetadata(target)).resolves.toMatchObject({
-      tool: '@wpmoo/odoo',
+      tool: '@wpmoo/toolkit',
       product: 'odoo_sample_module',
       odooVersion: '19.0',
       engine: 'compose',
@@ -123,7 +123,7 @@ describe('development environment detection', () => {
       join(target, markerPath),
       JSON.stringify(
         {
-          tool: '@wpmoo/odoo',
+          tool: '@wpmoo/toolkit',
           version: '0.8.0',
           product: 'odoo_sample_module',
           odooVersion: '19.0',

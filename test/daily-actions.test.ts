@@ -13,7 +13,7 @@ async function makeEnvironment(options: { scripts?: string[] } = {}): Promise<st
   await writeFile(
     join(target, markerPath),
     JSON.stringify({
-      tool: '@wpmoo/odoo',
+      tool: '@wpmoo/toolkit',
       version: '0.8.33',
       product: 'odoo_sample_module',
       odooVersion: '19.0',
@@ -165,7 +165,7 @@ describe('daily actions', () => {
     await writeFile(join(target, 'scripts/logs.sh'), '#!/usr/bin/env bash\n');
 
     await expect(dailyActionPlan('logs', [], target)).rejects.toThrow(
-      'Daily actions must be run from a WPMoo Tool environment root containing .wpmoo/odoo.json.',
+      'Daily actions must be run from a WPMoo Toolkit environment root containing .wpmoo/odoo.json.',
     );
   });
 

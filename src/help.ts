@@ -1,40 +1,41 @@
 export function renderHelp(): string {
-  return `@wpmoo/odoo
+  return `@wpmoo/toolkit
 
-WPMoo Tool for Odoo lifecycle workflows.
+WPMoo Toolkit for Odoo lifecycle workflows.
 
 Usage:
-  npx @wpmoo/odoo
-  npx @wpmoo/odoo create --product <slug> [--target <path>] --dev-repo-url <url> --source-repo-url <url>
-  npx @wpmoo/odoo status
-  npx @wpmoo/odoo status --json
-  npx @wpmoo/odoo add-repo --repo-url <url> [--source-type private|oca|external]
-  npx @wpmoo/odoo remove-repo --repo <name>
-  npx @wpmoo/odoo source list
-  npx @wpmoo/odoo source list --json
-  npx @wpmoo/odoo source sync
-  npx @wpmoo/odoo source sync --json
-  npx @wpmoo/odoo source add --repo-url <url> [--source-type private|oca|external]
-  npx @wpmoo/odoo source remove --repo <name> [--source-type private|oca|external]
-  npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name> [--source-type <category>]
-  npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name> [--source-type <category>]
-  npx @wpmoo/odoo reset [--dry-run]
-  npx @wpmoo/odoo doctor [--fix]
-  npx @wpmoo/odoo doctor --json
-  npx @wpmoo/odoo start
-  npx @wpmoo/odoo stop
-  npx @wpmoo/odoo logs [service]
-  npx @wpmoo/odoo restart
-  npx @wpmoo/odoo shell
-  npx @wpmoo/odoo psql [db]
-  npx @wpmoo/odoo install <module[,module]> [db]
-  npx @wpmoo/odoo update <module[,module]> [db]
-  npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
-  npx @wpmoo/odoo resetdb [db] [module[,module]]
-  npx @wpmoo/odoo snapshot [db] [snapshot-name]
-  npx @wpmoo/odoo restore-snapshot [--dry-run] <snapshot-name> [db]
-  npx @wpmoo/odoo lint
-  npx @wpmoo/odoo pot <module[,module]> [db] [output]
+  npx @wpmoo/toolkit
+  npx wpmoo
+  npx @wpmoo/toolkit create --product <slug> [--target <path>] --dev-repo-url <url> --source-repo-url <url>
+  npx @wpmoo/toolkit status
+  npx @wpmoo/toolkit status --json
+  npx @wpmoo/toolkit add-repo --repo-url <url> [--source-type private|oca|external]
+  npx @wpmoo/toolkit remove-repo --repo <name>
+  npx @wpmoo/toolkit source list
+  npx @wpmoo/toolkit source list --json
+  npx @wpmoo/toolkit source sync
+  npx @wpmoo/toolkit source sync --json
+  npx @wpmoo/toolkit source add --repo-url <url> [--source-type private|oca|external]
+  npx @wpmoo/toolkit source remove --repo <name> [--source-type private|oca|external]
+  npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> [--source-type <category>]
+  npx @wpmoo/toolkit remove-module --repo <source-repo> --module <module-name> [--source-type <category>]
+  npx @wpmoo/toolkit reset [--dry-run]
+  npx @wpmoo/toolkit doctor [--fix]
+  npx @wpmoo/toolkit doctor --json
+  npx @wpmoo/toolkit start
+  npx @wpmoo/toolkit stop
+  npx @wpmoo/toolkit logs [service]
+  npx @wpmoo/toolkit restart
+  npx @wpmoo/toolkit shell
+  npx @wpmoo/toolkit psql [db]
+  npx @wpmoo/toolkit install <module[,module]> [db]
+  npx @wpmoo/toolkit update <module[,module]> [db]
+  npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
+  npx @wpmoo/toolkit resetdb [db] [module[,module]]
+  npx @wpmoo/toolkit snapshot [db] [snapshot-name]
+  npx @wpmoo/toolkit restore-snapshot [--dry-run] <snapshot-name> [db]
+  npx @wpmoo/toolkit lint
+  npx @wpmoo/toolkit pot <module[,module]> [db] [output]
 
 Options:
   --product <slug>             Product slug, for example my_odoo_module.
@@ -71,20 +72,25 @@ Options:
   --version, -v                Show the package version.
   --help, -h                   Show this help.
 
+Package aliases:
+  npx @wpmoo/toolkit is the official package path.
+  npx wpmoo is the short alias.
+  npx @wpmoo/odoo and npx @wpmoo/odoo-dev remain legacy compatibility paths.
+
 Daily actions:
   Daily actions must be run from a generated environment root containing .wpmoo/odoo.json.
   They delegate to the fixed scripts copied from the compose resource under ./scripts.
   Generated environments also include ./moo for local compose commands such as ./moo start.
-  Use ./moo or npx @wpmoo/odoo with the same daily action arguments.
+  Use ./moo or npx @wpmoo/toolkit with the same daily action arguments.
 
 Cockpit:
-  Run npx @wpmoo/odoo inside a generated environment to open the cockpit.
+  Run npx @wpmoo/toolkit inside a generated environment to open the cockpit.
   Use Command palette / to search slash commands across services, modules, database,
   diagnostics, repositories, and maintenance categories.
-  Direct commands such as npx @wpmoo/odoo status and npx @wpmoo/odoo test remain available.
+  Direct commands such as npx @wpmoo/toolkit status and npx @wpmoo/toolkit test remain available.
 
 Wizard local-only path:
-  Run npx @wpmoo/odoo from a workspace directory to open the create wizard.
+  Run npx @wpmoo/toolkit from a workspace directory to open the create wizard.
   Choose any environment folder; the default is ./<product>_dev.
   Skip Git/GitHub connection to create a local-only environment.
   Add source repos later from the cockpit or with add-repo.
@@ -96,45 +102,45 @@ Status and doctor:
 
 Task recipes:
   Create environment:
-    npx @wpmoo/odoo
-    npx @wpmoo/odoo create --product <slug> --dev-repo-url <url> --source-repo-url <url>
+    npx @wpmoo/toolkit
+    npx @wpmoo/toolkit create --product <slug> --dev-repo-url <url> --source-repo-url <url>
   Create local-only environment:
-    npx @wpmoo/odoo
+    npx @wpmoo/toolkit
   Add source repo:
-    npx @wpmoo/odoo add-repo --repo-url <url> --source-type oca
+    npx @wpmoo/toolkit add-repo --repo-url <url> --source-type oca
   Inspect and sync source manifest:
-    npx @wpmoo/odoo source list
-    npx @wpmoo/odoo source sync
+    npx @wpmoo/toolkit source list
+    npx @wpmoo/toolkit source sync
   Add module:
-    npx @wpmoo/odoo add-module --repo <source-repo> --module <module-name> --source-type private|oca|external
+    npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> --source-type private|oca|external
   Remove module:
-    npx @wpmoo/odoo remove-module --repo <source-repo> --module <module-name> --source-type private|oca|external
+    npx @wpmoo/toolkit remove-module --repo <source-repo> --module <module-name> --source-type private|oca|external
   Add OCA module:
-    npx @wpmoo/odoo add-module --repo sale-workflow --module sale_order_line_no_discount --source-type oca
+    npx @wpmoo/toolkit add-module --repo sale-workflow --module sale_order_line_no_discount --source-type oca
   Run tests:
-    npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
+    npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
   Safe reset and recover:
-    npx @wpmoo/odoo snapshot [db] [snapshot-name]
-    npx @wpmoo/odoo reset --dry-run
-    npx @wpmoo/odoo reset
-    npx @wpmoo/odoo restore-snapshot --dry-run <snapshot-name> [db]
-    npx @wpmoo/odoo restore-snapshot <snapshot-name> [db]
+    npx @wpmoo/toolkit snapshot [db] [snapshot-name]
+    npx @wpmoo/toolkit reset --dry-run
+    npx @wpmoo/toolkit reset
+    npx @wpmoo/toolkit restore-snapshot --dry-run <snapshot-name> [db]
+    npx @wpmoo/toolkit restore-snapshot <snapshot-name> [db]
   Daily command checks:
-    npx @wpmoo/odoo status
-    npx @wpmoo/odoo doctor
-    npx @wpmoo/odoo doctor --fix
-    npx @wpmoo/odoo logs [service]
-    npx @wpmoo/odoo restart
+    npx @wpmoo/toolkit status
+    npx @wpmoo/toolkit doctor
+    npx @wpmoo/toolkit doctor --fix
+    npx @wpmoo/toolkit logs [service]
+    npx @wpmoo/toolkit restart
 
 Machine-readable JSON output:
   for automation and VS Code cockpit integration while keeping default human-readable output.
-    npx @wpmoo/odoo status --json
-    npx @wpmoo/odoo source list --json
-    npx @wpmoo/odoo source sync --json
-    npx @wpmoo/odoo doctor --json
+    npx @wpmoo/toolkit status --json
+    npx @wpmoo/toolkit source list --json
+    npx @wpmoo/toolkit source sync --json
+    npx @wpmoo/toolkit doctor --json
 
 Example:
-  npx @wpmoo/odoo create \\
+  npx @wpmoo/toolkit create \\
     --product odoo_sample_module \\
     --odoo-version 19.0 \\
     --target ./custom_odoo_dev \\
@@ -142,7 +148,7 @@ Example:
     --source-repo-url https://github.com/example-org/odoo_sample_module.git
 
 Compose resource example:
-  npx @wpmoo/odoo create \\
+  npx @wpmoo/toolkit create \\
     --engine compose \\
     --product odoo_sample_module \\
     --source-repo-url https://github.com/example-org/odoo_sample_module.git \\

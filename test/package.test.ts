@@ -19,15 +19,13 @@ describe('package metadata', () => {
       dependencies: Record<string, string>;
     };
 
-    expect(packageJson.name).toBe('@wpmoo/odoo');
+    expect(packageJson.name).toBe('@wpmoo/toolkit');
     expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(packageJson.description).toBe(
-      'WPMoo Tool for Odoo development, staging, and production lifecycle workflows.',
-    );
+    expect(packageJson.description).toBe('WPMoo Toolkit for development, staging, and production lifecycle workflows.');
     expect(packageJson.readmeFilename).toBe('README.md');
     expect(packageJson.repository).toMatchObject({
       type: 'git',
-      url: 'git+https://github.com/wpmoo-org/wpmoo-odoo.git',
+      url: 'git+https://github.com/wpmoo-org/wpmoo-toolkit.git',
     });
     expect(packageJson.files).toContain('docs/assets');
     expect(packageJson.files).toContain('docs/*.md');

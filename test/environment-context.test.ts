@@ -13,7 +13,7 @@ describe('environment context', () => {
     await writeFile(
       join(target, '.wpmoo/odoo.json'),
       JSON.stringify({
-        tool: '@wpmoo/odoo',
+        tool: '@wpmoo/toolkit',
         version: '0.8.18',
         product: 'odoo_sample_module',
         odooVersion: '19.0',

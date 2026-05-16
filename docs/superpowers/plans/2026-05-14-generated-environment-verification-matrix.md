@@ -23,7 +23,7 @@ Workers must not edit production source unless their tests reveal a real defect.
 
 ## Shared Test Constraints
 
-- Do not depend on the sibling `../odoo-docker-compose` repository in automated tests; CI for `wpmoo-odoo` may only check out this child repo.
+- Do not depend on the sibling `../odoo-docker-compose` repository in automated tests; CI for `wpmoo-toolkit` may only check out this child repo.
 - Do not call real Docker, GitHub, npm registry, or public network services.
 - Use temp directories created with `mkdtemp(join(tmpdir(), "..."))`.
 - Use local compose fixtures with at least:
@@ -90,7 +90,7 @@ Cover these contracts:
 - `./moo logs db` executes `scripts/logs.sh db`.
 - `./moo test sale --db devel --mode update --tags /sale` delegates all args to `scripts/test.sh`.
 - `./moo restore-snapshot snap1 devel` delegates to `scripts/restore-snapshot.sh snap1 devel`.
-- `./moo doctor` falls back to `npx --yes @wpmoo/odoo@latest doctor`; stub `npx` in `PATH` and assert the arguments.
+- `./moo doctor` falls back to `npx --yes @wpmoo/toolkit@latest doctor`; stub `npx` in `PATH` and assert the arguments.
 - Invalid usage, for example `./moo start extra`, exits with code `2` and prints `Usage: ./moo start`.
 - Missing target daily script exits with code `1` and prints `Missing daily action script: scripts/<name>.sh`.
 
@@ -178,7 +178,7 @@ Expected: PASS.
 
 Create a concise document with these sections:
 - Scope: disposable generated environments, no staging/production.
-- Command split: `npx @wpmoo/odoo ...` for package/operator commands, `./moo ...` inside generated environments for daily commands.
+- Command split: `npx @wpmoo/toolkit ...` for package/operator commands, `./moo ...` inside generated environments for daily commands.
 - Matrix table:
   - Scaffold files and metadata
   - Compose resource files

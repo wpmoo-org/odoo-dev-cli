@@ -227,7 +227,7 @@ describe('cli menu environment routes', () => {
       { version: `v${packageVersion()}` },
     );
     expect(mocks.renderEnvironmentStatusSummary).not.toHaveBeenCalled();
-    expect(vi.mocked(prompts.introPrompt)).not.toHaveBeenCalledWith('WPMoo Tool');
+    expect(vi.mocked(prompts.introPrompt)).not.toHaveBeenCalledWith('WPMoo Toolkit');
     expect(vi.mocked(prompts.notePrompt)).not.toHaveBeenCalledWith('Status summary', 'Environment status');
     const bannerOrder = mocks.renderBanner.mock.invocationCallOrder[0] ?? 0;
     const selectOrder = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER;

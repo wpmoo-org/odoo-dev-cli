@@ -8,10 +8,13 @@ import { describe, expect, it } from 'vitest';
 
 const scriptPath = new URL('../scripts/release-check.sh', import.meta.url);
 
-async function createReleaseFixture(version: string, existingVersions: string[]) {
+async function createReleaseFixture(version: string, existingSpecs: string[]) {
   const root = mkdtempSync(join(tmpdir(), 'wpmoo-publish-release-'));
   await cp(new URL('../package.json', import.meta.url), join(root, 'package.json'));
   await cp(new URL('../package-lock.json', import.meta.url), join(root, 'package-lock.json'));
+  await cp(new URL('../packages', import.meta.url), join(root, 'packages'), { recursive: true });
+  await mkdir(join(root, 'scripts'));
+  await cp(new URL('../scripts/sync-alias-packages.mjs', import.meta.url), join(root, 'scripts/sync-alias-packages.mjs'));
   await mkdir(join(root, 'bin'));
 
   for (const file of ['package.json', 'package-lock.json']) {
@@ -38,7 +41,7 @@ case "$1" in
   view)
     spec="$2"
     case "$spec" in
-${existingVersions.map((item) => `      "@wpmoo/odoo@${item}") echo "${item}"; exit 0 ;;`).join('\n')}
+${existingSpecs.map((item) => `      "${item}") echo "\${spec##*@}"; exit 0 ;;`).join('\n')}
       *) echo "npm ERR! code E404" >&2; exit 1 ;;
     esac
     ;;
@@ -111,7 +114,7 @@ function runReleaseCheckExpectFailure(root: string, npmStub: string) {
 
 describe('release check script', () => {
   it('bumps patch version and stops before publishing when the current version already exists on npm', async () => {
-    const { root, logPath, stubPath } = await createReleaseFixture('0.8.36', ['0.8.36']);
+    const { root, logPath, stubPath } = await createReleaseFixture('0.8.36', ['@wpmoo/odoo@0.8.36']);
 
     const output = runReleaseCheckExpectFailure(root, stubPath);
 
@@ -119,10 +122,27 @@ describe('release check script', () => {
     const commands = readFileSync(logPath, 'utf8').trim().split('\n');
     expect(packageJson.version).toBe('0.8.37');
     expect(commands).toEqual([
+      'view @wpmoo/toolkit@0.8.36 version',
+      'view wpmoo@0.8.36 version',
       'view @wpmoo/odoo@0.8.36 version',
       'version patch --no-git-tag-version',
+      'view @wpmoo/toolkit@0.8.37 version',
+      'view wpmoo@0.8.37 version',
       'view @wpmoo/odoo@0.8.37 version',
+      'view @wpmoo/odoo-dev@0.8.37 version',
     ]);
+    for (const relativePath of [
+      'packages/wpmoo/package.json',
+      'packages/odoo-compat/package.json',
+      'packages/odoo-dev-compat/package.json',
+    ]) {
+      const aliasPackageJson = JSON.parse(readFileSync(join(root, relativePath), 'utf8')) as {
+        version: string;
+        dependencies: Record<string, string>;
+      };
+      expect(aliasPackageJson.version).toBe('0.8.37');
+      expect(aliasPackageJson.dependencies['@wpmoo/toolkit']).toBe('0.8.37');
+    }
     expect(output).toContain('Version was bumped to 0.8.37.');
     expect(output).toContain('Commit package.json and package-lock.json, push them, then rerun this script.');
   });
@@ -136,9 +156,15 @@ describe('release check script', () => {
     const commands = readFileSync(logPath, 'utf8').trim().split('\n');
     expect(packageJson.version).toBe('0.8.37');
     expect(commands).toEqual([
+      'view @wpmoo/toolkit@0.8.37 version',
+      'view wpmoo@0.8.37 version',
       'view @wpmoo/odoo@0.8.37 version',
+      'view @wpmoo/odoo-dev@0.8.37 version',
       'test -- test/package.test.ts',
       'pack --dry-run',
+      'pack --dry-run ./packages/wpmoo',
+      'pack --dry-run ./packages/odoo-compat',
+      'pack --dry-run ./packages/odoo-dev-compat',
     ]);
   });
 });

@@ -1,21 +1,21 @@
-![WPMoo Tool for Odoo development workflows](docs/assets/wpmoo-banner.png)
+![WPMoo Toolkit for Odoo development workflows](docs/assets/wpmoo-banner.png)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml) [![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![npm](https://img.shields.io/npm/v/@wpmoo/odoo?label=npm&logo=npm&style=flat-square&color=blue)](https://www.npmjs.com/package/@wpmoo/odoo) [![coverage](https://img.shields.io/codecov/c/github/wpmoo-org/wpmoo-odoo?branch=main&label=coverage&logo=codecov&style=flat-square&color=blue)](https://codecov.io/gh/wpmoo-org/wpmoo-odoo) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE) [![WPMoo Tool](https://img.shields.io/badge/WPMoo-Tool-714B67?style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=000000&style=flat-square)](https://www.buymeacoffee.com/cangir) [![Patreon](https://img.shields.io/badge/Patreon-Support-F96854?logo=patreon&logoColor=white&style=flat-square)](https://www.patreon.com/wpmoo)
+[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-toolkit/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/wpmoo-org/wpmoo-toolkit/actions/workflows/ci.yml) [![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&style=flat-square)](https://github.com/wpmoo-org/wpmoo-toolkit) [![npm](https://img.shields.io/npm/v/@wpmoo/toolkit?label=npm&logo=npm&style=flat-square&color=blue)](https://www.npmjs.com/package/@wpmoo/toolkit) [![coverage](https://img.shields.io/codecov/c/github/wpmoo-org/wpmoo-toolkit?branch=main&label=coverage&logo=codecov&style=flat-square&color=blue)](https://codecov.io/gh/wpmoo-org/wpmoo-toolkit) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE) [![WPMoo Toolkit](https://img.shields.io/badge/WPMoo-Tool-714B67?style=flat-square)](https://github.com/wpmoo-org/wpmoo-toolkit) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=000000&style=flat-square)](https://www.buymeacoffee.com/cangir) [![Patreon](https://img.shields.io/badge/Patreon-Support-F96854?logo=patreon&logoColor=white&style=flat-square)](https://www.patreon.com/wpmoo)
 
-# WPMoo Tool
+# WPMoo Toolkit
 
-WPMoo Tool is a development-first CLI for creating and operating Docker Compose based environments for Odoo, with source repositories managed as Git submodules.
+WPMoo Toolkit is a development-first CLI for creating and operating Docker Compose based environments for Odoo, with source repositories managed as Git submodules.
 
 It gives Odoo teams a repeatable environment layout, a guided cockpit for daily work, direct commands for automation, and recovery tools that refresh generated files without touching product source code.
 
-WPMoo Tool is an independent project and is not affiliated with, endorsed by, or sponsored by Odoo S.A. Odoo is a trademark of Odoo S.A.
+WPMoo Toolkit is an independent project and is not affiliated with, endorsed by, or sponsored by Odoo S.A. Odoo is a trademark of Odoo S.A.
 
 ## Development Status
 
 > [!IMPORTANT]
-> **Pre-1.0 active development:** WPMoo Tool has not reached `1.0.0` yet. Until the `1.0.0` release, use it as a preview tool for evaluation, local trials, and feedback rather than a dependency for critical production workflows. Setup conventions and command behavior may still change between pre-1.0 releases.
+> **Pre-1.0 active development:** WPMoo Toolkit has not reached `1.0.0` yet. Until the `1.0.0` release, use it as a preview tool for evaluation, local trials, and feedback rather than a dependency for critical production workflows. Setup conventions and command behavior may still change between pre-1.0 releases.
 
-## Why WPMoo Tool
+## Why WPMoo Toolkit
 
 - Create a local Odoo development environment from a dev repository and one or more source repositories.
 - Keep product source repositories under `odoo/custom/src/private`, `odoo/custom/src/oca`, or `odoo/custom/src/external` as Git submodules pinned to the selected Odoo branch.
@@ -47,19 +47,28 @@ gh auth login
 Run the guided wizard from a workspace directory:
 
 ```bash
-npx @wpmoo/odoo
+npx @wpmoo/toolkit
 ```
+
+Short alias:
+
+```bash
+npx wpmoo
+```
+
+Legacy package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain
+available as compatibility redirects to `@wpmoo/toolkit`.
 
 If the current directory is not already a WPMoo environment, the CLI opens the create flow. It asks for the product slug, Odoo version, and environment folder. Choose any environment folder; the default is `./<product>_dev`.
 
-After folder selection, connect Git/GitHub to use repository URLs. Choose local-only setup to skip Git/GitHub connection and source repo prompts. Add source repositories later from the cockpit (`Repositories` -> `add-repo`) or `npx @wpmoo/odoo add-repo`.
+After folder selection, connect Git/GitHub to use repository URLs. Choose local-only setup to skip Git/GitHub connection and source repo prompts. Add source repositories later from the cockpit (`Repositories` -> `add-repo`) or `npx @wpmoo/toolkit add-repo`.
 
 For non-interactive usage with repository URLs:
 
 Direct `create` commands keep the existing repo URL options; use `--target <path>` to choose a custom folder.
 
 ```bash
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --product odoo_sample_module \
   --odoo-version 19.0 \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
@@ -70,7 +79,7 @@ npx @wpmoo/odoo create \
 Add multiple source repositories by repeating `--source-repo-url`:
 
 ```bash
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --product odoo_sample_module \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
@@ -83,7 +92,7 @@ npx @wpmoo/odoo create \
 Preview planned files and commands without writing:
 
 ```bash
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --product odoo_sample_module \
   --dev-repo-url https://github.com/example-org/odoo_sample_module_dev.git \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
@@ -95,7 +104,7 @@ npx @wpmoo/odoo create \
 Run the package with no command inside a generated environment:
 
 ```bash
-npx @wpmoo/odoo
+npx @wpmoo/toolkit
 ```
 
 The cockpit starts with a fast environment status summary, then opens a compact menu designed for repeated local work:
@@ -136,39 +145,39 @@ Every cockpit action maps to a direct command, or to an equivalent management co
 ## Direct Commands
 
 ```bash
-npx @wpmoo/odoo --help
-npx @wpmoo/odoo --version
+npx @wpmoo/toolkit --help
+npx @wpmoo/toolkit --version
 
-npx @wpmoo/odoo status
-npx @wpmoo/odoo status --json
-npx @wpmoo/odoo doctor
-npx @wpmoo/odoo doctor --json
-npx @wpmoo/odoo doctor --fix
-npx @wpmoo/odoo source list --json
-npx @wpmoo/odoo add-repo --repo-url https://github.com/example-org/odoo_sample_module_reports.git
-npx @wpmoo/odoo remove-repo --repo odoo_sample_module_reports
-npx @wpmoo/odoo add-module --repo odoo_sample_module --module odoo_sample_module_base --source-type private
-npx @wpmoo/odoo remove-module --repo odoo_sample_module --module odoo_sample_module_base --source-type private
-npx @wpmoo/odoo reset --dry-run
-npx @wpmoo/odoo reset
+npx @wpmoo/toolkit status
+npx @wpmoo/toolkit status --json
+npx @wpmoo/toolkit doctor
+npx @wpmoo/toolkit doctor --json
+npx @wpmoo/toolkit doctor --fix
+npx @wpmoo/toolkit source list --json
+npx @wpmoo/toolkit add-repo --repo-url https://github.com/example-org/odoo_sample_module_reports.git
+npx @wpmoo/toolkit remove-repo --repo odoo_sample_module_reports
+npx @wpmoo/toolkit add-module --repo odoo_sample_module --module odoo_sample_module_base --source-type private
+npx @wpmoo/toolkit remove-module --repo odoo_sample_module --module odoo_sample_module_base --source-type private
+npx @wpmoo/toolkit reset --dry-run
+npx @wpmoo/toolkit reset
 
-npx @wpmoo/odoo start
-npx @wpmoo/odoo stop
-npx @wpmoo/odoo restart
-npx @wpmoo/odoo logs odoo
-npx @wpmoo/odoo shell
-npx @wpmoo/odoo psql postgres
+npx @wpmoo/toolkit start
+npx @wpmoo/toolkit stop
+npx @wpmoo/toolkit restart
+npx @wpmoo/toolkit logs odoo
+npx @wpmoo/toolkit shell
+npx @wpmoo/toolkit psql postgres
 
-npx @wpmoo/odoo install sale devel
-npx @wpmoo/odoo update sale devel
-npx @wpmoo/odoo test sale --db devel --mode update --tags /sale
-npx @wpmoo/odoo lint
-npx @wpmoo/odoo pot sale devel i18n/sale.pot
+npx @wpmoo/toolkit install sale devel
+npx @wpmoo/toolkit update sale devel
+npx @wpmoo/toolkit test sale --db devel --mode update --tags /sale
+npx @wpmoo/toolkit lint
+npx @wpmoo/toolkit pot sale devel i18n/sale.pot
 
-npx @wpmoo/odoo resetdb devel sale
-npx @wpmoo/odoo snapshot devel before-update
-npx @wpmoo/odoo restore-snapshot --dry-run before-update devel
-npx @wpmoo/odoo restore-snapshot before-update devel
+npx @wpmoo/toolkit resetdb devel sale
+npx @wpmoo/toolkit snapshot devel before-update
+npx @wpmoo/toolkit restore-snapshot --dry-run before-update devel
+npx @wpmoo/toolkit restore-snapshot before-update devel
 ```
 
 Daily action commands must be run from a generated environment root containing `.wpmoo/odoo.json`. They delegate to fixed scripts under `./scripts`; they do not search parent directories or run arbitrary script names.
@@ -246,14 +255,14 @@ also support `WPMOO_SNAPSHOT_RETENTION_COUNT` for pruning old snapshot files.
 When `WPMOO_ENV=stage` or `WPMOO_ENV=prod`, destructive database actions such
 as `resetdb` and real `restore-snapshot` require `WPMOO_ALLOW_DESTRUCTIVE=1`.
 
-Use `npx @wpmoo/odoo ...` for package/operator commands such as `create`, `add-repo`, `remove-repo`, `add-module`, `remove-module`, `status`, `doctor`, and `reset`. Use `./moo ...` inside a generated environment for local daily Compose commands.
+Use `npx @wpmoo/toolkit ...` for package/operator commands such as `create`, `add-repo`, `remove-repo`, `add-module`, `remove-module`, `status`, `doctor`, and `reset`. Use `./moo ...` inside a generated environment for local daily Compose commands.
 
 ## Repository and Module Management
 
 Add a source repository after local-only setup from the cockpit or direct command:
 
 ```bash
-npx @wpmoo/odoo add-repo \
+npx @wpmoo/toolkit add-repo \
   --repo-url https://github.com/example-org/odoo_sample_module_reports.git \
   --init-empty-repos
 ```
@@ -261,11 +270,11 @@ npx @wpmoo/odoo add-repo \
 Pin source repositories to dedicated source directories:
 
 ```bash
-npx @wpmoo/odoo add-repo \
+npx @wpmoo/toolkit add-repo \
   --repo-url https://github.com/OCA/sale-workflow.git \
   --source-type oca
 
-npx @wpmoo/odoo add-repo \
+npx @wpmoo/toolkit add-repo \
   --repo-url https://github.com/example-org/odoo_external_tool.git \
   --source-type external
 ```
@@ -283,7 +292,7 @@ Add a minimal Odoo module skeleton to a source repository:
 For module actions, `--source-type` selects the source directory (`private`, `oca`, or `external`). Default is `private`.
 
 ```bash
-npx @wpmoo/odoo add-module \
+npx @wpmoo/toolkit add-module \
   --repo odoo_sample_module \
   --module odoo_sample_module_base \
   --source-type oca
@@ -292,7 +301,7 @@ npx @wpmoo/odoo add-module \
 Remove a module registration while keeping files:
 
 ```bash
-npx @wpmoo/odoo remove-module \
+npx @wpmoo/toolkit remove-module \
   --repo odoo_sample_module \
   --module odoo_sample_module_base \
   --source-type oca
@@ -301,7 +310,7 @@ npx @wpmoo/odoo remove-module \
 Delete module files as well:
 
 ```bash
-npx @wpmoo/odoo remove-module \
+npx @wpmoo/toolkit remove-module \
   --repo odoo_sample_module \
   --module odoo_sample_module_base \
   --delete-files
@@ -310,7 +319,7 @@ npx @wpmoo/odoo remove-module \
 Remove a source repository submodule:
 
 ```bash
-npx @wpmoo/odoo remove-repo --repo odoo_sample_module_reports
+npx @wpmoo/toolkit remove-repo --repo odoo_sample_module_reports
 ```
 
 WPMoo refuses to remove a source repo submodule when that submodule has uncommitted changes.
@@ -323,26 +332,26 @@ and addon boundaries.
 Inspect configured sources:
 
 ```bash
-npx @wpmoo/odoo source list
-npx @wpmoo/odoo source list --json
+npx @wpmoo/toolkit source list
+npx @wpmoo/toolkit source list --json
 ```
 
 Regenerate the manifest and metadata from the current metadata/gitmodule state:
 
 ```bash
-npx @wpmoo/odoo source sync
-npx @wpmoo/odoo source sync --json
+npx @wpmoo/toolkit source sync
+npx @wpmoo/toolkit source sync --json
 ```
 
 `source add` and `source remove` are direct aliases for the same repository
 operations:
 
 ```bash
-npx @wpmoo/odoo source add \
+npx @wpmoo/toolkit source add \
   --repo-url https://github.com/OCA/server-tools.git \
   --source-type oca
 
-npx @wpmoo/odoo source remove --repo server-tools --source-type oca
+npx @wpmoo/toolkit source remove --repo server-tools --source-type oca
 ```
 
 ## Status, Doctor, and Recovery
@@ -350,8 +359,8 @@ npx @wpmoo/odoo source remove --repo server-tools --source-type oca
 `status` is fast and offline. It reads local metadata and files only:
 
 ```bash
-npx @wpmoo/odoo status
-npx @wpmoo/odoo status --json
+npx @wpmoo/toolkit status
+npx @wpmoo/toolkit status --json
 ```
 
 It reports whether the environment is detected, which Odoo version is selected, how many source repos are configured, how many module candidates are present, which core files are missing, and the recommended next action.
@@ -360,10 +369,10 @@ For automation and VS Code cockpit integration, all of these commands also suppo
 `--json`:
 
 ```bash
-npx @wpmoo/odoo status --json
-npx @wpmoo/odoo source list --json
-npx @wpmoo/odoo source sync --json
-npx @wpmoo/odoo doctor --json
+npx @wpmoo/toolkit status --json
+npx @wpmoo/toolkit source list --json
+npx @wpmoo/toolkit source sync --json
+npx @wpmoo/toolkit doctor --json
 ```
 
 JSON output is optional; human-readable output remains the default.
@@ -371,7 +380,7 @@ JSON output is optional; human-readable output remains the default.
 `doctor` performs deeper checks:
 
 ```bash
-npx @wpmoo/odoo doctor
+npx @wpmoo/toolkit doctor
 ```
 
 It validates metadata, engine support, selected compose files, source repo paths,
@@ -388,8 +397,8 @@ manual issues.
 Safe reset refreshes generated environment files without deleting product source code:
 
 ```bash
-npx @wpmoo/odoo reset --dry-run
-npx @wpmoo/odoo reset
+npx @wpmoo/toolkit reset --dry-run
+npx @wpmoo/toolkit reset
 ```
 
 Safe reset updates generated files such as `.wpmoo/odoo.json`, `moo`,
@@ -416,16 +425,16 @@ Recommended recovery pattern:
 
 ```bash
 ./moo snapshot devel before-reset
-npx @wpmoo/odoo reset --dry-run
-npx @wpmoo/odoo reset
-npx @wpmoo/odoo doctor --fix
+npx @wpmoo/toolkit reset --dry-run
+npx @wpmoo/toolkit reset
+npx @wpmoo/toolkit doctor --fix
 ./moo restore-snapshot --dry-run before-reset devel
 ./moo restore-snapshot before-reset devel
 ```
 
 ## External Resources
 
-WPMoo Tool keeps the package small by copying external resources into generated environments:
+WPMoo Toolkit keeps the package small by copying external resources into generated environments:
 
 ```text
 gh:wpmoo-org/odoo-docker-compose
@@ -435,7 +444,7 @@ gh:wpmoo-org/odoo-skills
 Use the default resources:
 
 ```bash
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --product odoo_sample_module \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
   --agent-skills-template
@@ -444,7 +453,7 @@ npx @wpmoo/odoo create \
 Pin external resource refs:
 
 ```bash
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --product odoo_sample_module \
   --source-repo-url https://github.com/example-org/odoo_sample_module.git \
   --compose-template-ref v0.1.0 \
@@ -458,7 +467,7 @@ Use local resource clones while developing the resource packages:
 git clone https://github.com/wpmoo-org/odoo-docker-compose ../odoo-docker-compose
 git clone https://github.com/wpmoo-org/odoo-skills ../odoo-skills
 
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --engine compose \
   --compose-template-url ../odoo-docker-compose \
   --agent-skills-template \

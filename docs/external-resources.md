@@ -27,7 +27,7 @@ config/odoo/odoo.conf
 resources/odoo/entrypoint.sh
 ```
 
-`@wpmoo/odoo` prefers that compact payload first when copying compose assets.
+`@wpmoo/toolkit` prefers that compact payload first when copying compose assets.
 For pinned older refs that do not provide `resources/generated-env/`, the CLI
 falls back to the legacy repository-root layout (`docker-compose_<version>.yml`
 and related files) for compatibility.
@@ -47,7 +47,7 @@ cd ../my_product_dev
 WPMoo CLI usage with the default remote source:
 
 ```bash
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --engine compose \
   --product my_product \
   --source-repo-url https://github.com/example-org/my_product.git
@@ -58,7 +58,7 @@ During resource development, use a local clone:
 ```bash
 git clone https://github.com/wpmoo-org/odoo-docker-compose ../odoo-docker-compose
 
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --engine compose \
   --compose-template-url ../odoo-docker-compose \
   --product my_product \
@@ -91,7 +91,7 @@ WPMoo CLI can also copy those skills into generated environments from the defaul
 remote source:
 
 ```bash
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --product my_product \
   --source-repo-url https://github.com/example-org/my_product.git \
   --agent-skills-template
@@ -102,7 +102,7 @@ During skill development, use a local clone:
 ```bash
 git clone https://github.com/wpmoo-org/odoo-skills ../odoo-skills
 
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --product my_product \
   --source-repo-url https://github.com/example-org/my_product.git \
   --agent-skills-template \
@@ -123,7 +123,7 @@ Project or module-specific guidance should live in that project/module's own
 Remote Git sources can be pinned with refs:
 
 ```bash
-npx @wpmoo/odoo create \
+npx @wpmoo/toolkit create \
   --engine compose \
   --compose-template-ref v0.1.0 \
   --agent-skills-template \

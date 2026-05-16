@@ -92,7 +92,7 @@ ${sourceRepoRows}
 function sourceRepoDocs(options: CreateOptions): string {
   if (!hasSourceRepos(options)) {
     return `This environment was scaffolded without source repository submodules.
-Add source repositories later from the cockpit or with \`npx @wpmoo/odoo add-repo\`.
+Add source repositories later from the cockpit or with \`npx @wpmoo/toolkit add-repo\`.
 They can be organized under:
 
 \`odoo/custom/src/private\` for project-owned/private addon repositories,

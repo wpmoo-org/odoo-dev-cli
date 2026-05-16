@@ -119,7 +119,7 @@ vi.mock('../src/version.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/version.js')>();
   return {
     ...actual,
-    packageName: () => '@wpmoo/odoo',
+    packageName: () => '@wpmoo/toolkit',
     packageVersion: () => '0.0.0-test',
     renderVersionTag: mocks.renderVersionTag,
   };
@@ -222,7 +222,7 @@ describe('cli startup update edge branches', () => {
 
     await runCli([], '/tmp/workspace');
 
-    expect(mocks.installLatestPackage).toHaveBeenCalledWith('@wpmoo/odoo', '9.9.9');
+    expect(mocks.installLatestPackage).toHaveBeenCalledWith('@wpmoo/toolkit', '9.9.9');
     expect(warnSpy).toHaveBeenCalledWith('Update failed: npm install failed. Continuing with v.0.0.0-test.');
     expect(mocks.scaffold).toHaveBeenCalledTimes(1);
   });
@@ -242,8 +242,8 @@ describe('cli startup update edge branches', () => {
 
     await runCli([], '/tmp/workspace');
 
-    expect(mocks.installLatestPackage).toHaveBeenCalledWith('@wpmoo/odoo', '9.9.9');
-    expect(mocks.restartCli).toHaveBeenCalledWith('@wpmoo/odoo', '9.9.9', []);
+    expect(mocks.installLatestPackage).toHaveBeenCalledWith('@wpmoo/toolkit', '9.9.9');
+    expect(mocks.restartCli).toHaveBeenCalledWith('@wpmoo/toolkit', '9.9.9', []);
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(mocks.scaffold).toHaveBeenCalledTimes(1);
   });

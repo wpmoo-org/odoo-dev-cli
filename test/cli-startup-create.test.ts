@@ -120,7 +120,7 @@ vi.mock('../src/version.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/version.js')>();
   return {
     ...actual,
-    packageName: () => '@wpmoo/odoo',
+    packageName: () => '@wpmoo/toolkit',
     packageVersion: () => '0.0.0-test',
     renderVersionTag: mocks.renderVersionTag,
   };
@@ -268,8 +268,8 @@ describe('cli startup/create flow', () => {
 
     await runCli([], '/tmp/workspace');
 
-    expect(mocks.installLatestPackage).toHaveBeenCalledWith('@wpmoo/odoo', '9.9.9');
-    expect(mocks.restartCli).toHaveBeenCalledWith('@wpmoo/odoo', '9.9.9', []);
+    expect(mocks.installLatestPackage).toHaveBeenCalledWith('@wpmoo/toolkit', '9.9.9');
+    expect(mocks.restartCli).toHaveBeenCalledWith('@wpmoo/toolkit', '9.9.9', []);
     expect(warnSpy).toHaveBeenCalledWith('Update restart exited with code 42; continuing with v.0.0.0-test.');
     expect(mocks.scaffold).toHaveBeenCalledTimes(1);
   });

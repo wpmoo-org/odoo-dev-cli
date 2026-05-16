@@ -148,7 +148,7 @@ async function assertEnvironmentRoot(cwd: string): Promise<void> {
   try {
     await access(join(cwd, markerPath));
   } catch {
-    throw new Error('Daily actions must be run from a WPMoo Tool environment root containing .wpmoo/odoo.json.');
+    throw new Error('Daily actions must be run from a WPMoo Toolkit environment root containing .wpmoo/odoo.json.');
   }
 }
 

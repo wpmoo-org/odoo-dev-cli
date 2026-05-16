@@ -39,10 +39,10 @@ jobs:
         uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: wpmoo-org/wpmoo-odoo
+          slug: wpmoo-org/wpmoo-toolkit
           files: ./coverage/lcov.info
           flags: unit
-          name: wpmoo-odoo
+          name: wpmoo-toolkit
           fail_ci_if_error: true
 
       - name: Build

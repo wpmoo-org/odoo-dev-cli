@@ -1,0 +1,28 @@
+{
+  "name": "wpmoo",
+  "version": "0.9.0",
+  "description": "Short npx alias for the WPMoo Toolkit CLI.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wpmoo-org/wpmoo-toolkit.git",
+    "directory": "packages/wpmoo"
+  },
+  "homepage": "https://github.com/wpmoo-org/wpmoo-toolkit",
+  "bugs": {
+    "url": "https://github.com/wpmoo-org/wpmoo-toolkit/issues"
+  },
+  "license": "MIT",
+  "bin": {
+    "wpmoo": "bin/wpmoo.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20.17"
+  },
+  "dependencies": {
+    "@wpmoo/toolkit": "0.9.0"
+  }
+}

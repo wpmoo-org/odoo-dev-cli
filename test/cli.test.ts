@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
     plannedCommands: ['npm run example'],
   })),
   renderHelp: vi.fn(() => 'mock help output'),
-  renderVersion: vi.fn(() => '@wpmoo/odoo 0.0.0-test'),
+  renderVersion: vi.fn(() => '@wpmoo/toolkit 0.0.0-test'),
   renderBanner: vi.fn(() => 'mock banner'),
   installPromptCancelKeyTracker: vi.fn(),
   isUpdateCheckSkipped: vi.fn(() => false),
@@ -132,7 +132,7 @@ describe('cli runCli', () => {
 
     await runCli(['--version'], '/tmp/example');
 
-    expect(logSpy).toHaveBeenCalledWith('@wpmoo/odoo 0.0.0-test');
+    expect(logSpy).toHaveBeenCalledWith('@wpmoo/toolkit 0.0.0-test');
     expect(mocks.renderVersion).toHaveBeenCalledTimes(1);
   });
 
