@@ -317,6 +317,11 @@ function renderLastCommandStatus(command: CockpitCommand): string {
   return `Last: ${command.label} ✓ completed`;
 }
 
+function renderLastCommandError(command: CockpitCommand, error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return `Last: ${command.label} ✗ Error: ${message}`;
+}
+
 function clearCockpitScreen(): void {
   if (process.stdout.isTTY) {
     process.stdout.write('\u001B[2J\u001B[H');
@@ -1395,11 +1400,23 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
           return;
         }
 
-        const outcome = await runCockpitCommand(command, cwd);
+        let outcome: 'continue' | 'exit' = 'continue';
+        let commandFailed = false;
+        try {
+          outcome = await runCockpitCommand(command, cwd);
+        } catch (error) {
+          if (isMenuBackSignal(error)) {
+            continue;
+          }
+          commandFailed = true;
+          lastStatus = renderLastCommandError(command, error);
+        }
         if (outcome === 'exit') {
           return;
         }
-        lastStatus = renderLastCommandStatus(command);
+        if (!commandFailed) {
+          lastStatus = renderLastCommandStatus(command);
+        }
         const status = await getEnvironmentStatus(cwd);
         clearCockpitScreen();
         console.log(renderBanner(renderCockpitStatusLines(status, lastStatus), { version: startupVersionLine() }));

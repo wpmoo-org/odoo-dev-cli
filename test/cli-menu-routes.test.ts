@@ -285,6 +285,32 @@ describe('cli menu environment routes', () => {
     expect(vi.mocked(console.log).mock.calls.filter((call) => call.length === 0)).toHaveLength(2);
   });
 
+  it('keeps the cockpit open and records an error status when a command fails', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('add-repo'))
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce('private')
+      .mockResolvedValueOnce('exit');
+    vi.mocked(prompts.textPrompt).mockResolvedValueOnce('odoo_new_repo');
+    mocks.getGitHubRepositoryStatus.mockResolvedValueOnce({
+      status: 'inaccessible',
+      slug: 'example-org/odoo_new_repo',
+    });
+    mocks.addModuleRepo.mockRejectedValueOnce(new Error('submodule add failed'));
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.renderBanner).toHaveBeenNthCalledWith(
+      2,
+      ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Add source repo ✗ Error: submodule add failed'],
+      { version: `v${packageVersion()}` },
+    );
+    expect(vi.mocked(prompts.selectPrompt)).toHaveBeenCalledTimes(4);
+  });
+
   it('routes remove-repo and calls removeModuleRepo with selected repository', async () => {
     const prompts = await import('../src/prompts/index.js');
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');

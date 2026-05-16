@@ -304,6 +304,9 @@ const ANSI_DIM = '\u001B[2m';
 const ANSI_INFO = '\u001B[38;2;139;166;190m';
 const ANSI_TAGLINE = '\u001B[38;2;120;157;181m';
 const ANSI_META = '\u001B[38;2;218;236;246m';
+const ANSI_SUCCESS = '\u001B[32m';
+const ANSI_ERROR = '\u001B[31m';
+const ANSI_DEFAULT_FOREGROUND = '\u001B[39m';
 const ANSI_RESET = '\u001B[0m';
 const BANNER_TAGLINE = 'Development, staging and production workflows for Odoo projects.';
 
@@ -343,6 +346,14 @@ function renderMetaInfo(value: string): string {
   return `${ANSI_META}${value}${ANSI_RESET}`;
 }
 
+function renderSuccessInfo(value: string): string {
+  return `${ANSI_SUCCESS}${value}${ANSI_DEFAULT_FOREGROUND}`;
+}
+
+function renderErrorInfo(value: string): string {
+  return `${ANSI_ERROR}${value}${ANSI_DEFAULT_FOREGROUND}`;
+}
+
 function renderTaglineInfo(value: string): string {
   return `${ANSI_TAGLINE}${value}${ANSI_RESET}`;
 }
@@ -353,7 +364,27 @@ function renderBannerDetail(value: string): string {
     return renderDimInfo(value);
   }
 
-  return `${renderMetaInfo(`${match[1]}:`)}${renderDimInfo(match[2] ?? '')}`;
+  const label = match[1];
+  const detail = match[2] ?? '';
+
+  if (label === 'Last') {
+    const completedMatch = /^(.*?)( ✓ completed)$/u.exec(detail);
+    if (completedMatch) {
+      return `${renderMetaInfo(`${label}:`)}${renderDimInfo(completedMatch[1] ?? '')}${renderSuccessInfo(completedMatch[2] ?? '')}`;
+    }
+
+    const errorMatch = /^(.*?)( ✗ Error)(: .*)?$/u.exec(detail);
+    if (errorMatch) {
+      return [
+        renderMetaInfo(`${label}:`),
+        renderDimInfo(errorMatch[1] ?? ''),
+        renderErrorInfo(errorMatch[2] ?? ''),
+        renderTaglineInfo(errorMatch[3] ?? ''),
+      ].join('');
+    }
+  }
+
+  return `${renderMetaInfo(`${label}:`)}${renderDimInfo(detail)}`;
 }
 
 export function renderBanner(details: readonly string[] = [], options: BannerOptions = {}): string {

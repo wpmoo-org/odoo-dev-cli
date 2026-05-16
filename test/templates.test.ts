@@ -339,6 +339,29 @@ describe('template rendering', () => {
     expect(banner).not.toContain(`${categoryColor}Development, staging and production workflows for Odoo projects.`);
   });
 
+  it('renders completed cockpit status results in green', () => {
+    const banner = renderBanner(['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Start services ✓ completed'], {
+      version: 'v0.8.69',
+    });
+    const nearWhiteMeta = '\u001B[38;2;218;236;246m';
+    const dimInfo = '\u001B[2m\u001B[38;2;139;166;190m';
+    const successGreen = '\u001B[32m';
+
+    expect(banner).toContain(`${nearWhiteMeta}Last:\u001B[0m${dimInfo} Start services\u001B[0m${successGreen} ✓ completed\u001B[39m`);
+  });
+
+  it('renders failed cockpit status results with a red error marker and readable detail', () => {
+    const banner = renderBanner(['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Start services ✗ Error: docker unavailable'], {
+      version: 'v0.8.69',
+    });
+    const nearWhiteMeta = '\u001B[38;2;218;236;246m';
+    const dimInfo = '\u001B[2m\u001B[38;2;139;166;190m';
+    const errorRed = '\u001B[31m';
+    const taglineColor = '\u001B[38;2;120;157;181m';
+
+    expect(banner).toContain(`${nearWhiteMeta}Last:\u001B[0m${dimInfo} Start services\u001B[0m${errorRed} ✗ Error\u001B[39m${taglineColor}: docker unavailable\u001B[0m`);
+  });
+
   it('renders a heavy divider that matches the tagline width', () => {
     const banner = renderBanner();
     const plainBanner = banner.replace(/\u001B\[[0-9;]*m/g, '').trim();
