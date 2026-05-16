@@ -1,4 +1,5 @@
 import { emitKeypressEvents } from 'node:readline';
+import { styleText } from 'node:util';
 import inquirerSelect, { Separator as InquirerSeparator } from '@inquirer/select';
 import inquirerSearch from '@inquirer/search';
 import { confirm as inquirerConfirm, input as inquirerInput } from '@inquirer/prompts';
@@ -26,6 +27,7 @@ export type SelectPromptOptions<T> =
       pageSize?: number;
       loop?: boolean;
       hideMessage?: boolean;
+      disabledError?: string;
     }
   | {
       message: string;
@@ -34,6 +36,7 @@ export type SelectPromptOptions<T> =
       loop?: boolean;
       default?: T;
       hideMessage?: boolean;
+      disabledError?: string;
     };
 export type TextPromptOptions = {
   message: string;
@@ -74,6 +77,7 @@ type InquirerSearchPromptConfig<T> = Parameters<typeof inquirerSearch<T>>[0];
 type InquirerSelectPromptConfig<T> = Parameters<typeof inquirerSelect<T>>[0];
 type HideableSelectPromptConfig<T> = InquirerSelectPromptConfig<T> & {
   hideMessage?: boolean;
+  disabledError?: string;
 };
 type PromptContext = {
   signal: AbortSignal;
@@ -180,7 +184,15 @@ function isClackSelectOptions<T>(
 }
 
 function asInquirerSelectConfig<T>(
-  options: { message: string; options: readonly PromptOption<T>[]; initialValue?: T; pageSize?: number; loop?: boolean; hideMessage?: boolean },
+  options: {
+    message: string;
+    options: readonly PromptOption<T>[];
+    initialValue?: T;
+    pageSize?: number;
+    loop?: boolean;
+    hideMessage?: boolean;
+    disabledError?: string;
+  },
 ): HideableSelectPromptConfig<T> {
   return {
     message: options.message,
@@ -193,10 +205,11 @@ function asInquirerSelectConfig<T>(
     pageSize: options.pageSize,
     loop: options.loop,
     hideMessage: options.hideMessage,
+    disabledError: options.disabledError,
   };
 }
 
-function hiddenSelectTheme<T>(): InquirerSelectPromptConfig<T>['theme'] {
+function hiddenSelectTheme<T>(disabledError?: string): InquirerSelectPromptConfig<T>['theme'] {
   return {
     prefix: '',
     icon: {
@@ -205,8 +218,10 @@ function hiddenSelectTheme<T>(): InquirerSelectPromptConfig<T>['theme'] {
     style: {
       message: () => '',
       highlight: (text: string) => text,
+      disabled: (text: string) => styleText('dim', text.replace(/ \(disabled\)$/u, ''), { validateStream: false }),
       keysHelpTip: () => '↑↓ navigate • ⏎ select • Ctrl+C exit',
     },
+    i18n: disabledError ? { disabledError } : undefined,
   };
 }
 
@@ -215,11 +230,11 @@ function withHiddenSelectMessage<T>(config: HideableSelectPromptConfig<T>): Inqu
     return config;
   }
 
-  const { hideMessage: _hideMessage, ...inquirerConfig } = config;
+  const { disabledError, hideMessage: _hideMessage, ...inquirerConfig } = config;
   return {
     ...inquirerConfig,
     message: '',
-    theme: hiddenSelectTheme<T>(),
+    theme: hiddenSelectTheme<T>(disabledError),
   };
 }
 

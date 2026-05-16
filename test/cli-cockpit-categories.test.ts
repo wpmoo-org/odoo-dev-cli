@@ -213,9 +213,10 @@ describe('cockpit top-level menu', () => {
       const choices = (config.choices ?? []).filter(isMenuChoice);
 
       expect(menuChoiceLabels(config)).toContain(inlineCommand('Start services', 'Start the Odoo development services.'));
-      expect(disabledValue(choices.find((choice) => choice.value === startCommand))).toBe('Services are already running.');
+      expect(disabledValue(choices.find((choice) => choice.value === startCommand))).toBe(true);
       expect(disabledValue(choices.find((choice) => choice.value === stopCommand))).toBeUndefined();
       expect(disabledValue(choices.find((choice) => choice.value === logsCommand))).toBeUndefined();
+      expect(config.disabledError).toBe('This option is disabled and cannot be selected.\nReason: Already running.');
       expect(config.default).toBe(stopCommand);
       return stopCommand;
     });
@@ -246,10 +247,11 @@ describe('cockpit top-level menu', () => {
       const choices = (config.choices ?? []).filter(isMenuChoice);
 
       expect(disabledValue(choices.find((choice) => choice.value === startCommand))).toBeUndefined();
-      expect(disabledValue(choices.find((choice) => choice.value === stopCommand))).toBe('Services are not running.');
-      expect(disabledValue(choices.find((choice) => choice.value === restartCommand))).toBe('Services are not running.');
-      expect(disabledValue(choices.find((choice) => choice.value === logsCommand))).toBe('Services are not running.');
-      expect(disabledValue(choices.find((choice) => choice.value === shellCommand))).toBe('Services are not running.');
+      expect(disabledValue(choices.find((choice) => choice.value === stopCommand))).toBe(true);
+      expect(disabledValue(choices.find((choice) => choice.value === restartCommand))).toBe(true);
+      expect(disabledValue(choices.find((choice) => choice.value === logsCommand))).toBe(true);
+      expect(disabledValue(choices.find((choice) => choice.value === shellCommand))).toBe(true);
+      expect(config.disabledError).toBe('This option is disabled and cannot be selected.\nReason: Services stopped.');
       expect(config.default).toBe(startCommand);
       return startCommand;
     });
@@ -275,7 +277,8 @@ describe('cockpit top-level menu', () => {
       const serviceChoices = choices.filter((choice) => isMenuChoice(choice) && (choice.value as CockpitCommand).category === 'services');
 
       expect(serviceChoices).toHaveLength(5);
-      expect(serviceChoices.every((choice) => disabledValue(choice) === 'Docker is not running.')).toBe(true);
+      expect(serviceChoices.every((choice) => disabledValue(choice) === true)).toBe(true);
+      expect(config.disabledError).toBe('This option is disabled and cannot be selected.\nReason: Docker not running.');
       expect(config.default).toBe(statusCommand);
       return statusCommand;
     });

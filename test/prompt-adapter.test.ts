@@ -93,6 +93,7 @@ describe('prompt adapter', () => {
       message: 'What do you want to do?',
       choices: ['native' as const],
       hideMessage: true,
+      disabledError: 'This option is disabled and cannot be selected.\nReason: Services stopped.',
     });
 
     expect(value).toBe('native');
@@ -102,18 +103,24 @@ describe('prompt adapter', () => {
       style?: {
         message?: (text: string, status: string) => string;
         highlight?: (text: string) => string;
+        disabled?: (text: string) => string;
         keysHelpTip?: (keys: [key: string, action: string][]) => string;
       };
       icon?: {
         cursor?: string;
+      };
+      i18n?: {
+        disabledError?: string;
       };
     };
     expect(promptArgs.message).toBe('');
     expect(theme.prefix).toBe('');
     expect(theme.style?.message?.('What do you want to do?', 'idle')).toBe('');
     expect(theme.style?.highlight?.('row')).toBe('row');
+    expect(theme.style?.disabled?.('- row (disabled)')).toBe('\u001B[2m- row\u001B[22m');
     expect(theme.style?.keysHelpTip?.([])).toBe('↑↓ navigate • ⏎ select • Ctrl+C exit');
     expect(theme.icon?.cursor).toBe('\u001B[38;2;226;184;96m❯\u001B[39m');
+    expect(theme.i18n?.disabledError).toBe('This option is disabled and cannot be selected.\nReason: Services stopped.');
   });
 
   it('creates prompt separators through the adapter', () => {

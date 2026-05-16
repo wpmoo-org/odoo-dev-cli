@@ -40,6 +40,7 @@ export type CockpitMenuSelectPrompt = (options: {
   pageSize?: number;
   loop?: boolean;
   hideMessage?: boolean;
+  disabledError?: string;
 }) => Promise<unknown>;
 
 type CockpitMenuDeps = {
@@ -89,12 +90,24 @@ function commandName(command: CockpitCommand): string {
 
 function disabledReason(command: CockpitCommand, serviceStatus?: ServiceRuntimeStatus): string | undefined {
   if (command.category !== 'services' || !serviceStatus) return undefined;
-  if (serviceStatus.kind === 'docker-not-running') return 'Docker is not running.';
-  if (serviceStatus.kind === 'running' && command.id === 'start') return 'Services are already running.';
+  if (serviceStatus.kind === 'docker-not-running') return 'Docker not running.';
+  if (serviceStatus.kind === 'running' && command.id === 'start') return 'Already running.';
   if (serviceStatus.kind === 'stopped' && ['stop', 'restart', 'logs', 'shell'].includes(command.id)) {
-    return 'Services are not running.';
+    return 'Services stopped.';
   }
   return undefined;
+}
+
+function disabledMenuReason(serviceStatus?: ServiceRuntimeStatus): string | undefined {
+  if (serviceStatus?.kind === 'docker-not-running') return 'Docker not running.';
+  if (serviceStatus?.kind === 'running') return 'Already running.';
+  if (serviceStatus?.kind === 'stopped') return 'Services stopped.';
+  return undefined;
+}
+
+function disabledError(serviceStatus?: ServiceRuntimeStatus): string | undefined {
+  const reason = disabledMenuReason(serviceStatus);
+  return reason ? `This option is disabled and cannot be selected.\nReason: ${reason}` : undefined;
 }
 
 function categoryChoices(
@@ -107,12 +120,12 @@ function categoryChoices(
     ...topLevelCommands
       .filter((command) => command.category === category)
       .map((command) => {
-        const disabled = disabledReason(command, serviceStatus);
+        const reason = disabledReason(command, serviceStatus);
         return {
           value: command,
           name: commandName(command),
           short: command.label,
-          disabled,
+          disabled: reason ? true : undefined,
         };
       }),
   ];
@@ -180,6 +193,7 @@ export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): 
     pageSize: topLevelPageSize(choices.length),
     loop: false,
     hideMessage: true,
+    disabledError: disabledError(options.serviceStatus),
   });
   deps.handleCancel(selected, 'exit');
 
