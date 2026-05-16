@@ -6,6 +6,8 @@ const workflow = readFileSync(new URL('../.github/workflows/publish.yml', import
 
 describe('publish workflow', () => {
   it('uses npm trusted publishing with release verification gates', () => {
+    const requiredPackageBlock = workflow.match(/package_specs=\([\s\S]*?\n\s*\)/)?.[0] ?? '';
+
     expect(workflow).toContain('name: Publish');
     expect(workflow).not.toContain('workflow_dispatch:');
     expect(workflow).toContain('tags:');
@@ -24,14 +26,17 @@ describe('publish workflow', () => {
     expect(workflow).toContain('if [[ "${GITHUB_REF_NAME}" != "$expected_tag" ]]');
     expect(workflow).toContain('node scripts/sync-alias-packages.mjs --check');
     expect(workflow).toContain('"@wpmoo/toolkit@$VERSION"');
-    expect(workflow).not.toContain('"wpmoo@$VERSION"');
+    expect(requiredPackageBlock).not.toContain('"wpmoo@$VERSION"');
     expect(workflow).toContain('"@wpmoo/odoo@$VERSION"');
     expect(workflow).toContain('"@wpmoo/odoo-dev@$VERSION"');
+    expect(workflow).toContain('already exists on npm; skipping publish');
     expect(workflow).toContain('npm publish --access public');
     expect(workflow).toContain('Publish @wpmoo/odoo alias to npm');
     expect(workflow).toContain('Publish @wpmoo/odoo-dev alias to npm');
     expect(workflow).toContain('Publish wpmoo short alias to npm');
-    expect(workflow).toContain('continue-on-error: true');
+    expect(workflow).not.toContain('continue-on-error: true');
+    expect(workflow).toContain('spec="wpmoo@$VERSION"');
+    expect(workflow).toContain('::warning title=Optional wpmoo alias not published::');
     expect(workflow).toContain('npm publish --access public ./packages/wpmoo');
     expect(workflow).toContain('npm publish --access public ./packages/odoo-compat');
     expect(workflow).toContain('npm publish --access public ./packages/odoo-dev-compat');
