@@ -4,7 +4,7 @@ set -euo pipefail
 NPM_BIN="${WPMOO_NPM_BIN:-npm}"
 NODE_BIN="${WPMOO_NODE_BIN:-node}"
 PACKAGE_NAME="@wpmoo/toolkit"
-PACKAGE_NAMES=("@wpmoo/toolkit" "wpmoo" "@wpmoo/odoo" "@wpmoo/odoo-dev")
+PACKAGE_NAMES=("@wpmoo/toolkit" "@wpmoo/odoo" "@wpmoo/odoo-dev")
 ALIAS_PACKAGE_DIRS=("./packages/wpmoo" "./packages/odoo-compat" "./packages/odoo-dev-compat")
 PACKAGE_TEST="test/package.test.ts"
 SYNC_ALIAS_SCRIPT="scripts/sync-alias-packages.mjs"

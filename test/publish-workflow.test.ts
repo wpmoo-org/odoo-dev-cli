@@ -24,10 +24,14 @@ describe('publish workflow', () => {
     expect(workflow).toContain('if [[ "${GITHUB_REF_NAME}" != "$expected_tag" ]]');
     expect(workflow).toContain('node scripts/sync-alias-packages.mjs --check');
     expect(workflow).toContain('"@wpmoo/toolkit@$VERSION"');
-    expect(workflow).toContain('"wpmoo@$VERSION"');
+    expect(workflow).not.toContain('"wpmoo@$VERSION"');
     expect(workflow).toContain('"@wpmoo/odoo@$VERSION"');
     expect(workflow).toContain('"@wpmoo/odoo-dev@$VERSION"');
     expect(workflow).toContain('npm publish --access public');
+    expect(workflow).toContain('Publish @wpmoo/odoo alias to npm');
+    expect(workflow).toContain('Publish @wpmoo/odoo-dev alias to npm');
+    expect(workflow).toContain('Publish wpmoo short alias to npm');
+    expect(workflow).toContain('continue-on-error: true');
     expect(workflow).toContain('npm publish --access public ./packages/wpmoo');
     expect(workflow).toContain('npm publish --access public ./packages/odoo-compat');
     expect(workflow).toContain('npm publish --access public ./packages/odoo-dev-compat');

@@ -50,6 +50,7 @@ const mocks = vi.hoisted(() => ({
   renderExistingEnvironmentSummary: vi.fn((state: { target: string }) => `Existing WPMoo environment detected at ${state.target}`),
   renderForeignEnvironmentTargetWarning: vi.fn((state: { target: string }) => `Target already exists: ${state.target}`),
   safeResetEnvironment: vi.fn(async () => undefined),
+  runLocalCockpit: vi.fn(async () => undefined),
 }));
 
 vi.mock('../src/prompts/index.js', () => ({
@@ -113,6 +114,10 @@ vi.mock('../src/safe-reset.js', async (importOriginal) => {
     safeResetEnvironment: mocks.safeResetEnvironment,
   };
 });
+
+vi.mock('../src/local-cockpit.js', () => ({
+  runLocalCockpit: mocks.runLocalCockpit,
+}));
 
 vi.mock('../src/repository-preflight.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/repository-preflight.js')>();
@@ -429,23 +434,109 @@ describe('cli startup/create flow', () => {
   });
 
   it('shows next-step guidance after creating an environment from prompts', async () => {
-    mockCreatePrompts({
-      product: 'learn_module',
-      environmentFolder: './learn_module_dev',
-      connectGitHub: false,
-      installAgentSkills: false,
-    });
-    const { runCli } = await loadCli();
+    const originalIsTty = process.stdout.isTTY;
+    const originalNoColor = process.env.NO_COLOR;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    delete process.env.NO_COLOR;
+    try {
+      mockCreatePrompts({
+        product: 'learn_module',
+        environmentFolder: './learn_module_dev',
+        connectGitHub: false,
+        installAgentSkills: false,
+      });
+      const { runCli } = await loadCli();
 
-    await runCli([], process.cwd());
+      await runCli([], process.cwd());
+
+      expect(mocks.note).toHaveBeenCalledWith(
+        expect.stringContaining('\u001B[1m\u001B[32m✓ Environment is ready.\u001B[39m\u001B[22m'),
+        'Next steps',
+        { indent: false },
+      );
+      expect(mocks.note).toHaveBeenCalledWith(
+        expect.stringContaining('\u001B[36mOpen it now, or copy these commands:\u001B[39m'),
+        'Next steps',
+        { indent: false },
+      );
+      expect(mocks.note).toHaveBeenCalledWith(
+        expect.stringContaining('\u001B[33mcd learn_module_dev\u001B[39m'),
+        'Next steps',
+        { indent: false },
+      );
+      expect(mocks.note).toHaveBeenCalledWith(
+        expect.stringContaining('\u001B[33m./moo\u001B[39m'),
+        'Next steps',
+        { indent: false },
+      );
+      const nextSteps = mocks.note.mock.calls.find((call) => call[1] === 'Next steps')?.[0] as string;
+      expect(nextSteps).not.toContain('\u001B[36m│\u001B[39m ');
+      expect(nextSteps).not.toContain('│ ');
+    } finally {
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTty });
+      if (originalNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = originalNoColor;
+      }
+    }
 
     expect(mocks.note).toHaveBeenCalledWith(
       expect.stringContaining('cd learn_module_dev'),
       'Next steps',
+      { indent: false },
     );
     expect(mocks.note).toHaveBeenCalledWith(
       expect.stringContaining('./moo'),
       'Next steps',
+      { indent: false },
+    );
+  });
+
+  it('opens the local cockpit after create when the user accepts the follow-up prompt', async () => {
+    mockCreatePrompts({
+      product: 'open_module',
+      environmentFolder: './open_module_dev',
+      connectGitHub: false,
+      installAgentSkills: false,
+    });
+    mocks.confirm.mockResolvedValueOnce(true);
+    const { runCli } = await loadCli();
+
+    await runCli([], process.cwd());
+
+    expect(mocks.confirm).toHaveBeenLastCalledWith({
+      message: 'Open the local WPMoo cockpit now?',
+      active: 'Y',
+      inactive: 'n',
+      initialValue: true,
+    });
+    expect(mocks.runLocalCockpit).toHaveBeenCalledWith(resolve('./open_module_dev'));
+    expect(mocks.outro).not.toHaveBeenCalledWith(
+      expect.stringContaining('Created Odoo dev overlay'),
+    );
+  });
+
+  it('leaves copyable next steps when the user declines opening the local cockpit', async () => {
+    mockCreatePrompts({
+      product: 'copy_module',
+      environmentFolder: './copy_module_dev',
+      connectGitHub: false,
+      installAgentSkills: false,
+    });
+    mocks.confirm.mockResolvedValueOnce(false);
+    const { runCli } = await loadCli();
+
+    await runCli([], process.cwd());
+
+    expect(mocks.runLocalCockpit).not.toHaveBeenCalled();
+    expect(mocks.note).toHaveBeenCalledWith(
+      expect.stringContaining('cd copy_module_dev'),
+      'Next steps',
+      { indent: false },
+    );
+    expect(mocks.outro).toHaveBeenCalledWith(
+      expect.stringContaining('Created Odoo dev overlay'),
     );
   });
 
@@ -507,6 +598,17 @@ describe('cli startup/create flow', () => {
 
     await runCli([], '/tmp/workspace');
 
+    expect(mocks.select).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'This environment folder already exists. What do you want to do?',
+        options: expect.arrayContaining([
+          expect.objectContaining({
+            value: 'reinstall-environment',
+            label: 'Back up existing environment folder and create a new one',
+          }),
+        ]),
+      }),
+    );
     expect(mocks.safeResetEnvironment).toHaveBeenCalledWith({ target, stage: true });
     expect(mocks.scaffold).not.toHaveBeenCalled();
     expect(mocks.outro).toHaveBeenCalledWith(`Updated existing Odoo dev overlay in ${target}.`);

@@ -57,6 +57,9 @@ export type SearchPromptOptions<T> = {
   ) => readonly SearchPromptChoice<T>[] | Promise<readonly SearchPromptChoice<T>[]>;
   pageSize?: number;
 };
+export type NotePromptOptions = {
+  indent?: boolean;
+};
 
 export type SearchPromptChoice<T> = {
   value: T;
@@ -286,11 +289,12 @@ export function introPrompt(title: string): void {
   console.log(rule);
 }
 
-export function notePrompt(message: string, title = 'Note'): void {
+export function notePrompt(message: string, title = 'Note', options: NotePromptOptions = {}): void {
   const lines = message.split('\n');
+  const prefix = options.indent === false ? '' : '  ';
   console.log(`[${title}]`);
   for (const line of lines) {
-    console.log(`  ${line}`);
+    console.log(`${prefix}${line}`);
   }
 }
 

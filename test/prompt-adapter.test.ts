@@ -228,6 +228,19 @@ describe('prompt adapter', () => {
     spy.mockRestore();
   });
 
+  it('can render note body lines without indentation', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    notePrompt('Environment is ready.\ncd moo_olympiad_dev\n./moo', 'Next steps', { indent: false });
+
+    expect(spy).toHaveBeenCalledWith('[Next steps]');
+    expect(spy).toHaveBeenCalledWith('Environment is ready.');
+    expect(spy).toHaveBeenCalledWith('cd moo_olympiad_dev');
+    expect(spy).toHaveBeenCalledWith('./moo');
+    expect(spy).not.toHaveBeenCalledWith('  Environment is ready.');
+    spy.mockRestore();
+  });
+
   it('supports inputPrompt as a text alias', async () => {
     const input = vi.mocked(inquirerInput);
     input.mockResolvedValue('value');

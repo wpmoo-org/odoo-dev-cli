@@ -55,7 +55,6 @@ jobs:
           VERSION="$(node -p "require('./package.json').version")"
           package_specs=(
             "@wpmoo/toolkit@$VERSION"
-            "wpmoo@$VERSION"
             "@wpmoo/odoo@$VERSION"
             "@wpmoo/odoo-dev@$VERSION"
           )
@@ -77,8 +76,12 @@ jobs:
       - name: Publish toolkit to npm
         run: npm publish --access public
 
-      - name: Publish aliases to npm
-        run: |
-          npm publish --access public ./packages/wpmoo
-          npm publish --access public ./packages/odoo-compat
-          npm publish --access public ./packages/odoo-dev-compat
+      - name: Publish @wpmoo/odoo alias to npm
+        run: npm publish --access public ./packages/odoo-compat
+
+      - name: Publish @wpmoo/odoo-dev alias to npm
+        run: npm publish --access public ./packages/odoo-dev-compat
+
+      - name: Publish wpmoo short alias to npm
+        continue-on-error: true
+        run: npm publish --access public ./packages/wpmoo

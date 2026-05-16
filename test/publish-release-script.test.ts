@@ -123,11 +123,9 @@ describe('release check script', () => {
     expect(packageJson.version).toBe('0.8.37');
     expect(commands).toEqual([
       'view @wpmoo/toolkit@0.8.36 version',
-      'view wpmoo@0.8.36 version',
       'view @wpmoo/odoo@0.8.36 version',
       'version patch --no-git-tag-version',
       'view @wpmoo/toolkit@0.8.37 version',
-      'view wpmoo@0.8.37 version',
       'view @wpmoo/odoo@0.8.37 version',
       'view @wpmoo/odoo-dev@0.8.37 version',
     ]);
@@ -157,9 +155,28 @@ describe('release check script', () => {
     expect(packageJson.version).toBe('0.8.37');
     expect(commands).toEqual([
       'view @wpmoo/toolkit@0.8.37 version',
-      'view wpmoo@0.8.37 version',
       'view @wpmoo/odoo@0.8.37 version',
       'view @wpmoo/odoo-dev@0.8.37 version',
+      'test -- test/package.test.ts',
+      'pack --dry-run',
+      'pack --dry-run ./packages/wpmoo',
+      'pack --dry-run ./packages/odoo-compat',
+      'pack --dry-run ./packages/odoo-dev-compat',
+    ]);
+  });
+
+  it('does not bump when only the optional wpmoo short alias version exists', async () => {
+    const { root, logPath, stubPath } = await createReleaseFixture('0.8.38', ['wpmoo@0.8.38']);
+
+    runReleaseCheck(root, stubPath);
+
+    const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
+    const commands = readFileSync(logPath, 'utf8').trim().split('\n');
+    expect(packageJson.version).toBe('0.8.38');
+    expect(commands).toEqual([
+      'view @wpmoo/toolkit@0.8.38 version',
+      'view @wpmoo/odoo@0.8.38 version',
+      'view @wpmoo/odoo-dev@0.8.38 version',
       'test -- test/package.test.ts',
       'pack --dry-run',
       'pack --dry-run ./packages/wpmoo',

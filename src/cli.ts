@@ -23,6 +23,7 @@ import { isDailyActionCommand, runDailyAction } from './daily-actions.js';
 import { getDoctorReport, runDoctor, type DoctorCommandOptions } from './doctor.js';
 import { getOriginUrl, realGit } from './git.js';
 import { renderHelp } from './help.js';
+import { runLocalCockpit } from './local-cockpit.js';
 import {
   addModuleToSourceRepo,
   listModulesInSourceRepo,
@@ -189,9 +190,29 @@ function printJson(value: unknown): void {
   console.log(JSON.stringify(value));
 }
 
+function supportsAnsi(): boolean {
+  return Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
+}
+
+function ansi(value: string, open: string, close: string): string {
+  if (!supportsAnsi()) return value;
+  return `${open}${value}${close}`;
+}
+
 function yellow(value: string): string {
-  if (!process.stdout.isTTY || process.env.NO_COLOR !== undefined) return value;
-  return `\u001b[33m${value}\u001b[39m`;
+  return ansi(value, '\u001B[33m', '\u001B[39m');
+}
+
+function cyan(value: string): string {
+  return ansi(value, '\u001B[36m', '\u001B[39m');
+}
+
+function boldGreen(value: string): string {
+  return ansi(value, '\u001B[1m\u001B[32m', '\u001B[39m\u001B[22m');
+}
+
+function dim(value: string): string {
+  return ansi(value, '\u001B[2m', '\u001B[22m');
 }
 
 function shellQuote(value: string): string {
@@ -221,14 +242,24 @@ type ModuleRemovalPromptOptions = RemoveModuleOptions & {
 
 function renderPostCreateGuidance(target: string, cwd: string): string {
   const relativeTarget = relative(cwd, target) || '.';
-  return yellow(
-    [
-      'Environment is ready. Enter the development folder, then run the local WPMoo cockpit:',
+  const cdCommand = `cd ${shellQuote(relativeTarget)}`;
+
+  if (!supportsAnsi()) {
+    return [
+      'Environment is ready. Open it now, or copy these commands:',
       '',
-      `cd ${shellQuote(relativeTarget)}`,
+      cdCommand,
       './moo',
-    ].join('\n'),
-  );
+    ].join('\n');
+  }
+
+  return [
+    boldGreen('✓ Environment is ready.'),
+    cyan('Open it now, or copy these commands:'),
+    '',
+    yellow(cdCommand),
+    yellow('./moo'),
+  ].join('\n');
 }
 
 type CreateFlowResult =
@@ -390,7 +421,7 @@ async function resolveEnvironmentTargetFromPrompts(
       message: 'This environment folder already exists. What do you want to do?',
       options: [
         { value: 'update-existing' as const, label: 'Update existing environment' },
-        { value: 'reinstall-environment' as const, label: 'Reinstall environment from backup' },
+        { value: 'reinstall-environment' as const, label: 'Back up existing environment folder and create a new one' },
         { value: 'delete-environment' as const, label: 'Delete environment' },
         { value: 'cancel' as const, label: 'Cancel' },
       ],
@@ -1123,11 +1154,11 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
 
   if (interactive && accessible.length > 0) {
     notePrompt(
-      [
+      dim([
         'These GitHub repositories already exist and are accessible:',
         '',
         ...accessible.map((repository) => `- ${repository.label}: ${repository.slug}`),
-      ].join('\n'),
+      ].join('\n')),
       'Repository check',
     );
   }
@@ -1235,7 +1266,19 @@ async function finishCreateFlow(result: CreateFlowResult, cwd: string, interacti
     return;
   }
 
-  notePrompt(renderPostCreateGuidance(options.target, cwd), 'Next steps');
+  notePrompt(renderPostCreateGuidance(options.target, cwd), 'Next steps', { indent: false });
+  if (interactive) {
+    const shouldOpenCockpit = await confirmPrompt({
+      message: 'Open the local WPMoo cockpit now?',
+      active: 'Y',
+      inactive: 'n',
+      initialValue: true,
+    });
+    if (shouldOpenCockpit === true) {
+      await runLocalCockpit(options.target);
+      return;
+    }
+  }
   outroPrompt(`Created Odoo dev overlay in ${options.target}. Review staged changes, then commit.`);
 }
 

@@ -345,6 +345,10 @@ describe('cli repository preflight in create flow', () => {
   });
 
   it('accepts an existing empty dev repo and continues scaffolding', async () => {
+    const originalIsTty = process.stdout.isTTY;
+    const originalNoColor = process.env.NO_COLOR;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    delete process.env.NO_COLOR;
     mockCreatePrompts({ product: 'accessible_module' });
     mocks.checkGitHubRepositories.mockResolvedValueOnce({
       accessible: [
@@ -364,16 +368,38 @@ describe('cli repository preflight in create flow', () => {
       inaccessible: [],
       blocked: [],
     });
-    const { runCli } = await loadCli();
 
-    await runCli([], '/tmp/workspace');
+    try {
+      const { runCli } = await loadCli();
 
-    expect(mocks.note).toHaveBeenCalledWith(
-      expect.stringContaining('accessible_module'),
-      'Repository check',
-    );
-    expect(mocks.createGitHubRepositories).not.toHaveBeenCalled();
-    expect(mocks.scaffold).toHaveBeenCalledTimes(1);
+      await runCli([], '/tmp/workspace');
+
+      expect(mocks.note).toHaveBeenCalledWith(
+        expect.stringContaining('\u001B[2mThese GitHub repositories already exist and are accessible:'),
+        'Repository check',
+      );
+      expect(mocks.note).toHaveBeenCalledWith(
+        expect.stringContaining('- Dev environment repo: example-org/accessible_module_dev'),
+        'Repository check',
+      );
+      expect(mocks.note).toHaveBeenCalledWith(
+        expect.stringContaining('\u001B[22m'),
+        'Repository check',
+      );
+      expect(mocks.note).toHaveBeenCalledWith(
+        expect.stringContaining('accessible_module'),
+        'Repository check',
+      );
+      expect(mocks.createGitHubRepositories).not.toHaveBeenCalled();
+      expect(mocks.scaffold).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTty });
+      if (originalNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = originalNoColor;
+      }
+    }
   });
 
   it('warns and aborts when non-empty dev repo is blocked from re-use', async () => {
