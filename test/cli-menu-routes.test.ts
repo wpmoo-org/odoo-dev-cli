@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { cockpitCommands, type CockpitCommand } from '../src/cockpit/command-registry.js';
+import { packageVersion } from '../src/version.js';
 
 const mocks = vi.hoisted(() => ({
   addModuleRepo: vi.fn(async () => undefined),
@@ -29,7 +30,20 @@ const mocks = vi.hoisted(() => ({
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
   repositoryPreflightAvailable: vi.fn(async () => true),
   renderEnvironmentStatusSummary: vi.fn(() => 'Status summary'),
-  getEnvironmentStatus: vi.fn(async () => ({ mock: true })),
+  getEnvironmentStatus: vi.fn(async () => ({
+    kind: 'environment',
+    target: '/tmp/environment',
+    metadataPath: '/tmp/environment/.wpmoo/odoo.json',
+    recommendedNextAction: 'Run ./moo.',
+    odooVersion: '19.0',
+    sourceRepoCount: 1,
+    sourceRepoPaths: ['odoo/custom/src/private/moo_olympiad'],
+    invalidSourceRepoPaths: [],
+    moduleCandidateCount: 0,
+    composeFiles: ['compose.yaml'],
+    composeErrors: [],
+    missingCoreFiles: [],
+  })),
   safeResetEnvironment: vi.fn(async () => undefined),
 }));
 
@@ -183,6 +197,20 @@ describe('cli menu environment routes', () => {
   it('returns without action when menu action is exit', async () => {
     const prompts = await import('../src/prompts/index.js');
     vi.mocked(prompts.selectPrompt).mockResolvedValueOnce('exit');
+    mocks.getEnvironmentStatus.mockResolvedValueOnce({
+      kind: 'environment',
+      target: '/tmp/environment',
+      metadataPath: '/tmp/environment/.wpmoo/odoo.json',
+      recommendedNextAction: 'Run ./moo.',
+      odooVersion: '19.0',
+      sourceRepoCount: 1,
+      sourceRepoPaths: ['odoo/custom/src/private/moo_olympiad'],
+      invalidSourceRepoPaths: [],
+      moduleCandidateCount: 0,
+      composeFiles: ['compose.yaml'],
+      composeErrors: [],
+      missingCoreFiles: [],
+    });
     const { runCli } = await loadCli();
 
     await runCli([], '/tmp/environment');
@@ -194,11 +222,13 @@ describe('cli menu environment routes', () => {
     expect(mocks.removeModuleFromSourceRepo).not.toHaveBeenCalled();
     expect(mocks.safeResetEnvironment).not.toHaveBeenCalled();
     expect(mocks.getEnvironmentStatus).toHaveBeenCalledWith('/tmp/environment');
-    expect(mocks.renderEnvironmentStatusSummary).toHaveBeenCalledWith({ mock: true });
-    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith('Status summary', 'Environment status');
-    const noteOrder = vi.mocked(prompts.notePrompt).mock.invocationCallOrder[0] ?? 0;
+    expect(mocks.renderBanner).toHaveBeenCalledWith([`v${packageVersion()} · Odoo 19.0 · 1 repo · 0 modules`]);
+    expect(mocks.renderEnvironmentStatusSummary).not.toHaveBeenCalled();
+    expect(vi.mocked(prompts.introPrompt)).not.toHaveBeenCalledWith('WPMoo Tool');
+    expect(vi.mocked(prompts.notePrompt)).not.toHaveBeenCalledWith('Status summary', 'Environment status');
+    const bannerOrder = mocks.renderBanner.mock.invocationCallOrder[0] ?? 0;
     const selectOrder = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER;
-    expect(noteOrder).toBeLessThan(selectOrder);
+    expect(bannerOrder).toBeLessThan(selectOrder);
   });
 
   it('routes add-repo through prompts, repository preflight, and addModuleRepo', async () => {

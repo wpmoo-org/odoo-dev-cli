@@ -37,6 +37,7 @@ export type CockpitMenuSelectPrompt = (options: {
   default?: CockpitMenuChoice['value'];
   pageSize?: number;
   loop?: boolean;
+  hideMessage?: boolean;
 }) => Promise<unknown>;
 
 type CockpitMenuDeps = {
@@ -67,16 +68,20 @@ const topLevelCommands: readonly CockpitCommand[] = topLevelCategoryOrder.flatMa
 );
 const topLevelCommandLabelWidth = Math.max(...topLevelCommands.map((command) => command.label.length));
 
-function color(format: Parameters<typeof styleText>[0], value: string): string {
-  return styleText(format, value, { validateStream: false });
+function rgb(red: number, green: number, blue: number, value: string): string {
+  return `\u001B[38;2;${red};${green};${blue}m${value}\u001B[39m`;
+}
+
+function dim(value: string): string {
+  return styleText('dim', value, { validateStream: false });
 }
 
 function categoryHeading(category: CockpitCommandCategory): string {
-  return color('white', categoryLabels[category]);
+  return `\u001B[1D${rgb(143, 211, 255, categoryLabels[category])}`;
 }
 
 function commandName(command: CockpitCommand): string {
-  return `${color('yellow', `  ${command.label.padEnd(topLevelCommandLabelWidth)}`)}${color('dim', `  ${command.description}`)}`;
+  return `${rgb(226, 184, 96, ` ${command.label.padEnd(topLevelCommandLabelWidth)}`)}${dim(`  ${command.description}`)}`;
 }
 
 function categoryChoices(category: CockpitCommandCategory, index: number): readonly (CockpitMenuChoice | PromptSeparator)[] {
@@ -100,7 +105,6 @@ function categoryChoices(category: CockpitCommandCategory, index: number): reado
 
 const topLevelChoices: readonly (CockpitMenuChoice | PromptSeparator)[] = [
   ...topLevelCategoryOrder.flatMap(categoryChoices),
-  { value: 'exit', name: 'Exit', short: 'Exit' },
 ] as const;
 
 const minimumTopLevelPageSize = 8;
@@ -138,11 +142,12 @@ export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): 
   const deps = menuDeps(options);
 
   const selected = await deps.select({
-    message: 'What do you want to do?',
+    message: '',
     choices: [...topLevelChoices],
     default: topLevelCommands[0],
     pageSize: topLevelPageSize(topLevelChoices.length),
     loop: false,
+    hideMessage: true,
   });
   deps.handleCancel(selected, 'exit');
 

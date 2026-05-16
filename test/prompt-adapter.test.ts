@@ -85,6 +85,37 @@ describe('prompt adapter', () => {
     expect(select.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it('can hide native select prompt chrome for cockpit menus', async () => {
+    const select = vi.mocked(inquirerSelect);
+    select.mockResolvedValue('native');
+
+    const value = await selectPrompt({
+      message: 'What do you want to do?',
+      choices: ['native' as const],
+      hideMessage: true,
+    });
+
+    expect(value).toBe('native');
+    const [promptArgs] = select.mock.calls[0];
+    const theme = promptArgs.theme as {
+      prefix?: string;
+      style?: {
+        message?: (text: string, status: string) => string;
+        highlight?: (text: string) => string;
+        keysHelpTip?: (keys: [key: string, action: string][]) => string;
+      };
+      icon?: {
+        cursor?: string;
+      };
+    };
+    expect(promptArgs.message).toBe('');
+    expect(theme.prefix).toBe('');
+    expect(theme.style?.message?.('What do you want to do?', 'idle')).toBe('');
+    expect(theme.style?.highlight?.('row')).toBe('row');
+    expect(theme.style?.keysHelpTip?.([])).toBe('↑↓ navigate • ⏎ select • Ctrl+C exit');
+    expect(theme.icon?.cursor).toBe('\u001B[38;2;226;184;96m❯\u001B[39m');
+  });
+
   it('creates prompt separators through the adapter', () => {
     const separator = promptSeparator('Services');
 

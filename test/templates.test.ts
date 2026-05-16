@@ -289,16 +289,29 @@ describe('template rendering', () => {
     expect(readme).toContain('.agents/skills/');
   });
 
-  it('renders a compact boxed CLI banner', () => {
+  it('renders an unboxed CLI banner with a divider', () => {
     const banner = renderBanner();
     const plainBanner = banner.replace(/\u001B\[[0-9;]*m/g, '').trim();
 
     expect(plainBanner).toBe(
       [
-        '╭────────────────────────────────────────────╮',
-        '│ WPMoo                                      │',
-        '│ Workflow Platform · Micro Object Oriented  │',
-        '╰────────────────────────────────────────────╯',
+        'WPMoo',
+        'Workflow Platform · Micro Object Oriented',
+        '────────────────────────────────────────',
+      ].join('\n'),
+    );
+  });
+
+  it('renders startup details below the unboxed banner divider', () => {
+    const banner = renderBanner(['v0.8.69 · Odoo 19.0 · 1 repo · 0 modules']);
+    const plainBanner = banner.replace(/\u001B\[[0-9;]*m/g, '').trim();
+
+    expect(plainBanner).toBe(
+      [
+        'WPMoo',
+        'Workflow Platform · Micro Object Oriented',
+        '────────────────────────────────────────',
+        'v0.8.69 · Odoo 19.0 · 1 repo · 0 modules',
       ].join('\n'),
     );
   });

@@ -24,6 +24,7 @@ export type SelectPromptOptions<T> =
       initialValue?: T;
       pageSize?: number;
       loop?: boolean;
+      hideMessage?: boolean;
     }
   | {
       message: string;
@@ -31,6 +32,7 @@ export type SelectPromptOptions<T> =
       pageSize?: number;
       loop?: boolean;
       default?: T;
+      hideMessage?: boolean;
     };
 export type TextPromptOptions = {
   message: string;
@@ -65,6 +67,10 @@ export type SearchPromptChoice<T> = {
   short?: string;
 };
 type InquirerSearchPromptConfig<T> = Parameters<typeof inquirerSearch<T>>[0];
+type InquirerSelectPromptConfig<T> = Parameters<typeof inquirerSelect<T>>[0];
+type HideableSelectPromptConfig<T> = InquirerSelectPromptConfig<T> & {
+  hideMessage?: boolean;
+};
 type PromptContext = {
   signal: AbortSignal;
 };
@@ -165,19 +171,13 @@ async function withPromptCancelGuard<T>(
 
 function isClackSelectOptions<T>(
   options: SelectPromptOptions<T>,
-): options is { message: string; options: readonly PromptOption<T>[]; initialValue?: T; pageSize?: number; loop?: boolean } {
+): options is { message: string; options: readonly PromptOption<T>[]; initialValue?: T; pageSize?: number; loop?: boolean; hideMessage?: boolean } {
   return 'options' in options;
 }
 
 function asInquirerSelectConfig<T>(
-  options: { message: string; options: readonly PromptOption<T>[]; initialValue?: T; pageSize?: number; loop?: boolean },
-): {
-  message: string;
-  choices: readonly PromptChoice<T>[];
-  default?: T;
-  pageSize?: number;
-  loop?: boolean;
-} {
+  options: { message: string; options: readonly PromptOption<T>[]; initialValue?: T; pageSize?: number; loop?: boolean; hideMessage?: boolean },
+): HideableSelectPromptConfig<T> {
   return {
     message: options.message,
     choices: options.options.map((option) => ({
@@ -188,6 +188,34 @@ function asInquirerSelectConfig<T>(
     default: options.initialValue,
     pageSize: options.pageSize,
     loop: options.loop,
+    hideMessage: options.hideMessage,
+  };
+}
+
+function hiddenSelectTheme<T>(): InquirerSelectPromptConfig<T>['theme'] {
+  return {
+    prefix: '',
+    icon: {
+      cursor: '\u001B[38;2;226;184;96m❯\u001B[39m',
+    },
+    style: {
+      message: () => '',
+      highlight: (text: string) => text,
+      keysHelpTip: () => '↑↓ navigate • ⏎ select • Ctrl+C exit',
+    },
+  };
+}
+
+function withHiddenSelectMessage<T>(config: HideableSelectPromptConfig<T>): InquirerSelectPromptConfig<T> {
+  if (!config.hideMessage) {
+    return config;
+  }
+
+  const { hideMessage: _hideMessage, ...inquirerConfig } = config;
+  return {
+    ...inquirerConfig,
+    message: '',
+    theme: hiddenSelectTheme<T>(),
   };
 }
 
@@ -227,10 +255,10 @@ export async function selectPrompt<T>(
   options: SelectPromptOptions<T>,
 ): Promise<T | PromptCancellation> {
   if (isClackSelectOptions(options)) {
-    return withPromptCancelGuard((context) => inquirerSelect(asInquirerSelectConfig(options), context));
+    return withPromptCancelGuard((context) => inquirerSelect(withHiddenSelectMessage(asInquirerSelectConfig(options)), context));
   }
 
-  return withPromptCancelGuard((context) => inquirerSelect(options, context));
+  return withPromptCancelGuard((context) => inquirerSelect(withHiddenSelectMessage(options), context));
 }
 
 export async function inputPrompt(options: TextPromptOptions): Promise<string | PromptCancellation> {

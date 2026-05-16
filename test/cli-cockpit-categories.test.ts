@@ -6,6 +6,7 @@ import {
   type CockpitMenuChoice,
   type CockpitMenuSelectPrompt,
 } from '../src/cockpit/menu.js';
+import { promptCancelled } from '../src/prompts/index.js';
 
 type MenuPromptConfig = Parameters<CockpitMenuSelectPrompt>[0] & {
   choices?: Parameters<CockpitMenuSelectPrompt>[0]['choices'];
@@ -27,12 +28,16 @@ function menuChoiceLabels(config: MenuPromptConfig): string[] {
   return (config.choices ?? []).map((choice) => (isSeparatorChoice(choice) ? choice.separator : choice.name));
 }
 
-function white(value: string): string {
-  return `\u001B[37m${value}\u001B[39m`;
+function rgb(red: number, green: number, blue: number, value: string): string {
+  return `\u001B[38;2;${red};${green};${blue}m${value}\u001B[39m`;
 }
 
-function yellow(value: string): string {
-  return `\u001B[33m${value}\u001B[39m`;
+function category(value: string): string {
+  return `\u001B[1D${rgb(143, 211, 255, value)}`;
+}
+
+function command(value: string): string {
+  return rgb(226, 184, 96, value);
 }
 
 function dim(value: string): string {
@@ -40,7 +45,7 @@ function dim(value: string): string {
 }
 
 function inlineCommand(label: string, description: string): string {
-  return `${yellow(`  ${label.padEnd(22)}`)}${dim(`  ${description}`)}`;
+  return `${command(` ${label.padEnd(22)}`)}${dim(`  ${description}`)}`;
 }
 
 describe('cockpit top-level menu', () => {
@@ -51,16 +56,17 @@ describe('cockpit top-level menu', () => {
     const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
       const config = options as MenuPromptConfig;
 
-      expect(config.message).toBe('What do you want to do?');
+      expect(config.message).toBe('');
+      expect(config.hideMessage).toBe(true);
       expect(menuChoiceLabels(config)).toEqual([
-        white('Services'),
+        category('Services'),
         inlineCommand('Start services', 'Start the Odoo development services.'),
         inlineCommand('Stop services', 'Stop the Odoo development services.'),
         inlineCommand('Restart services', 'Restart the Odoo development services.'),
         inlineCommand('View logs', 'Stream logs for an Odoo environment service.'),
         inlineCommand('Open shell', 'Open a shell inside the Odoo service container.'),
         ' ',
-        white('Modules'),
+        category('Modules'),
         inlineCommand('Install module', 'Install one or more Odoo modules into a database.'),
         inlineCommand('Update module', 'Update one or more Odoo modules in a database.'),
         inlineCommand('Run tests', 'Run Odoo tests for one or more modules.'),
@@ -69,39 +75,38 @@ describe('cockpit top-level menu', () => {
         inlineCommand('Add module', 'Add a module folder to a source repository.'),
         inlineCommand('Remove module', 'Remove a module folder from a source repository.'),
         ' ',
-        white('Database'),
+        category('Database'),
         inlineCommand('Open psql', 'Open a PostgreSQL prompt for an environment database.'),
         inlineCommand('Create snapshot', 'Create a database snapshot.'),
         inlineCommand('Restore snapshot', 'Restore a database from a named snapshot.'),
         inlineCommand('Reset database', 'Reset an environment database.'),
         ' ',
-        white('Diagnostics'),
+        category('Diagnostics'),
         inlineCommand('Environment status', 'Show a summary of the current environment state.'),
         inlineCommand('Run doctor', 'Run environment diagnostics and report actionable issues.'),
         ' ',
-        white('Repositories'),
+        category('Repositories'),
         inlineCommand('Add source repo', 'Add a source repository as an environment submodule.'),
         inlineCommand('Remove source repo', 'Remove a source repository from the environment.'),
         ' ',
-        white('Maintenance'),
+        category('Maintenance'),
         inlineCommand('Safe reset environment', 'Refresh generated environment files while preserving source repositories.'),
-        'Exit',
       ]);
       expect(config.pageSize).toBeGreaterThan(0);
       expect(config.pageSize).toBeLessThanOrEqual(config.choices?.length ?? 0);
       expect(config.loop).toBe(false);
       expect(config.choices?.filter(isSeparatorChoice).map((choice) => choice.separator)).toEqual([
-        white('Services'),
+        category('Services'),
         ' ',
-        white('Modules'),
+        category('Modules'),
         ' ',
-        white('Database'),
+        category('Database'),
         ' ',
-        white('Diagnostics'),
+        category('Diagnostics'),
         ' ',
-        white('Repositories'),
+        category('Repositories'),
         ' ',
-        white('Maintenance'),
+        category('Maintenance'),
       ]);
       expect(config.default).toBe(startCommand);
       expect(config.choices?.filter(isMenuChoice).find((choice) => choice.value === startCommand)?.description).toBeUndefined();
@@ -175,16 +180,19 @@ describe('cockpit top-level menu', () => {
     }
   });
 
-  it('returns exit when Exit is selected from the single menu', async () => {
+  it('does not expose Exit as a selectable command and exits on prompt cancellation', async () => {
+    const handleCancel = vi.fn();
     const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
       const config = options as MenuPromptConfig;
 
-      expect(config.choices?.at(-1)).toEqual({ value: 'exit', name: 'Exit', short: 'Exit' });
-      return 'exit';
+      expect(config.choices?.find((choice) => isMenuChoice(choice) && choice.value === 'exit')).toBeUndefined();
+      expect(menuChoiceLabels(config)).not.toContain(command('Exit'));
+      return promptCancelled;
     });
 
-    await expect(selectCockpitTopLevelMenu({ select: prompt })).resolves.toEqual({
+    await expect(selectCockpitTopLevelMenu({ select: prompt, handleCancel })).resolves.toEqual({
       kind: 'exit',
     });
+    expect(handleCancel).toHaveBeenCalledWith(promptCancelled, 'exit');
   });
 });

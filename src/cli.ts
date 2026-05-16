@@ -57,6 +57,7 @@ import { checkForUpdate, installLatestPackage, isUpdateCheckSkipped, restartCli 
 import { packageName, packageVersion, renderVersion, renderVersionTag } from './version.js';
 import {
   environmentStatusJson,
+  type EnvironmentStatus,
   getEnvironmentStatus,
   renderEnvironmentStatusForTarget,
   renderEnvironmentStatusSummary,
@@ -226,16 +227,52 @@ function validateRepoName(value: string): string | undefined {
   return undefined;
 }
 
-async function showStartup(argv: string[], skipUpdateCheck: boolean): Promise<void> {
-  console.log(renderBanner());
+type StartupBannerDetails = (versionLine: string) => readonly string[];
+
+function startupVersionLine(latestVersion?: string): string {
+  return `v${packageVersion()}${latestVersion ? ` -> v${latestVersion} available` : ''}`;
+}
+
+function pluralize(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function renderStartupEnvironmentLine(status: EnvironmentStatus, versionLine: string): string {
+  if (status.kind !== 'environment') {
+    return `${versionLine} · ${renderEnvironmentStatusSummary(status)}`;
+  }
+
+  const issueCount = status.composeErrors.length + status.invalidSourceRepoPaths.length + status.missingCoreFiles.length;
+  const issueSuffix = issueCount > 0 ? ` · ${pluralize(issueCount, 'issue', 'issues')}` : '';
+
+  return [
+    versionLine,
+    `Odoo ${status.odooVersion}`,
+    pluralize(status.sourceRepoCount, 'repo', 'repos'),
+    pluralize(status.moduleCandidateCount, 'module', 'modules'),
+  ].join(' · ') + issueSuffix;
+}
+
+function renderStartupBanner(details?: StartupBannerDetails, latestVersion?: string): string {
+  return renderBanner(details?.(startupVersionLine(latestVersion)));
+}
+
+async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: StartupBannerDetails): Promise<void> {
   if (skipUpdateCheck) {
-    console.log(renderVersionTag());
+    console.log(renderStartupBanner(details));
+    if (!details) {
+      console.log(renderVersionTag());
+    }
     console.log();
     return;
   }
 
   const updateCheck = await checkForUpdate(packageName(), packageVersion());
-  console.log(renderVersionTag(updateCheck.status === 'update-available' ? updateCheck.latestVersion : undefined));
+  const latestVersion = updateCheck.status === 'update-available' ? updateCheck.latestVersion : undefined;
+  console.log(renderStartupBanner(details, latestVersion));
+  if (!details) {
+    console.log(renderVersionTag(latestVersion));
+  }
   if (updateCheck.status === 'update-available') {
     const shouldUpdate = await confirmPrompt({
       message: `Update to v.${updateCheck.latestVersion}? (Y/n)`,
@@ -1083,10 +1120,10 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
 
   const route = commandFromArgs(argv);
   if (route.command === 'menu') {
-    await showStartup(argv, skipUpdateCheck);
     const detection = await detectDevelopmentEnvironment(cwd);
 
     if (!detection.isEnvironment) {
+      await showStartup(argv, skipUpdateCheck);
       const resolvedOptions = await optionsFromPrompts();
       await ensureGitHubRepositories(resolvedOptions, true);
       await scaffold(resolvedOptions);
@@ -1095,11 +1132,10 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
       return;
     }
 
-    introPrompt('WPMoo Tool');
+    const initialStatus = await getEnvironmentStatus(cwd);
+    await showStartup(argv, skipUpdateCheck, (versionLine) => [renderStartupEnvironmentLine(initialStatus, versionLine)]);
     while (true) {
       try {
-        const status = await getEnvironmentStatus(cwd);
-        notePrompt(renderEnvironmentStatusSummary(status), 'Environment status');
         const command = await selectCockpitCommandFromMenu();
 
         if (command === 'exit') {

@@ -300,7 +300,10 @@ cp .env.example .env
 const BANNER_GRADIENT_START = [31, 151, 231] as const;
 const BANNER_GRADIENT_END = [209, 95, 127] as const;
 const ANSI_BOLD = '\u001B[1m';
+const ANSI_DIM = '\u001B[2m';
+const ANSI_INFO = '\u001B[38;2;139;166;190m';
 const ANSI_RESET = '\u001B[0m';
+const BANNER_DIVIDER_WIDTH = 40;
 
 function gradientColor(column: number, width: number): string {
   const ratio = width <= 1 ? 0 : column / (width - 1);
@@ -326,16 +329,11 @@ function applyBannerGradient(banner: string): string {
     .join('\n');
 }
 
-export function renderBanner(): string {
-  const banner = String.raw`
+export function renderBanner(details: readonly string[] = []): string {
+  const header = ['WPMoo', 'Workflow Platform · Micro Object Oriented', '─'.repeat(BANNER_DIVIDER_WIDTH)].join('\n');
+  const detailsBlock = details.length > 0 ? `\n${details.map((line) => `${ANSI_DIM}${ANSI_INFO}${line}${ANSI_RESET}`).join('\n')}` : '';
 
-╭────────────────────────────────────────────╮
-│ WPMoo                                      │
-│ Workflow Platform · Micro Object Oriented  │
-╰────────────────────────────────────────────╯
-`;
-
-  return `${ANSI_BOLD}${applyBannerGradient(banner)}${ANSI_RESET}`;
+  return `\n\n${ANSI_BOLD}${applyBannerGradient(header)}${ANSI_RESET}${detailsBlock}\n`;
 }
 
 export function renderGitignore(): string {
