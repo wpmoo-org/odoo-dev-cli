@@ -1,6 +1,6 @@
 {
   "name": "@wpmoo/odoo",
-  "version": "0.8.64",
+  "version": "0.8.65",
   "description": "WPMoo Odoo lifecycle tooling for development, staging, and production workflows.",
   "type": "module",
   "repository": {
