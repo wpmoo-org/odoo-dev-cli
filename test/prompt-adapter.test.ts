@@ -144,6 +144,29 @@ describe('prompt adapter', () => {
     expect(theme.style?.keysHelpTip?.([])).toBe('↑↓ navigate • ⏎ select • Esc to go back');
   });
 
+  it('renders hidden select navigation warnings above the bottom help text', async () => {
+    const select = vi.mocked(inquirerSelect);
+    select.mockResolvedValue('native');
+
+    const value = await selectPrompt({
+      message: 'Cockpit',
+      choices: ['native' as const],
+      hideMessage: true,
+      navigationWarning: 'Already in Cockpit. Press Ctrl+C to exit.',
+    });
+
+    expect(value).toBe('native');
+    const [promptArgs] = select.mock.calls[0];
+    const theme = promptArgs.theme as {
+      style?: {
+        keysHelpTip?: (keys: [key: string, action: string][]) => string;
+      };
+    };
+    expect(theme.style?.keysHelpTip?.([])).toBe(
+      '\u001B[38;2;226;184;96mAlready in Cockpit. Press Ctrl+C to exit.\u001B[39m\n↑↓ navigate • ⏎ select • Ctrl+C exit',
+    );
+  });
+
   it('creates prompt separators through the adapter', () => {
     const separator = promptSeparator('Services');
 

@@ -41,12 +41,14 @@ export type CockpitMenuSelectPrompt = (options: {
   loop?: boolean;
   hideMessage?: boolean;
   disabledError?: string;
+  navigationWarning?: string;
 }) => Promise<unknown>;
 
 type CockpitMenuDeps = {
   select?: CockpitMenuSelectPrompt;
   handleCancel?: (value: unknown, action: 'exit' | 'back') => void;
   serviceStatus?: ServiceRuntimeStatus;
+  navigationWarning?: string;
 };
 
 const categoryLabels: Record<CockpitCommandCategory, string> = {
@@ -195,6 +197,7 @@ export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): 
     loop: false,
     hideMessage: true,
     disabledError: disabledError(options.serviceStatus),
+    navigationWarning: options.navigationWarning,
   });
   deps.handleCancel(selected, cancelAction);
 

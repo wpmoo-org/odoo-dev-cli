@@ -552,6 +552,15 @@ describe('cli menu environment routes', () => {
       });
       expect(actionMenuCalls).toHaveLength(2);
       expect(writeSpy).toHaveBeenCalledWith('\u001B[2J\u001B[H');
+      const actionMenuOrders = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder.filter((_, index) => {
+        const options = vi.mocked(prompts.selectPrompt).mock.calls[index]?.[0] as { message?: string };
+        return options.message === 'Module: odoo_sample_module_base';
+      });
+      const runOrder = mocks.runDailyActionWithStyledOutput.mock.invocationCallOrder[0];
+      const clearBeforeSecondMenu = writeSpy.mock.invocationCallOrder.find(
+        (order) => order > runOrder && order < actionMenuOrders[1],
+      );
+      expect(clearBeforeSecondMenu).toBeDefined();
     } finally {
       writeSpy.mockRestore();
       Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalStdoutIsTTY });
@@ -592,10 +601,48 @@ describe('cli menu environment routes', () => {
       expect(moduleSelectionCalls).toHaveLength(2);
       expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith('Update module');
       expect(writeSpy).toHaveBeenCalledWith('\u001B[2J\u001B[H');
+      const moduleSelectionOrders = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder.filter((_, index) => {
+        const options = vi.mocked(prompts.selectPrompt).mock.calls[index]?.[0] as { options?: Array<{ value: string }> };
+        return options.options?.some((option) => option.value === 'odoo_sample_module_base');
+      });
+      const runOrder = mocks.runDailyActionWithStyledOutput.mock.invocationCallOrder[0];
+      const clearBeforeSecondSelection = writeSpy.mock.invocationCallOrder.find(
+        (order) => order > runOrder && order < moduleSelectionOrders[1],
+      );
+      expect(clearBeforeSecondSelection).toBeDefined();
     } finally {
       writeSpy.mockRestore();
       Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalStdoutIsTTY });
       Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalStdinIsTTY });
+    }
+  });
+
+  it('shows a bottom warning after three top-level Escape presses without clearing the cockpit', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    const { recordPromptCancelKey } = await import('../src/menu-navigation.js');
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as never);
+    vi.mocked(prompts.isPromptCancel).mockImplementation((value) => value === 'cancelled-top-level');
+    vi.mocked(prompts.selectPrompt).mockImplementation(async () => {
+      const callCount = vi.mocked(prompts.selectPrompt).mock.calls.length;
+      if (callCount <= 3) {
+        recordPromptCancelKey({ name: 'escape', sequence: '\u001B' });
+        return 'cancelled-top-level';
+      }
+      return 'exit';
+    });
+    const { runCli } = await loadCli();
+
+    try {
+      await runCli([], '/tmp/environment');
+
+      const warningConfigs = vi.mocked(prompts.selectPrompt).mock.calls.map((call) => {
+        return (call[0] as { navigationWarning?: string }).navigationWarning;
+      });
+      expect(warningConfigs.slice(0, 3)).toEqual([undefined, undefined, undefined]);
+      expect(warningConfigs[3]).toBe('Already in Cockpit. Press Ctrl+C to exit.');
+      expect(writeSpy).not.toHaveBeenCalledWith('\u001B[2J\u001B[H');
+    } finally {
+      writeSpy.mockRestore();
     }
   });
 

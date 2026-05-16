@@ -362,6 +362,8 @@ function renderBackHelp(): string {
   return ansi('Esc to go back', ANSI_DIM_INFO, ANSI_RESET);
 }
 
+const COCKPIT_ESCAPE_WARNING = 'Already in Cockpit. Press Ctrl+C to exit.';
+
 async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: StartupBannerDetails): Promise<void> {
   if (skipUpdateCheck) {
     console.log(renderStartupBanner(details));
@@ -402,8 +404,11 @@ async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: S
   console.log();
 }
 
-async function selectCockpitCommandFromMenu(serviceStatus: ServiceRuntimeStatus): Promise<CockpitCommand | 'exit'> {
-  const selection = await selectCockpitTopLevelMenu({ serviceStatus });
+async function selectCockpitCommandFromMenu(
+  serviceStatus: ServiceRuntimeStatus,
+  navigationWarning?: string,
+): Promise<CockpitCommand | 'exit'> {
+  const selection = await selectCockpitTopLevelMenu({ serviceStatus, navigationWarning });
 
   if (selection.kind === 'exit') {
     return 'exit';
@@ -1385,16 +1390,21 @@ function dailyActionSelectedLabel(command: DailyActionCommand, argv: readonly st
 }
 
 async function renderDailyActionResultPageHeader(title: string, selectedLabel: string | undefined, cwd: string): Promise<void> {
+  await renderCockpitSubmenuPage(title, cwd);
+  if (selectedLabel) {
+    console.log(renderActionText(selectedLabel));
+    console.log('');
+  }
+}
+
+async function renderCockpitSubmenuPage(title: string, cwd: string): Promise<void> {
   const status = await getEnvironmentStatus(cwd);
   const serviceStatus = await getServiceRuntimeStatus(cwd, status);
 
   clearCockpitScreen();
   console.log(renderBanner(renderCockpitStatusLines(status, serviceStatus, `Last: ${title}`), { version: startupVersionLine() }));
+  console.log();
   introPrompt(title);
-  if (selectedLabel) {
-    console.log(renderActionText(selectedLabel));
-    console.log('');
-  }
 }
 
 async function waitForModuleActionBack(): Promise<boolean> {
@@ -1517,7 +1527,7 @@ async function runCockpitDailyCommand(command: CockpitCommand, cwd: string): Pro
   while (true) {
     let argv: string[];
     try {
-      introPrompt(command.label);
+      await renderCockpitSubmenuPage(command.label, cwd);
       argv = await collectDailyActionArgs(dailyCommand, cwd);
     } catch (error) {
       if (isMenuBackSignal(error)) {
@@ -1540,7 +1550,7 @@ async function runCockpitDailyCommand(command: CockpitCommand, cwd: string): Pro
 
 async function runListModulesCommand(cwd: string): Promise<void> {
   while (true) {
-    introPrompt('List modules');
+    await renderCockpitSubmenuPage('List modules', cwd);
     const selectedModule = await selectModuleFromBrowser(cwd);
     if (!selectedModule) {
       notePrompt(
@@ -1553,6 +1563,9 @@ async function runListModulesCommand(cwd: string): Promise<void> {
     while (true) {
       let moduleAction: ModuleActionId | undefined;
       try {
+        await renderCockpitSubmenuPage('List modules', cwd);
+        console.log(renderActionText(selectedModule.moduleName));
+        console.log('');
         moduleAction = await selectModuleAction(selectedModule);
       } catch (error) {
         if (isMenuBackSignal(error)) {
@@ -1676,10 +1689,19 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     let lastStatus = 'Last: Ready';
     let status = await getEnvironmentStatus(cwd);
     let serviceStatus = await getServiceRuntimeStatus(cwd, status);
+    let topLevelEscapeCount = 0;
+    let topLevelNavigationWarning: string | undefined;
     await showStartup(argv, skipUpdateCheck, () => renderCockpitStatusLines(status, serviceStatus, lastStatus));
+    const renderCockpitMenuShell = () => {
+      clearCockpitScreen();
+      console.log(renderBanner(renderCockpitStatusLines(status, serviceStatus, lastStatus), { version: startupVersionLine() }));
+      console.log();
+    };
     while (true) {
       try {
-        const command = await selectCockpitCommandFromMenu(serviceStatus);
+        const command = await selectCockpitCommandFromMenu(serviceStatus, topLevelNavigationWarning);
+        topLevelEscapeCount = 0;
+        topLevelNavigationWarning = undefined;
 
         if (command === 'exit') {
           return;
@@ -1691,6 +1713,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
           outcome = await runCockpitCommand(command, cwd);
         } catch (error) {
           if (isMenuBackSignal(error)) {
+            renderCockpitMenuShell();
             continue;
           }
           commandFailed = true;
@@ -1704,11 +1727,11 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
         }
         status = await getEnvironmentStatus(cwd);
         serviceStatus = await getServiceRuntimeStatus(cwd, status);
-        clearCockpitScreen();
-        console.log(renderBanner(renderCockpitStatusLines(status, serviceStatus, lastStatus), { version: startupVersionLine() }));
-        console.log();
+        renderCockpitMenuShell();
       } catch (error) {
         if (isMenuBackSignal(error)) {
+          topLevelEscapeCount += 1;
+          topLevelNavigationWarning = topLevelEscapeCount >= 3 ? COCKPIT_ESCAPE_WARNING : undefined;
           continue;
         }
         throw error;

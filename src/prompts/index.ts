@@ -30,6 +30,7 @@ export type SelectPromptOptions<T> =
       hideMessage?: boolean;
       disabledError?: string;
       navigationHelp?: SelectNavigationHelp;
+      navigationWarning?: string;
     }
   | {
       message: string;
@@ -40,6 +41,7 @@ export type SelectPromptOptions<T> =
       hideMessage?: boolean;
       disabledError?: string;
       navigationHelp?: SelectNavigationHelp;
+      navigationWarning?: string;
     };
 export type TextPromptOptions = {
   message: string;
@@ -82,6 +84,7 @@ type HideableSelectPromptConfig<T> = InquirerSelectPromptConfig<T> & {
   hideMessage?: boolean;
   disabledError?: string;
   navigationHelp?: SelectNavigationHelp;
+  navigationWarning?: string;
 };
 type PromptContext = {
   signal: AbortSignal;
@@ -197,6 +200,7 @@ function asInquirerSelectConfig<T>(
     hideMessage?: boolean;
     disabledError?: string;
     navigationHelp?: SelectNavigationHelp;
+    navigationWarning?: string;
   },
 ): HideableSelectPromptConfig<T> {
   return {
@@ -212,14 +216,17 @@ function asInquirerSelectConfig<T>(
     hideMessage: options.hideMessage,
     disabledError: options.disabledError,
     navigationHelp: options.navigationHelp,
+    navigationWarning: options.navigationWarning,
   };
 }
 
 function hiddenSelectTheme<T>(
   disabledError?: string,
   navigationHelp: SelectNavigationHelp = 'exit',
+  navigationWarning?: string,
 ): InquirerSelectPromptConfig<T>['theme'] {
   const keysHelpTip = navigationHelp === 'back' ? '↑↓ navigate • ⏎ select • Esc to go back' : '↑↓ navigate • ⏎ select • Ctrl+C exit';
+  const renderedWarning = navigationWarning ? `\u001B[38;2;226;184;96m${navigationWarning}\u001B[39m` : undefined;
 
   return {
     prefix: '',
@@ -230,7 +237,7 @@ function hiddenSelectTheme<T>(
       message: () => '',
       highlight: (text: string) => text,
       disabled: (text: string) => styleText('dim', text.replace(/ \(disabled\)$/u, ''), { validateStream: false }),
-      keysHelpTip: () => keysHelpTip,
+      keysHelpTip: () => (renderedWarning ? `${renderedWarning}\n${keysHelpTip}` : keysHelpTip),
     },
     i18n: disabledError ? { disabledError } : undefined,
   };
@@ -245,12 +252,13 @@ function withHiddenSelectMessage<T>(config: HideableSelectPromptConfig<T>): Inqu
     disabledError,
     hideMessage: _hideMessage,
     navigationHelp,
+    navigationWarning,
     ...inquirerConfig
   } = config;
   return {
     ...inquirerConfig,
     message: '',
-    theme: hiddenSelectTheme<T>(disabledError, navigationHelp),
+    theme: hiddenSelectTheme<T>(disabledError, navigationHelp, navigationWarning),
   };
 }
 
