@@ -222,7 +222,10 @@ describe('cli menu environment routes', () => {
     expect(mocks.removeModuleFromSourceRepo).not.toHaveBeenCalled();
     expect(mocks.safeResetEnvironment).not.toHaveBeenCalled();
     expect(mocks.getEnvironmentStatus).toHaveBeenCalledWith('/tmp/environment');
-    expect(mocks.renderBanner).toHaveBeenCalledWith([`v${packageVersion()} · Odoo 19.0 · 1 repo · 0 modules`]);
+    expect(mocks.renderBanner).toHaveBeenCalledWith(
+      ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Ready'],
+      { version: `v${packageVersion()}` },
+    );
     expect(mocks.renderEnvironmentStatusSummary).not.toHaveBeenCalled();
     expect(vi.mocked(prompts.introPrompt)).not.toHaveBeenCalledWith('WPMoo Tool');
     expect(vi.mocked(prompts.notePrompt)).not.toHaveBeenCalledWith('Status summary', 'Environment status');
@@ -266,6 +269,11 @@ describe('cli menu environment routes', () => {
       initEmptyRepos: true,
       stage: true,
     });
+    expect(mocks.renderBanner).toHaveBeenNthCalledWith(
+      2,
+      ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Add source repo ✓ completed'],
+      { version: `v${packageVersion()}` },
+    );
   });
 
   it('routes remove-repo and calls removeModuleRepo with selected repository', async () => {

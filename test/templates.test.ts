@@ -295,23 +295,28 @@ describe('template rendering', () => {
 
     expect(plainBanner).toBe(
       [
-        'WPMoo',
+        'WPMoo Toolkit',
         'Workflow Platform · Micro Object Oriented',
+        'Development, staging, and production workflows for Odoo projects.',
         '────────────────────────────────────────',
       ].join('\n'),
     );
   });
 
-  it('renders startup details below the unboxed banner divider', () => {
-    const banner = renderBanner(['v0.8.69 · Odoo 19.0 · 1 repo · 0 modules']);
+  it('renders startup version in the title and status details below the divider', () => {
+    const banner = renderBanner(['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Ready'], {
+      version: 'v0.8.69',
+    });
     const plainBanner = banner.replace(/\u001B\[[0-9;]*m/g, '').trim();
 
     expect(plainBanner).toBe(
       [
-        'WPMoo',
+        'WPMoo Toolkit  v0.8.69',
         'Workflow Platform · Micro Object Oriented',
+        'Development, staging, and production workflows for Odoo projects.',
         '────────────────────────────────────────',
-        'v0.8.69 · Odoo 19.0 · 1 repo · 0 modules',
+        'Environment: Odoo 19.0 · 1 repo · 0 modules',
+        'Last: Ready',
       ].join('\n'),
     );
   });

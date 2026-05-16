@@ -156,7 +156,7 @@ describe('cockpit top-level menu', () => {
     }
   });
 
-  it('reserves 23 startup banner and status rows when sizing the top-level menu', async () => {
+  it('reserves compact startup rows when sizing the top-level menu', async () => {
     const startCommand = cockpitCommands.find((command) => command.id === 'start');
     expect(startCommand).toBeDefined();
     const originalRows = process.stdout.rows;
@@ -166,7 +166,7 @@ describe('cockpit top-level menu', () => {
       const config = options as MenuPromptConfig;
 
       expect(config.choices?.length).toBeGreaterThan(20);
-      expect(config.pageSize).toBe(8);
+      expect(config.pageSize).toBe(19);
       return startCommand;
     });
 

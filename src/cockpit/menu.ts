@@ -108,7 +108,7 @@ const topLevelChoices: readonly (CockpitMenuChoice | PromptSeparator)[] = [
 ] as const;
 
 const minimumTopLevelPageSize = 8;
-const startupViewportReservedRows = 23;
+const startupViewportReservedRows = 11;
 
 function topLevelPageSize(choiceCount: number): number {
   const terminalRows = process.stdout.rows;

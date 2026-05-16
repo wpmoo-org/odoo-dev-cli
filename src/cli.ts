@@ -237,24 +237,38 @@ function pluralize(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function renderStartupEnvironmentLine(status: EnvironmentStatus, versionLine: string): string {
+function renderStartupEnvironmentLine(status: EnvironmentStatus): string {
   if (status.kind !== 'environment') {
-    return `${versionLine} · ${renderEnvironmentStatusSummary(status)}`;
+    return `Environment: ${renderEnvironmentStatusSummary(status)}`;
   }
 
   const issueCount = status.composeErrors.length + status.invalidSourceRepoPaths.length + status.missingCoreFiles.length;
   const issueSuffix = issueCount > 0 ? ` · ${pluralize(issueCount, 'issue', 'issues')}` : '';
 
   return [
-    versionLine,
-    `Odoo ${status.odooVersion}`,
+    `Environment: Odoo ${status.odooVersion}`,
     pluralize(status.sourceRepoCount, 'repo', 'repos'),
     pluralize(status.moduleCandidateCount, 'module', 'modules'),
   ].join(' · ') + issueSuffix;
 }
 
 function renderStartupBanner(details?: StartupBannerDetails, latestVersion?: string): string {
-  return renderBanner(details?.(startupVersionLine(latestVersion)));
+  const versionLine = startupVersionLine(latestVersion);
+  return renderBanner(details?.(versionLine), details ? { version: versionLine } : undefined);
+}
+
+function renderCockpitStatusLines(status: EnvironmentStatus, lastStatus: string): string[] {
+  return [renderStartupEnvironmentLine(status), lastStatus];
+}
+
+function renderLastCommandStatus(command: CockpitCommand): string {
+  return `Last: ${command.label} ✓ completed`;
+}
+
+function clearCockpitScreen(): void {
+  if (process.stdout.isTTY) {
+    process.stdout.write('\u001B[2J\u001B[H');
+  }
 }
 
 async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: StartupBannerDetails): Promise<void> {
@@ -1132,8 +1146,9 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
       return;
     }
 
+    let lastStatus = 'Last: Ready';
     const initialStatus = await getEnvironmentStatus(cwd);
-    await showStartup(argv, skipUpdateCheck, (versionLine) => [renderStartupEnvironmentLine(initialStatus, versionLine)]);
+    await showStartup(argv, skipUpdateCheck, () => renderCockpitStatusLines(initialStatus, lastStatus));
     while (true) {
       try {
         const command = await selectCockpitCommandFromMenu();
@@ -1146,6 +1161,10 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
         if (outcome === 'exit') {
           return;
         }
+        lastStatus = renderLastCommandStatus(command);
+        const status = await getEnvironmentStatus(cwd);
+        clearCockpitScreen();
+        console.log(renderBanner(renderCockpitStatusLines(status, lastStatus), { version: startupVersionLine() }));
       } catch (error) {
         if (isMenuBackSignal(error)) {
           continue;

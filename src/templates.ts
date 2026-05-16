@@ -305,6 +305,10 @@ const ANSI_INFO = '\u001B[38;2;139;166;190m';
 const ANSI_RESET = '\u001B[0m';
 const BANNER_DIVIDER_WIDTH = 40;
 
+type BannerOptions = {
+  version?: string;
+};
+
 function gradientColor(column: number, width: number): string {
   const ratio = width <= 1 ? 0 : column / (width - 1);
   const [startR, startG, startB] = BANNER_GRADIENT_START;
@@ -318,22 +322,32 @@ function gradientColor(column: number, width: number): string {
 
 function applyBannerGradient(banner: string): string {
   const lines = banner.split('\n');
-  const width = Math.max(...lines.map((line) => line.length));
 
   return lines
-    .map((line) =>
-      Array.from(line)
+    .map((line) => {
+      const width = line.length;
+      return Array.from(line)
         .map((character, column) => `${gradientColor(column, width)}${character}`)
-        .join(''),
-    )
+        .join('');
+    })
     .join('\n');
 }
 
-export function renderBanner(details: readonly string[] = []): string {
-  const header = ['WPMoo', 'Workflow Platform · Micro Object Oriented', '─'.repeat(BANNER_DIVIDER_WIDTH)].join('\n');
-  const detailsBlock = details.length > 0 ? `\n${details.map((line) => `${ANSI_DIM}${ANSI_INFO}${line}${ANSI_RESET}`).join('\n')}` : '';
+function renderDimInfo(value: string): string {
+  return `${ANSI_DIM}${ANSI_INFO}${value}${ANSI_RESET}`;
+}
 
-  return `\n\n${ANSI_BOLD}${applyBannerGradient(header)}${ANSI_RESET}${detailsBlock}\n`;
+export function renderBanner(details: readonly string[] = [], options: BannerOptions = {}): string {
+  const title = `${applyBannerGradient('WPMoo Toolkit')}${options.version ? `  ${renderDimInfo(options.version)}` : ''}`;
+  const header = [
+    title,
+    applyBannerGradient('Workflow Platform · Micro Object Oriented'),
+    renderDimInfo('Development, staging, and production workflows for Odoo projects.'),
+    applyBannerGradient('─'.repeat(BANNER_DIVIDER_WIDTH)),
+  ].join('\n');
+  const detailsBlock = details.length > 0 ? `\n${details.map((line) => renderDimInfo(line)).join('\n')}` : '';
+
+  return `\n${ANSI_BOLD}${header}${ANSI_RESET}${detailsBlock}`;
 }
 
 export function renderGitignore(): string {
