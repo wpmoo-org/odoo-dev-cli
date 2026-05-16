@@ -7,6 +7,7 @@ describe('package metadata', () => {
     const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
       name: string;
       version: string;
+      description: string;
       readmeFilename: string;
       repository: { type: string; url: string };
       files: string[];
@@ -20,6 +21,9 @@ describe('package metadata', () => {
 
     expect(packageJson.name).toBe('@wpmoo/odoo');
     expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(packageJson.description).toBe(
+      'WPMoo Tool for Odoo development, staging, and production lifecycle workflows.',
+    );
     expect(packageJson.readmeFilename).toBe('README.md');
     expect(packageJson.repository).toMatchObject({
       type: 'git',

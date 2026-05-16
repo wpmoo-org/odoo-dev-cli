@@ -1,7 +1,7 @@
 export function renderHelp(): string {
   return `@wpmoo/odoo
 
-WPMoo Odoo lifecycle tooling.
+WPMoo Tool for Odoo lifecycle workflows.
 
 Usage:
   npx @wpmoo/odoo

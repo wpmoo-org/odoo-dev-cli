@@ -1,19 +1,21 @@
-![WPMoo Odoo development workflow tooling](docs/assets/wpmoo-banner.png)
+![WPMoo Tool for Odoo development workflows](docs/assets/wpmoo-banner.png)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml) [![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![npm](https://img.shields.io/npm/v/@wpmoo/odoo?label=npm&logo=npm&style=flat-square&color=blue)](https://www.npmjs.com/package/@wpmoo/odoo) [![coverage](https://img.shields.io/codecov/c/github/wpmoo-org/wpmoo-odoo?branch=main&label=coverage&logo=codecov&style=flat-square&color=blue)](https://codecov.io/gh/wpmoo-org/wpmoo-odoo) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE) [![Odoo Tool](https://img.shields.io/badge/Odoo-Tool-714B67?style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=000000&style=flat-square)](https://www.buymeacoffee.com/cangir) [![Patreon](https://img.shields.io/badge/Patreon-Support-F96854?logo=patreon&logoColor=white&style=flat-square)](https://www.patreon.com/wpmoo)
+[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml) [![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![npm](https://img.shields.io/npm/v/@wpmoo/odoo?label=npm&logo=npm&style=flat-square&color=blue)](https://www.npmjs.com/package/@wpmoo/odoo) [![coverage](https://img.shields.io/codecov/c/github/wpmoo-org/wpmoo-odoo?branch=main&label=coverage&logo=codecov&style=flat-square&color=blue)](https://codecov.io/gh/wpmoo-org/wpmoo-odoo) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE) [![WPMoo Tool](https://img.shields.io/badge/WPMoo-Tool-714B67?style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=000000&style=flat-square)](https://www.buymeacoffee.com/cangir) [![Patreon](https://img.shields.io/badge/Patreon-Support-F96854?logo=patreon&logoColor=white&style=flat-square)](https://www.patreon.com/wpmoo)
 
-# WPMoo Odoo
+# WPMoo Tool
 
-WPMoo Odoo is a development-first CLI for creating and operating Docker Compose based Odoo environments with source repositories managed as Git submodules.
+WPMoo Tool is a development-first CLI for creating and operating Docker Compose based environments for Odoo, with source repositories managed as Git submodules.
 
 It gives Odoo teams a repeatable environment layout, a guided cockpit for daily work, direct commands for automation, and recovery tools that refresh generated files without touching product source code.
+
+WPMoo Tool is an independent project and is not affiliated with, endorsed by, or sponsored by Odoo S.A. Odoo is a trademark of Odoo S.A.
 
 ## Development Status
 
 > [!IMPORTANT]
-> **Pre-1.0 active development:** WPMoo Odoo has not reached `1.0.0` yet. Until the `1.0.0` release, use it as a preview tool for evaluation, local trials, and feedback rather than a dependency for critical production workflows. Setup conventions and command behavior may still change between pre-1.0 releases.
+> **Pre-1.0 active development:** WPMoo Tool has not reached `1.0.0` yet. Until the `1.0.0` release, use it as a preview tool for evaluation, local trials, and feedback rather than a dependency for critical production workflows. Setup conventions and command behavior may still change between pre-1.0 releases.
 
-## Why WPMoo Odoo
+## Why WPMoo Tool
 
 - Create a local Odoo development environment from a dev repository and one or more source repositories.
 - Keep product source repositories under `odoo/custom/src/private`, `odoo/custom/src/oca`, or `odoo/custom/src/external` as Git submodules pinned to the selected Odoo branch.
@@ -423,7 +425,7 @@ npx @wpmoo/odoo doctor --fix
 
 ## External Resources
 
-WPMoo Odoo keeps the package small by copying external resources into generated environments:
+WPMoo Tool keeps the package small by copying external resources into generated environments:
 
 ```text
 gh:wpmoo-org/odoo-docker-compose

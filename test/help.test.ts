@@ -8,6 +8,16 @@ const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 const readmeText = readme.replace(/\s+/g, ' ');
 
 describe('help', () => {
+  it('uses WPMoo Tool as the visible product brand', () => {
+    const output = renderHelp();
+
+    expect(output).toContain('WPMoo Tool for Odoo lifecycle workflows.');
+    expect(readme).toContain('# WPMoo Tool');
+    expect(readme).toContain(
+      'WPMoo Tool is an independent project and is not affiliated with, endorsed by, or sponsored by Odoo S.A.',
+    );
+  });
+
   it('includes status in usage', () => {
     const output = renderHelp();
 

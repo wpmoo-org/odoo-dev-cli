@@ -1100,7 +1100,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
       return;
     }
 
-    intro('WPMoo Odoo Dev');
+    intro('WPMoo Tool');
     while (true) {
       try {
         const status = await getEnvironmentStatus(cwd);

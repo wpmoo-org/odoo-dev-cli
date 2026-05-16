@@ -165,7 +165,7 @@ describe('daily actions', () => {
     await writeFile(join(target, 'scripts/logs.sh'), '#!/usr/bin/env bash\n');
 
     await expect(dailyActionPlan('logs', [], target)).rejects.toThrow(
-      'Daily actions must be run from a WPMoo Odoo environment root containing .wpmoo/odoo.json.',
+      'Daily actions must be run from a WPMoo Tool environment root containing .wpmoo/odoo.json.',
     );
   });
 
