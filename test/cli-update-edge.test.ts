@@ -207,7 +207,7 @@ describe('cli startup update edge branches', () => {
     mocks.getGitHubAccounts.mockResolvedValue([{ login: 'example-org', type: 'user' }]);
   });
 
-  it('continues prompt create when accepted update install fails', async () => {
+  it('continues prompt create when accepted update restart fails', async () => {
     mockCreatePrompts();
     mocks.checkForUpdate.mockResolvedValue({
       status: 'update-available',
@@ -216,14 +216,15 @@ describe('cli startup update edge branches', () => {
       tarball: 'https://registry.example.com/pkg.tgz',
     });
     mocks.confirm.mockResolvedValueOnce(true);
-    mocks.installLatestPackage.mockRejectedValueOnce(new Error('npm install failed'));
+    mocks.restartCli.mockRejectedValueOnce(new Error('npm exec failed'));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { runCli } = await loadCli();
 
     await runCli([], '/tmp/workspace');
 
-    expect(mocks.installLatestPackage).toHaveBeenCalledWith('@wpmoo/toolkit', '9.9.9');
-    expect(warnSpy).toHaveBeenCalledWith('Update failed: npm install failed. Continuing with v.0.0.0-test.');
+    expect(mocks.installLatestPackage).not.toHaveBeenCalled();
+    expect(mocks.restartCli).toHaveBeenCalledWith('@wpmoo/toolkit', '9.9.9', []);
+    expect(warnSpy).toHaveBeenCalledWith('Update failed: npm exec failed. Continuing with v.0.0.0-test.');
     expect(mocks.scaffold).toHaveBeenCalledTimes(1);
   });
 
@@ -242,7 +243,7 @@ describe('cli startup update edge branches', () => {
 
     await runCli([], '/tmp/workspace');
 
-    expect(mocks.installLatestPackage).toHaveBeenCalledWith('@wpmoo/toolkit', '9.9.9');
+    expect(mocks.installLatestPackage).not.toHaveBeenCalled();
     expect(mocks.restartCli).toHaveBeenCalledWith('@wpmoo/toolkit', '9.9.9', []);
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(mocks.scaffold).toHaveBeenCalledTimes(1);

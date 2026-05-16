@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   checkForUpdate,
   compareVersions,
-  installLatestPackage,
   isUpdateCheckSkipped,
   packageSpec,
   restartEnvironment,
@@ -157,14 +156,6 @@ describe('update check', () => {
       'wpmoo',
       '--foo',
     ]);
-  });
-
-  it('installs a specific package version globally', async () => {
-    const runner = npmRunner('');
-
-    await installLatestPackage('@wpmoo/toolkit', '0.8.44', runner);
-
-    expect(runner.calls).toEqual([['install', '-g', '@wpmoo/toolkit@0.8.44']]);
   });
 
   it('skips update checks only for explicit opt outs and updater restarts', () => {

@@ -121,14 +121,6 @@ export function packageSpec(packageName: string, version: string): string {
   return `${packageName}@${version}`;
 }
 
-export async function installLatestPackage(
-  packageName: string,
-  version: string,
-  runner: NpmRunner = realNpm,
-): Promise<void> {
-  await runner.run(['install', '-g', packageSpec(packageName, version)]);
-}
-
 export function restartArgs(packageName: string, version: string, argv: string[]): string[] {
   return ['exec', '--yes', '--package', packageSpec(packageName, version), '--', 'wpmoo', ...argv];
 }

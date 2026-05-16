@@ -53,7 +53,7 @@ import { scaffold } from './scaffold.js';
 import { confirmPrompt, introPrompt, isPromptCancel, notePrompt, outroPrompt, selectPrompt, textPrompt } from './prompts/index.js';
 import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo, SourceRepoType } from './types.js';
-import { checkForUpdate, installLatestPackage, isUpdateCheckSkipped, restartCli } from './update-check.js';
+import { checkForUpdate, isUpdateCheckSkipped, restartCli } from './update-check.js';
 import { packageName, packageVersion, renderVersion, renderVersionTag } from './version.js';
 import {
   environmentStatusJson,
@@ -297,7 +297,6 @@ async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: S
     handleCancel(shouldUpdate, 'exit');
     if (shouldUpdate) {
       try {
-        await installLatestPackage(packageName(), updateCheck.latestVersion);
         const code = await restartCli(packageName(), updateCheck.latestVersion, argv);
         if (code === 0) {
           process.exit(0);
