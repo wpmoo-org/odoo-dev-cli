@@ -50,7 +50,7 @@ jobs:
             exit 1
           fi
 
-      - name: Check package version
+      - name: Check required package publish state
         run: |
           VERSION="$(node -p "require('./package.json').version")"
           package_specs=(
@@ -60,9 +60,9 @@ jobs:
           )
           for spec in "${package_specs[@]}"; do
             if npm view "$spec" version >/dev/null 2>&1; then
-              echo "$spec already exists on npm."
-              echo "Bump package.json and package-lock.json before publishing."
-              exit 1
+              echo "$spec already exists on npm; publish step will skip it."
+            else
+              echo "$spec is not published yet."
             fi
           done
 
@@ -74,14 +74,43 @@ jobs:
           npm pack --dry-run ./packages/odoo-dev-compat
 
       - name: Publish toolkit to npm
-        run: npm publish --access public
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          spec="@wpmoo/toolkit@$VERSION"
+          if npm view "$spec" version >/dev/null 2>&1; then
+            echo "$spec already exists on npm; skipping publish."
+          else
+            npm publish --access public
+          fi
 
       - name: Publish @wpmoo/odoo alias to npm
-        run: npm publish --access public ./packages/odoo-compat
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          spec="@wpmoo/odoo@$VERSION"
+          if npm view "$spec" version >/dev/null 2>&1; then
+            echo "$spec already exists on npm; skipping publish."
+          else
+            npm publish --access public ./packages/odoo-compat
+          fi
 
       - name: Publish @wpmoo/odoo-dev alias to npm
-        run: npm publish --access public ./packages/odoo-dev-compat
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          spec="@wpmoo/odoo-dev@$VERSION"
+          if npm view "$spec" version >/dev/null 2>&1; then
+            echo "$spec already exists on npm; skipping publish."
+          else
+            npm publish --access public ./packages/odoo-dev-compat
+          fi
 
       - name: Publish wpmoo short alias to npm
-        continue-on-error: true
-        run: npm publish --access public ./packages/wpmoo
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          spec="wpmoo@$VERSION"
+          if npm view "$spec" version >/dev/null 2>&1; then
+            echo "$spec already exists on npm; skipping publish."
+          elif npm publish --access public ./packages/wpmoo; then
+            echo "$spec published."
+          else
+            echo "::warning title=Optional wpmoo alias not published::The wpmoo short alias could not be published. Scoped packages remain the supported release artifacts."
+          fi
