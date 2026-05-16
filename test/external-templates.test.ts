@@ -5,6 +5,7 @@ import {
   composeTemplateOptions,
   defaultPostgresVersion,
   plannedExternalAssetOptions,
+  renderComposeEnvExample,
 } from '../src/external-templates.js';
 import type { ScaffoldOptions } from '../src/types.js';
 
@@ -62,5 +63,13 @@ describe('external template helpers', () => {
       agentSkillsTemplateUrl: 'gh:wpmoo-org/odoo-skills',
     };
     expect(plannedExternalAssetOptions(withAgentSkills)).toHaveLength(2);
+  });
+
+  it('documents compose safety controls in the generated env example', () => {
+    const envExample = renderComposeEnvExample(baseOptions);
+
+    expect(envExample).toContain('WPMOO_ENV=dev');
+    expect(envExample).toContain('WPMOO_SNAPSHOT_RETENTION_COUNT=0');
+    expect(envExample).toContain('WPMOO_ALLOW_DESTRUCTIVE=1');
   });
 });

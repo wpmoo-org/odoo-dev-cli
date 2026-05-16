@@ -162,6 +162,7 @@ npx @wpmoo/odoo pot sale devel i18n/sale.pot
 
 npx @wpmoo/odoo resetdb devel sale
 npx @wpmoo/odoo snapshot devel before-update
+npx @wpmoo/odoo restore-snapshot --dry-run before-update devel
 npx @wpmoo/odoo restore-snapshot before-update devel
 ```
 
@@ -229,9 +230,16 @@ cp .env.example .env
 ./moo pot sale devel i18n/sale.pot
 
 ./moo snapshot devel before-update
+./moo restore-snapshot --dry-run before-update devel
 ./moo restore-snapshot before-update devel
 ./moo resetdb devel sale
 ```
+
+`restore-snapshot --dry-run` validates the selected snapshot and prints the
+restore plan without changing the database or filestore. Generated environments
+also support `WPMOO_SNAPSHOT_RETENTION_COUNT` for pruning old snapshot files.
+When `WPMOO_ENV=stage` or `WPMOO_ENV=prod`, destructive database actions such
+as `resetdb` and real `restore-snapshot` require `WPMOO_ALLOW_DESTRUCTIVE=1`.
 
 Use `npx @wpmoo/odoo ...` for package/operator commands such as `create`, `add-repo`, `remove-repo`, `add-module`, `remove-module`, `status`, `doctor`, and `reset`. Use `./moo ...` inside a generated environment for local daily Compose commands.
 
@@ -387,6 +395,7 @@ Recommended recovery pattern:
 npx @wpmoo/odoo reset --dry-run
 npx @wpmoo/odoo reset
 npx @wpmoo/odoo doctor --fix
+./moo restore-snapshot --dry-run before-reset devel
 ./moo restore-snapshot before-reset devel
 ```
 

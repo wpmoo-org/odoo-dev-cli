@@ -43,6 +43,7 @@ describe('help', () => {
     expect(output).toContain('Run tests:');
     expect(output).toContain('Safe reset and recover:');
     expect(output).toContain('npx @wpmoo/odoo reset --dry-run');
+    expect(output).toContain('npx @wpmoo/odoo restore-snapshot --dry-run <snapshot-name> [db]');
     expect(output).toContain('Daily command checks:');
   });
 

@@ -66,7 +66,7 @@ function usage(command: DailyActionCommand): string {
   if (command === 'test') return 'Usage: wpmoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]';
   if (command === 'resetdb') return 'Usage: wpmoo resetdb [db] [module[,module]]';
   if (command === 'snapshot') return 'Usage: wpmoo snapshot [db] [snapshot-name]';
-  if (command === 'restore-snapshot') return 'Usage: wpmoo restore-snapshot <snapshot-name> [db]';
+  if (command === 'restore-snapshot') return 'Usage: wpmoo restore-snapshot [--dry-run] <snapshot-name> [db]';
   if (command === 'lint') return 'Usage: wpmoo lint';
   return 'Usage: wpmoo pot <module[,module]> [db] [output]';
 }
@@ -93,6 +93,20 @@ function positionalArgs(command: DailyActionCommand, argv: string[], min: number
   }
 
   return argv;
+}
+
+function restoreSnapshotArgs(argv: string[]): string[] {
+  const args = [...argv];
+  const dryRun = args[0] === '--dry-run';
+  if (dryRun) {
+    args.shift();
+  }
+
+  if (args.length < 1 || args.length > 2 || args.some((arg) => arg.startsWith('-'))) {
+    throw new Error(usage('restore-snapshot'));
+  }
+
+  return dryRun ? ['--dry-run', ...args] : args;
 }
 
 function testArgs(argv: string[]): string[] {
@@ -125,7 +139,7 @@ function scriptArgs(command: DailyActionCommand, argv: string[]): string[] {
   if (command === 'test') return testArgs(argv);
   if (command === 'resetdb') return positionalArgs(command, argv, 0, 2);
   if (command === 'snapshot') return positionalArgs(command, argv, 0, 2);
-  if (command === 'restore-snapshot') return positionalArgs(command, argv, 1, 2);
+  if (command === 'restore-snapshot') return restoreSnapshotArgs(argv);
   if (command === 'lint') return ensureNoArgs(command, argv);
   return positionalArgs(command, argv, 1, 3);
 }

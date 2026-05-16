@@ -148,6 +148,7 @@ describe('template rendering', () => {
     expect(script).toContain('"snapshot")');
     expect(script).toContain('./scripts/snapshot.sh');
     expect(script).toContain('"restore-snapshot")');
+    expect(script).toContain('Usage: ./moo restore-snapshot [--dry-run] <snapshot-name> [db]');
     expect(script).toContain('./scripts/restore-snapshot.sh');
     expect(script).toContain('"lint")');
     expect(script).toContain('./scripts/lint.sh');
@@ -196,7 +197,7 @@ describe('template rendering', () => {
     const env = { ...process.env, PATH: `${join(target, 'bin')}:${process.env.PATH ?? ''}` };
     await execa(join(target, 'moo'), ['start'], { env });
     await execa(join(target, 'moo'), ['restart'], { env });
-    await execa(join(target, 'moo'), ['restore-snapshot', 'before-update', 'devel'], { env });
+    await execa(join(target, 'moo'), ['restore-snapshot', '--dry-run', 'before-update', 'devel'], { env });
     await execa(join(target, 'moo'), ['pot', 'sale,stock', 'devel', 'i18n/sale.pot'], { env });
     await execa(join(target, 'moo'), ['doctor'], { env });
     await execa(join(target, 'moo'), ['add-module'], { env });
@@ -205,7 +206,7 @@ describe('template rendering', () => {
       [
         'up:',
         'restart:',
-        'restore-snapshot:before-update devel',
+        'restore-snapshot:--dry-run before-update devel',
         'pot:sale,stock devel i18n/sale.pot',
         'npx:--yes @wpmoo/odoo@latest doctor',
         'npx:--yes @wpmoo/odoo@latest add-module',
@@ -254,7 +255,7 @@ describe('template rendering', () => {
     expect(agents).toContain('./moo lint');
     expect(agents).toContain('./moo resetdb [db] [module[,module]]');
     expect(agents).toContain('./moo snapshot [db] [snapshot-name]');
-    expect(agents).toContain('./moo restore-snapshot <snapshot-name> [db]');
+    expect(agents).toContain('./moo restore-snapshot [--dry-run] <snapshot-name> [db]');
     expect(agents).toContain('./moo pot <module[,module]> [db] [output]');
     expect(agents).toContain('`./moo status` and `./moo doctor` are package fallback commands');
     expect(agents).toContain('delegate to local `./scripts/*.sh`');

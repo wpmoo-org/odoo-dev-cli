@@ -266,6 +266,7 @@ cp .env.example .env
 
 \`\`\`bash
 ./moo snapshot devel before-update
+./moo restore-snapshot --dry-run before-update devel
 ./moo restore-snapshot before-update devel
 \`\`\`
 
@@ -405,7 +406,7 @@ usage() {
     "test") echo "Usage: ./moo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]" ;;
     "resetdb") echo "Usage: ./moo resetdb [db] [module[,module]]" ;;
     "snapshot") echo "Usage: ./moo snapshot [db] [snapshot-name]" ;;
-    "restore-snapshot") echo "Usage: ./moo restore-snapshot <snapshot-name> [db]" ;;
+    "restore-snapshot") echo "Usage: ./moo restore-snapshot [--dry-run] <snapshot-name> [db]" ;;
     "lint") echo "Usage: ./moo lint" ;;
     "pot") echo "Usage: ./moo pot <module[,module]> [db] [output]" ;;
   esac
@@ -560,8 +561,14 @@ case "$command" in
     ;;
   "restore-snapshot")
     shift
+    restore_args=()
+    if [[ "\${1:-}" == "--dry-run" ]]; then
+      restore_args+=("--dry-run")
+      shift
+    fi
     positional_args "$command" 1 2 "$@"
-    run_script ./scripts/restore-snapshot.sh "$@"
+    restore_args+=("$@")
+    run_script ./scripts/restore-snapshot.sh "\${restore_args[@]}"
     ;;
   "lint")
     shift
@@ -732,7 +739,7 @@ Useful maintenance commands:
 ./moo lint
 ./moo resetdb [db] [module[,module]]
 ./moo snapshot [db] [snapshot-name]
-./moo restore-snapshot <snapshot-name> [db]
+./moo restore-snapshot [--dry-run] <snapshot-name> [db]
 ./moo pot <module[,module]> [db] [output]
 \`\`\`
 

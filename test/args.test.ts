@@ -218,7 +218,7 @@ describe('args', () => {
     expect(renderHelp()).toContain('npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update]');
     expect(renderHelp()).toContain('npx @wpmoo/odoo resetdb [db] [module[,module]]');
     expect(renderHelp()).toContain('npx @wpmoo/odoo snapshot [db] [snapshot-name]');
-    expect(renderHelp()).toContain('npx @wpmoo/odoo restore-snapshot <snapshot-name> [db]');
+    expect(renderHelp()).toContain('npx @wpmoo/odoo restore-snapshot [--dry-run] <snapshot-name> [db]');
     expect(renderHelp()).toContain('npx @wpmoo/odoo lint');
     expect(renderHelp()).toContain('npx @wpmoo/odoo pot <module[,module]> [db] [output]');
   });

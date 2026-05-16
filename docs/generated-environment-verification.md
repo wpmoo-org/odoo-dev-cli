@@ -27,7 +27,7 @@ not validate staging or production deployments.
 | Source manifest sync | Source repo metadata, `.gitmodules`, and `odoo/custom/manifests/sources.yaml` stay aligned. | `npx @wpmoo/odoo source list`, `npx @wpmoo/odoo source sync` |
 | Module add/remove | Module registration changes are applied to the selected source repo config. | `npx @wpmoo/odoo add-module ...`, `npx @wpmoo/odoo remove-module ...` |
 | Safe reset | Generated files are refreshed (including `compose.yaml` overlays and env example) without deleting source module code. Local runtime/data directories and custom source layout content are preserved; legacy user-editable paths from older templates may remain and are reported for manual cleanup. | `npx @wpmoo/odoo reset --dry-run`, `npx @wpmoo/odoo reset` |
-| Snapshot/restore and lint/pot | These actions are delegated by `./moo` to compose scripts without extra package-side logic. | `./moo snapshot ...`, `./moo restore-snapshot ...`, `./moo lint`, `./moo pot ...` |
+| Snapshot/restore and lint/pot | These actions are delegated by `./moo` to compose scripts. Restore preview, snapshot retention, and stage/prod destructive guards are preserved by the package argument layer. | `./moo snapshot ...`, `./moo restore-snapshot --dry-run ...`, `./moo restore-snapshot ...`, `./moo lint`, `./moo pot ...` |
 
 ## Compact compose checks
 
@@ -45,6 +45,10 @@ resources/odoo/entrypoint.sh
 Default local development uses `compose.yaml` plus `compose/dev.yaml`.
 `WPMOO_ENV=stage` or `WPMOO_ENV=prod` must only be used after production-grade
 secrets and volumes are configured.
+
+When `WPMOO_ENV=stage` or `WPMOO_ENV=prod`, generated compose scripts refuse
+destructive database actions such as `resetdb` and real `restore-snapshot`
+unless `.env` explicitly sets `WPMOO_ALLOW_DESTRUCTIVE=1`.
 
 For PostgreSQL 18 environments (including `POSTGRES_IMAGE=postgres:18`), ensure db
 volume and tmpfs mount targets use `/var/lib/postgresql` directly:
@@ -87,6 +91,18 @@ odoo/custom/manifests/
 
 Run `npx @wpmoo/odoo reset --dry-run` before writing changes when you need to
 review the generated file refresh plan.
+
+## Snapshot policy
+
+Use restore preview before a destructive restore:
+
+```bash
+./moo restore-snapshot --dry-run <snapshot-name> [db]
+```
+
+`WPMOO_SNAPSHOT_RETENTION_COUNT` may be set to a positive integer to prune old
+snapshot manifests and their matching dump/filestore files after a new snapshot
+is written.
 
 ## Source manifest checks
 

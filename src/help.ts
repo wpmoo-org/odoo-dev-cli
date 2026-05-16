@@ -28,7 +28,7 @@ Usage:
   npx @wpmoo/odoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
   npx @wpmoo/odoo resetdb [db] [module[,module]]
   npx @wpmoo/odoo snapshot [db] [snapshot-name]
-  npx @wpmoo/odoo restore-snapshot <snapshot-name> [db]
+  npx @wpmoo/odoo restore-snapshot [--dry-run] <snapshot-name> [db]
   npx @wpmoo/odoo lint
   npx @wpmoo/odoo pot <module[,module]> [db] [output]
 
@@ -108,6 +108,7 @@ Task recipes:
     npx @wpmoo/odoo snapshot [db] [snapshot-name]
     npx @wpmoo/odoo reset --dry-run
     npx @wpmoo/odoo reset
+    npx @wpmoo/odoo restore-snapshot --dry-run <snapshot-name> [db]
     npx @wpmoo/odoo restore-snapshot <snapshot-name> [db]
   Daily command checks:
     npx @wpmoo/odoo status

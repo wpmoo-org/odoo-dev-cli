@@ -42,6 +42,12 @@ export function renderComposeEnvExample(options: ScaffoldOptions): string {
     'POSTGRES_PASSWORD=odoo',
     'ODOO_MASTER_PASSWORD=admin',
     `ODOO_TEST_MODULE=${defaultTestModule(options)}`,
+    'WPMOO_ENV=dev',
+    'WPMOO_SNAPSHOT_RETENTION_COUNT=0',
+    '',
+    '# Required only when intentionally running destructive database actions',
+    '# such as resetdb or restore-snapshot with WPMOO_ENV=stage or WPMOO_ENV=prod.',
+    '# WPMOO_ALLOW_DESTRUCTIVE=1',
     '',
   ].join('\n');
 }

@@ -108,6 +108,10 @@ describe('daily actions', () => {
       scriptPath: join(target, 'scripts/restore-snapshot.sh'),
       args: ['before-update', 'devel'],
     });
+    await expect(dailyActionPlan('restore-snapshot', ['--dry-run', 'before-update', 'devel'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/restore-snapshot.sh'),
+      args: ['--dry-run', 'before-update', 'devel'],
+    });
     await expect(dailyActionPlan('lint', [], target)).resolves.toMatchObject({
       scriptPath: join(target, 'scripts/lint.sh'),
       args: [],
@@ -144,7 +148,7 @@ describe('daily actions', () => {
       'Usage: wpmoo snapshot [db] [snapshot-name]',
     );
     await expect(dailyActionPlan('restore-snapshot', [], target)).rejects.toThrow(
-      'Usage: wpmoo restore-snapshot <snapshot-name> [db]',
+      'Usage: wpmoo restore-snapshot [--dry-run] <snapshot-name> [db]',
     );
     await expect(dailyActionPlan('lint', ['sale'], target)).rejects.toThrow('Usage: wpmoo lint');
     await expect(dailyActionPlan('pot', [], target)).rejects.toThrow(
@@ -203,7 +207,7 @@ describe('daily actions', () => {
         calls.push(plan);
       },
     );
-    await runDailyAction('restore-snapshot', ['snapshot-name', 'customdb'], target, async (plan) => {
+    await runDailyAction('restore-snapshot', ['--dry-run', 'snapshot-name', 'customdb'], target, async (plan) => {
       calls.push(plan);
     });
 
@@ -221,7 +225,7 @@ describe('daily actions', () => {
       {
         cwd: target,
         scriptPath: join(target, 'scripts/restore-snapshot.sh'),
-        args: ['snapshot-name', 'customdb'],
+        args: ['--dry-run', 'snapshot-name', 'customdb'],
       },
     ]);
   });
