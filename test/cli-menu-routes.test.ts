@@ -274,6 +274,7 @@ describe('cli menu environment routes', () => {
       ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Add source repo ✓ completed'],
       { version: `v${packageVersion()}` },
     );
+    expect(vi.mocked(console.log).mock.calls.filter((call) => call.length === 0)).toHaveLength(2);
   });
 
   it('routes remove-repo and calls removeModuleRepo with selected repository', async () => {

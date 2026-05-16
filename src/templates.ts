@@ -302,8 +302,10 @@ const BANNER_GRADIENT_END = [209, 95, 127] as const;
 const ANSI_BOLD = '\u001B[1m';
 const ANSI_DIM = '\u001B[2m';
 const ANSI_INFO = '\u001B[38;2;139;166;190m';
+const ANSI_TAGLINE = '\u001B[38;2;120;157;181m';
+const ANSI_META = '\u001B[38;2;218;236;246m';
 const ANSI_RESET = '\u001B[0m';
-const BANNER_DIVIDER_WIDTH = 40;
+const BANNER_TAGLINE = 'Development, staging and production workflows for Odoo projects.';
 
 type BannerOptions = {
   version?: string;
@@ -337,15 +339,32 @@ function renderDimInfo(value: string): string {
   return `${ANSI_DIM}${ANSI_INFO}${value}${ANSI_RESET}`;
 }
 
+function renderMetaInfo(value: string): string {
+  return `${ANSI_META}${value}${ANSI_RESET}`;
+}
+
+function renderTaglineInfo(value: string): string {
+  return `${ANSI_TAGLINE}${value}${ANSI_RESET}`;
+}
+
+function renderBannerDetail(value: string): string {
+  const match = /^(Environment|Last):(.*)$/u.exec(value);
+  if (!match) {
+    return renderDimInfo(value);
+  }
+
+  return `${renderMetaInfo(`${match[1]}:`)}${renderDimInfo(match[2] ?? '')}`;
+}
+
 export function renderBanner(details: readonly string[] = [], options: BannerOptions = {}): string {
   const title = `${applyBannerGradient('WPMoo Toolkit')}${options.version ? `  ${renderDimInfo(options.version)}` : ''}`;
   const header = [
     title,
     applyBannerGradient('Workflow Platform · Micro Object Oriented'),
-    renderDimInfo('Development, staging, and production workflows for Odoo projects.'),
-    applyBannerGradient('─'.repeat(BANNER_DIVIDER_WIDTH)),
+    renderTaglineInfo(BANNER_TAGLINE),
+    applyBannerGradient('━'.repeat(BANNER_TAGLINE.length)),
   ].join('\n');
-  const detailsBlock = details.length > 0 ? `\n${details.map((line) => renderDimInfo(line)).join('\n')}` : '';
+  const detailsBlock = details.length > 0 ? `\n${details.map((line) => renderBannerDetail(line)).join('\n')}` : '';
 
   return `\n${ANSI_BOLD}${header}${ANSI_RESET}${detailsBlock}`;
 }

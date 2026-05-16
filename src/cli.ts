@@ -1165,6 +1165,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
         const status = await getEnvironmentStatus(cwd);
         clearCockpitScreen();
         console.log(renderBanner(renderCockpitStatusLines(status, lastStatus), { version: startupVersionLine() }));
+        console.log();
       } catch (error) {
         if (isMenuBackSignal(error)) {
           continue;

@@ -19,6 +19,8 @@ import { packageName, packageVersion } from '../src/version.js';
 const expectedFallbackPackageSpec = `${packageName()}@${packageVersion()}`;
 
 describe('template rendering', () => {
+  const bannerTagline = 'Development, staging and production workflows for Odoo projects.';
+  const bannerDivider = '━'.repeat(bannerTagline.length);
   const options = {
     product: 'odoo_sample_module',
     org: 'example-org',
@@ -297,8 +299,8 @@ describe('template rendering', () => {
       [
         'WPMoo Toolkit',
         'Workflow Platform · Micro Object Oriented',
-        'Development, staging, and production workflows for Odoo projects.',
-        '────────────────────────────────────────',
+        bannerTagline,
+        bannerDivider,
       ].join('\n'),
     );
   });
@@ -313,12 +315,36 @@ describe('template rendering', () => {
       [
         'WPMoo Toolkit  v0.8.69',
         'Workflow Platform · Micro Object Oriented',
-        'Development, staging, and production workflows for Odoo projects.',
-        '────────────────────────────────────────',
+        bannerTagline,
+        bannerDivider,
         'Environment: Odoo 19.0 · 1 repo · 0 modules',
         'Last: Ready',
       ].join('\n'),
     );
+  });
+
+  it('renders a dimmer tagline and startup status labels near white while dimming status values', () => {
+    const banner = renderBanner(['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Last: Ready'], {
+      version: 'v0.8.69',
+    });
+    const taglineColor = '\u001B[38;2;120;157;181m';
+    const nearWhiteMeta = '\u001B[38;2;218;236;246m';
+    const dimInfo = '\u001B[2m\u001B[38;2;139;166;190m';
+    const categoryColor = '\u001B[38;2;143;211;255m';
+
+    expect(banner).toContain(`${taglineColor}Development, staging and production workflows for Odoo projects.`);
+    expect(banner).not.toContain('Development, staging, and production workflows for Odoo projects.');
+    expect(banner).toContain(`${nearWhiteMeta}Environment:\u001B[0m${dimInfo} Odoo 19.0 · 1 repo · 0 modules`);
+    expect(banner).toContain(`${nearWhiteMeta}Last:\u001B[0m${dimInfo} Ready`);
+    expect(banner).not.toContain(`${categoryColor}Development, staging and production workflows for Odoo projects.`);
+  });
+
+  it('renders a heavy divider that matches the tagline width', () => {
+    const banner = renderBanner();
+    const plainBanner = banner.replace(/\u001B\[[0-9;]*m/g, '').trim();
+    const lines = plainBanner.split('\n');
+    expect(lines[2]).toBe(bannerTagline);
+    expect(lines[3]).toBe(bannerDivider);
   });
 
   it('renders the CLI banner with the requested blue-to-pink gradient', () => {
