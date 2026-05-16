@@ -1,4 +1,9 @@
 import type { CreateOptions } from './types.js';
+import { packageName, packageVersion } from './version.js';
+
+function fallbackPackageSpec(): string {
+  return `${packageName()}@${packageVersion()}`;
+}
 
 export function defaultCommunityAddons(product: string): string[] {
   return [product];
@@ -241,7 +246,7 @@ exposes them through \`/mnt/wpmoo-addons\`.
 \`./moo\` routes day-to-day service and module workflows to local scripts in
 \`./scripts/\` (for example \`start\`, \`logs\`, \`update\`, \`test\`, \`snapshot\`).
 \`./moo status\` and \`./moo doctor\` are package fallback commands that run via
-\`npx --yes @wpmoo/odoo@latest ...\`.
+\`npx --yes ${fallbackPackageSpec()} ...\`.
 
 ### Start And Inspect Services
 
@@ -581,7 +586,7 @@ case "$command" in
     run_script ./scripts/pot.sh "$@"
     ;;
   *)
-    exec npx --yes @wpmoo/odoo@latest "$@"
+    exec npx --yes ${fallbackPackageSpec()} "$@"
     ;;
 esac
 `;
@@ -745,7 +750,7 @@ Useful maintenance commands:
 
 Daily script delegation vs package fallback:
 - \`./moo start\`, \`logs\`, \`install\`, \`update\`, \`test\`, \`snapshot\`, and related runtime tasks delegate to local \`./scripts/*.sh\`.
-- \`./moo status\` and \`./moo doctor\` are package fallback commands routed to \`npx --yes @wpmoo/odoo@latest ...\`.
+- \`./moo status\` and \`./moo doctor\` are package fallback commands routed to \`npx --yes ${fallbackPackageSpec()} ...\`.
 
 Only report completion after the relevant update/test/lint command exits cleanly.
 `;

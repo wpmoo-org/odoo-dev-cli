@@ -6,6 +6,9 @@ import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
 import { renderMooDelegationScript } from '../src/templates.js';
+import { packageName, packageVersion } from '../src/version.js';
+
+const expectedFallbackPackageSpec = `${packageName()}@${packageVersion()}`;
 
 const dailyScripts = [
   'up.sh',
@@ -82,7 +85,7 @@ describe('generated environment moo delegation matrix', () => {
 
     await execa(join(root, 'moo'), ['doctor'], { cwd: root, env });
 
-    await expect(readFile(callsPath, 'utf8')).resolves.toBe('npx|--yes @wpmoo/odoo@latest doctor\n');
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor\n`);
   });
 
   it('exits with usage error code 2 for invalid command usage', async () => {

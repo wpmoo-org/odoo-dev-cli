@@ -14,6 +14,9 @@ import {
   renderReadme,
   renderReposYaml,
 } from '../src/templates.js';
+import { packageName, packageVersion } from '../src/version.js';
+
+const expectedFallbackPackageSpec = `${packageName()}@${packageVersion()}`;
 
 describe('template rendering', () => {
   const options = {
@@ -154,7 +157,7 @@ describe('template rendering', () => {
     expect(script).toContain('./scripts/lint.sh');
     expect(script).toContain('"pot")');
     expect(script).toContain('./scripts/pot.sh');
-    expect(script).toContain('exec npx --yes @wpmoo/odoo@latest "$@"');
+    expect(script).toContain(`exec npx --yes ${expectedFallbackPackageSpec} "$@"`);
   });
 
   it('dispatches daily commands locally and falls back to npx for management commands', async () => {
@@ -208,8 +211,8 @@ describe('template rendering', () => {
         'restart:',
         'restore-snapshot:--dry-run before-update devel',
         'pot:sale,stock devel i18n/sale.pot',
-        'npx:--yes @wpmoo/odoo@latest doctor',
-        'npx:--yes @wpmoo/odoo@latest add-module',
+        `npx:--yes ${expectedFallbackPackageSpec} doctor`,
+        `npx:--yes ${expectedFallbackPackageSpec} add-module`,
         '',
       ].join('\n'),
     );

@@ -6,6 +6,9 @@ import { describe, expect, it } from 'vitest';
 
 import { scaffold } from '../src/scaffold.js';
 import type { GitRunner } from '../src/git.js';
+import { packageName, packageVersion } from '../src/version.js';
+
+const expectedFallbackPackageSpec = `${packageName()}@${packageVersion()}`;
 
 async function writeStandaloneResourceFixtures(root: string): Promise<{ compose: string; skills: string }> {
   const compose = join(root, 'odoo-docker-compose');
@@ -318,7 +321,7 @@ describe('scaffold', () => {
       'Project-owned/private addon repositories go here.',
     );
     await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain(
-      'exec npx --yes @wpmoo/odoo@latest "$@"',
+      `exec npx --yes ${expectedFallbackPackageSpec} "$@"`,
     );
     await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain('./scripts/up.sh');
     await expect(readFile(join(target, 'moo'), 'utf8')).resolves.toContain('./scripts/down.sh');
