@@ -4,6 +4,8 @@ import {
   checkGitHubRepositories,
   createGitHubRepositories,
   findInaccessibleGitHubRepositories,
+  getGitHubRepositorySize,
+  inspectGitHubRepository,
   manualCreateCommands,
   repositoryPreflightAvailable,
   repositoryRequirements,
@@ -47,8 +49,11 @@ describe('repository preflight', () => {
   it('separates accessible and inaccessible GitHub repositories', async () => {
     const runner: GitHubRunner = {
       async run(args) {
-        if (args.includes('example-org/odoo_sample_module')) {
+        if (args[2] === 'example-org/odoo_sample_module') {
           throw new Error('not found');
+        }
+        if (args[0] === 'api' && args[1] === 'repos/example-org/odoo_sample_module_dev' && args.includes('.size')) {
+          return { stdout: '0', stderr: '' };
         }
         return { stdout: 'ok', stderr: '' };
       },
@@ -71,14 +76,125 @@ describe('repository preflight', () => {
           slug: 'example-org/odoo_sample_module',
         },
       ],
+      blocked: [],
+    });
+  });
+
+  it('treats missing dev repo as inaccessible', async () => {
+    const runner: GitHubRunner = {
+      async run(args) {
+        if (args.includes('example-org/odoo_sample_module_dev')) {
+          throw new Error('not found');
+        }
+        if (args[0] === 'api' && args[1] === 'repos/example-org/odoo_sample_module' && args.includes('.size')) {
+          return { stdout: '0', stderr: '' };
+        }
+        return { stdout: 'ok', stderr: '' };
+      },
+    };
+
+    await expect(checkGitHubRepositories(options, runner)).resolves.toEqual({
+      accessible: [
+        {
+          label: 'Source repo: odoo_sample_module',
+          url: 'https://github.com/example-org/odoo_sample_module.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module',
+        },
+      ],
+      inaccessible: [
+        {
+          label: 'Dev environment repo',
+          url: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module_dev',
+        },
+      ],
+      blocked: [],
+    });
+  });
+
+  it('approves an empty accessible dev repository', async () => {
+    const runner: GitHubRunner = {
+      async run(args) {
+        if (args[0] === 'repo' && args[1] === 'view' && args[2] === 'example-org/odoo_sample_module_dev') {
+          return { stdout: 'ok', stderr: '' };
+        }
+        if (args[0] === 'repo' && args[1] === 'view' && args[2] === 'example-org/odoo_sample_module') {
+          return { stdout: 'ok', stderr: '' };
+        }
+        if (args[0] === 'api' && args[1] === 'repos/example-org/odoo_sample_module_dev' && args.includes('.size')) {
+          return { stdout: '0', stderr: '' };
+        }
+        return { stdout: 'ok', stderr: '' };
+      },
+    };
+
+    await expect(checkGitHubRepositories(options, runner)).resolves.toEqual({
+      accessible: [
+        {
+          label: 'Dev environment repo',
+          url: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module_dev',
+        },
+        {
+          label: 'Source repo: odoo_sample_module',
+          url: 'https://github.com/example-org/odoo_sample_module.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module',
+        },
+      ],
+      inaccessible: [],
+      blocked: [],
+    });
+  });
+
+  it('marks a non-empty dev repository as blocked', async () => {
+    const runner: GitHubRunner = {
+      async run(args) {
+        if (args[0] === 'repo' && args[1] === 'view' && args[2] === 'example-org/odoo_sample_module_dev') {
+          return { stdout: 'ok', stderr: '' };
+        }
+        if (args[0] === 'repo' && args[1] === 'view' && args[2] === 'example-org/odoo_sample_module') {
+          return { stdout: 'ok', stderr: '' };
+        }
+        if (args[0] === 'api' && args[1] === 'repos/example-org/odoo_sample_module_dev' && args.includes('.size')) {
+          return { stdout: '17', stderr: '' };
+        }
+        return { stdout: 'ok', stderr: '' };
+      },
+    };
+
+    await expect(checkGitHubRepositories(options, runner)).resolves.toEqual({
+      accessible: [
+        {
+          label: 'Source repo: odoo_sample_module',
+          url: 'https://github.com/example-org/odoo_sample_module.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module',
+        },
+      ],
+      inaccessible: [],
+      blocked: [
+        {
+          label: 'Dev environment repo',
+          url: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module_dev',
+        },
+      ],
     });
   });
 
   it('returns only inaccessible repositories from preflight checks', async () => {
     const runner: GitHubRunner = {
       async run(args) {
-        if (args.includes('example-org/odoo_sample_module')) {
+        if (args[2] === 'example-org/odoo_sample_module') {
           throw new Error('not found');
+        }
+        if (args[0] === 'api' && args[1] === 'repos/example-org/odoo_sample_module_dev' && args.includes('.size')) {
+          return { stdout: '0', stderr: '' };
         }
         return { stdout: 'ok', stderr: '' };
       },
@@ -169,7 +285,10 @@ describe('repository preflight', () => {
 
   it('ignores unsupported repository urls in preflight grouping', async () => {
     const runner: GitHubRunner = {
-      async run() {
+      async run(args) {
+        if (args[0] === 'api' && args[1] === 'repos/example-org/odoo_sample_module_dev' && args.includes('.size')) {
+          return { stdout: '0', stderr: '' };
+        }
         return { stdout: 'ok', stderr: '' };
       },
     };
@@ -188,6 +307,7 @@ describe('repository preflight', () => {
     const result = await checkGitHubRepositories(mixedOptions, runner);
     expect(result.accessible).toHaveLength(2);
     expect(result.inaccessible).toEqual([]);
+    expect(result.blocked).toEqual([]);
   });
 
   it('builds manual gh create commands for github and non-github urls', () => {
@@ -210,5 +330,107 @@ describe('repository preflight', () => {
       'gh repo create example-org/odoo_sample_module_dev --private',
       'gh repo create https://gitlab.com/example-org/odoo_sample_module_private.git --public',
     ]);
+  });
+
+  it('reports repository size via gh api repos/{slug}', async () => {
+    const runner: GitHubRunner = {
+      async run(args) {
+        if (args[0] === 'api' && args[1] === 'repos/example-org/odoo_sample_module_dev' && args.includes('.size')) {
+          return { stdout: '42\n', stderr: '' };
+        }
+        throw new Error(`Unexpected command: ${args.join(' ')}`);
+      },
+    };
+
+    await expect(getGitHubRepositorySize(runner, 'example-org/odoo_sample_module_dev')).resolves.toBe(42);
+  });
+
+  it('classifies dev repo inspection results', async () => {
+    const emptyRepo = {
+      label: 'Dev environment repo',
+      url: 'https://github.com/example-org/odoo_sample_module_dev.git',
+      defaultVisibility: 'private' as const,
+      slug: 'example-org/odoo_sample_module_dev',
+    };
+    const nonEmptyRunner: GitHubRunner = {
+      async run(args) {
+        if (args[0] === 'api' && args[1] === 'repos/example-org/odoo_sample_module_dev' && args.includes('.size')) {
+          return { stdout: '0', stderr: '' };
+        }
+        throw new Error(`Unexpected command: ${args.join(' ')}`);
+      },
+    };
+    const unknownRunner: GitHubRunner = {
+      async run() {
+        throw new Error('gh api failed');
+      },
+    };
+
+    await expect(inspectGitHubRepository(nonEmptyRunner, emptyRepo)).resolves.toEqual({
+      status: 'empty',
+      repository: emptyRepo,
+    });
+    await expect(inspectGitHubRepository(unknownRunner, emptyRepo)).resolves.toEqual({
+      status: 'unknown',
+      repository: emptyRepo,
+    });
+  });
+
+  it('rejects missing metadata size output as blocked in preflight', async () => {
+    const runner: GitHubRunner = {
+      async run(args) {
+        if (args[0] === 'repo' && args[1] === 'view' && args[2] === 'example-org/odoo_sample_module_dev') {
+          return { stdout: 'ok', stderr: '' };
+        }
+        if (args[0] === 'repo' && args[1] === 'view' && args[2] === 'example-org/odoo_sample_module') {
+          return { stdout: 'ok', stderr: '' };
+        }
+        if (args[0] === 'api' && args[1] === 'repos/example-org/odoo_sample_module_dev' && args.includes('.size')) {
+          return { stdout: '', stderr: '' };
+        }
+        return { stdout: 'ok', stderr: '' };
+      },
+    };
+
+    await expect(checkGitHubRepositories(options, runner)).resolves.toEqual({
+      accessible: [
+        {
+          label: 'Source repo: odoo_sample_module',
+          url: 'https://github.com/example-org/odoo_sample_module.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module',
+        },
+      ],
+      inaccessible: [],
+      blocked: [
+        {
+          label: 'Dev environment repo',
+          url: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          defaultVisibility: 'private',
+          slug: 'example-org/odoo_sample_module_dev',
+        },
+      ],
+    });
+  });
+
+  it('does not inspect source repos for emptiness', async () => {
+    const calls: string[][] = [];
+    const runner: GitHubRunner = {
+      async run(args) {
+        calls.push(args);
+        if (args[0] === 'repo' && args[1] === 'view') {
+          return { stdout: 'ok', stderr: '' };
+        }
+        if (args[0] === 'api' && args[1] === 'repos/example-org/odoo_sample_module_dev' && args.includes('.size')) {
+          return { stdout: '0', stderr: '' };
+        }
+        throw new Error(`Unexpected command: ${args.join(' ')}`);
+      },
+    };
+
+    await checkGitHubRepositories(options, runner);
+
+    const apiCalls = calls.filter((command) => command[0] === 'api');
+    expect(apiCalls).toEqual([['api', 'repos/example-org/odoo_sample_module_dev', '--jq', '.size']]);
   });
 });

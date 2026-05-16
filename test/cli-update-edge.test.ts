@@ -5,6 +5,8 @@ import { spawnSync } from 'node:child_process';
 
 import type { GitHubAccount } from '../src/github.js';
 import type { UpdateCheckResult } from '../src/update-check.js';
+import type { EnvironmentTargetState } from '../src/environment-target-preflight.js';
+import type { GitHubPrerequisiteStatus } from '../src/github-prerequisites.js';
 
 const mocks = vi.hoisted(() => ({
   confirm: vi.fn(async () => false),
@@ -26,15 +28,25 @@ const mocks = vi.hoisted(() => ({
   isUpdateCheckSkipped: vi.fn((argv: string[]) => argv.includes('--no-update-check')),
   scaffold: vi.fn(async () => ({ plannedFiles: [], plannedCommands: [] })),
   repositoryPreflightAvailable: vi.fn(async () => true),
-  checkGitHubRepositories: vi.fn(async () => ({ accessible: [], inaccessible: [] })),
+  checkGitHubRepositories: vi.fn(async () => ({ accessible: [], inaccessible: [], blocked: [] })),
   createGitHubRepositories: vi.fn(async () => undefined),
   manualCreateCommands: vi.fn(() => []),
+  getGitHubPrerequisiteStatus: vi.fn<() => Promise<GitHubPrerequisiteStatus>>(async () => ({ status: 'ready' })),
+  renderGitHubPrerequisiteGuidance: vi.fn(
+    () =>
+      'GitHub CLI (`gh`) is not available or not authenticated.\nInstall and authenticate it to auto-create missing GitHub repositories:\n\nbrew install gh\ngh auth login',
+  ),
   getOriginUrl: vi.fn(async () => undefined),
   getGitHubAccounts: vi.fn<() => Promise<GitHubAccount[]>>(async () => [{ login: 'example-org', type: 'user' }]),
   renderBanner: vi.fn(() => 'mock banner'),
   renderVersionTag: vi.fn((latestVersion?: string) => `mock version${latestVersion ? ` -> ${latestVersion}` : ''}`),
   renderRepositorySetupNote: vi.fn(() => 'repo setup note'),
   installPromptCancelKeyTracker: vi.fn(),
+  inspectEnvironmentTarget: vi.fn<(target: string) => Promise<EnvironmentTargetState>>(async (target) => ({ kind: 'missing_target', target })),
+  expectedTargetConfirmation: vi.fn((target: string, input: string) => target.endsWith(input)),
+  backupTargetPath: vi.fn((target: string) => `${target}.backup-20260516-000000`),
+  renderExistingEnvironmentSummary: vi.fn((state: { target: string }) => `Existing WPMoo environment detected at ${state.target}`),
+  renderForeignEnvironmentTargetWarning: vi.fn((state: { target: string }) => `Target already exists: ${state.target}`),
 }));
 
 vi.mock('../src/prompts/index.js', () => ({
@@ -57,6 +69,19 @@ vi.mock('../src/prompts/index.js', () => ({
 
 vi.mock('../src/prompt-repositories.js', () => ({
   promptRepositoryUrl: mocks.promptRepositoryUrl,
+}));
+
+vi.mock('../src/environment-target-preflight.js', () => ({
+  inspectEnvironmentTarget: mocks.inspectEnvironmentTarget,
+  expectedTargetConfirmation: mocks.expectedTargetConfirmation,
+  backupTargetPath: mocks.backupTargetPath,
+  renderExistingEnvironmentSummary: mocks.renderExistingEnvironmentSummary,
+  renderForeignEnvironmentTargetWarning: mocks.renderForeignEnvironmentTargetWarning,
+}));
+
+vi.mock('../src/github-prerequisites.js', () => ({
+  getGitHubPrerequisiteStatus: mocks.getGitHubPrerequisiteStatus,
+  renderGitHubPrerequisiteGuidance: mocks.renderGitHubPrerequisiteGuidance,
 }));
 
 vi.mock('../src/environment.js', () => ({
@@ -194,8 +219,10 @@ describe('cli startup update edge branches', () => {
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     mocks.detectDevelopmentEnvironment.mockResolvedValue({ isEnvironment: false, source: 'none' });
+    mocks.inspectEnvironmentTarget.mockImplementation(async (target: string) => ({ kind: 'missing_target', target }));
+    mocks.getGitHubPrerequisiteStatus.mockResolvedValue({ status: 'ready' });
     mocks.repositoryPreflightAvailable.mockResolvedValue(true);
-    mocks.checkGitHubRepositories.mockResolvedValue({ accessible: [], inaccessible: [] });
+    mocks.checkGitHubRepositories.mockResolvedValue({ accessible: [], inaccessible: [], blocked: [] });
     mocks.checkForUpdate.mockResolvedValue({
       status: 'current',
       currentVersion: '0.0.0-test',
@@ -254,6 +281,8 @@ describe('cli startup github owner selection edges', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.detectDevelopmentEnvironment.mockResolvedValue({ isEnvironment: false, source: 'none' });
+    mocks.inspectEnvironmentTarget.mockImplementation(async (target: string) => ({ kind: 'missing_target', target }));
+    mocks.getGitHubPrerequisiteStatus.mockResolvedValue({ status: 'ready' });
     mocks.checkForUpdate.mockResolvedValue({
       status: 'current',
       currentVersion: '0.0.0-test',

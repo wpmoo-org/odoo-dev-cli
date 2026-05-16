@@ -19,9 +19,15 @@ export type MissingRepository = RepositoryRequirement & {
   slug: string;
 };
 
+export type DevRepositoryInspection = {
+  status: 'empty' | 'non-empty' | 'unknown';
+  repository: MissingRepository;
+};
+
 export type RepositoryCheckResult = {
   accessible: MissingRepository[];
   inaccessible: MissingRepository[];
+  blocked: MissingRepository[];
 };
 
 export function repositoryRequirements(options: ScaffoldOptions): RepositoryRequirement[] {
@@ -46,24 +52,61 @@ export async function findInaccessibleGitHubRepositories(
   return (await checkGitHubRepositories(options, runner)).inaccessible;
 }
 
+export async function getGitHubRepositorySize(runner: GitHubRunner, slug: string): Promise<number> {
+  const result = await runner.run(['api', `repos/${slug}`, '--jq', '.size']);
+  const rawSize = result.stdout.trim();
+  if (!rawSize) {
+    throw new Error(`Unable to parse repository size for ${slug}`);
+  }
+  const size = Number(rawSize);
+  if (!Number.isFinite(size)) {
+    throw new Error(`Unable to parse repository size for ${slug}`);
+  }
+
+  return size;
+}
+
+export async function inspectGitHubRepository(
+  runner: GitHubRunner,
+  repository: MissingRepository,
+): Promise<DevRepositoryInspection> {
+  try {
+    const size = await getGitHubRepositorySize(runner, repository.slug);
+    return { status: size === 0 ? 'empty' : 'non-empty', repository };
+  } catch {
+    return { status: 'unknown', repository };
+  }
+}
+
 export async function checkGitHubRepositories(
   options: ScaffoldOptions,
   runner: GitHubRunner = realGitHub,
 ): Promise<RepositoryCheckResult> {
   const accessible: MissingRepository[] = [];
   const inaccessible: MissingRepository[] = [];
+  const blocked: MissingRepository[] = [];
 
   for (const requirement of repositoryRequirements(options)) {
     const status = await getGitHubRepositoryStatus(runner, requirement.url);
     if (status.status === 'accessible') {
-      accessible.push({ ...requirement, slug: status.slug });
+      const repository = { ...requirement, slug: status.slug };
+      if (requirement.url === options.devRepoUrl) {
+        const inspection = await inspectGitHubRepository(runner, repository);
+        if (inspection.status === 'empty') {
+          accessible.push(repository);
+        } else {
+          blocked.push(repository);
+        }
+      } else {
+        accessible.push(repository);
+      }
     }
     if (status.status === 'inaccessible') {
       inaccessible.push({ ...requirement, slug: status.slug });
     }
   }
 
-  return { accessible, inaccessible };
+  return { accessible, inaccessible, blocked };
 }
 
 export async function createGitHubRepositories(

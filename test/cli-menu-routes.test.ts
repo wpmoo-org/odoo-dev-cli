@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   renderBanner: vi.fn(() => 'mock banner'),
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
   repositoryPreflightAvailable: vi.fn(async () => true),
+  getGitHubPrerequisiteStatus: vi.fn(async () => ({ status: 'ready' as const })),
+  renderGitHubPrerequisiteGuidance: vi.fn(() => 'GitHub CLI (`gh`) is not available or not authenticated.'),
   renderEnvironmentStatusSummary: vi.fn(() => 'Status summary'),
   getEnvironmentStatus: vi.fn(async () => ({
     kind: 'environment',
@@ -127,6 +129,11 @@ vi.mock('../src/repository-preflight.js', async (importOriginal) => {
   };
 });
 
+vi.mock('../src/github-prerequisites.js', () => ({
+  getGitHubPrerequisiteStatus: mocks.getGitHubPrerequisiteStatus,
+  renderGitHubPrerequisiteGuidance: mocks.renderGitHubPrerequisiteGuidance,
+}));
+
 vi.mock('../src/github.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/github.js')>();
   return {
@@ -192,6 +199,7 @@ describe('cli menu environment routes', () => {
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mocks.getGitHubPrerequisiteStatus.mockResolvedValue({ status: 'ready' });
   });
 
   it('returns without action when menu action is exit', async () => {
@@ -251,7 +259,7 @@ describe('cli menu environment routes', () => {
 
     await runCli([], '/tmp/environment');
 
-    expect(mocks.repositoryPreflightAvailable).toHaveBeenCalledTimes(1);
+    expect(mocks.getGitHubPrerequisiteStatus).toHaveBeenCalledTimes(1);
     expect(mocks.getGitHubRepositoryStatus).toHaveBeenCalledWith(
       expect.anything(),
       'https://github.com/example-org/odoo_new_repo.git',

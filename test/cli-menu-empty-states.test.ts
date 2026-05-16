@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   renderBanner: vi.fn(() => 'mock banner'),
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
   repositoryPreflightAvailable: vi.fn(async () => true),
+  getGitHubPrerequisiteStatus: vi.fn(async () => ({ status: 'ready' as const })),
+  renderGitHubPrerequisiteGuidance: vi.fn(() => 'GitHub CLI (`gh`) is not available or not authenticated.'),
   renderEnvironmentStatusSummary: vi.fn(() => 'Status summary'),
   getEnvironmentStatus: vi.fn(async () => ({ mock: true })),
   safeResetEnvironment: vi.fn(async () => undefined),
@@ -106,6 +108,11 @@ vi.mock('../src/repository-preflight.js', async (importOriginal) => {
   };
 });
 
+vi.mock('../src/github-prerequisites.js', () => ({
+  getGitHubPrerequisiteStatus: mocks.getGitHubPrerequisiteStatus,
+  renderGitHubPrerequisiteGuidance: mocks.renderGitHubPrerequisiteGuidance,
+}));
+
 vi.mock('../src/github.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/github.js')>();
   return {
@@ -175,6 +182,7 @@ describe('cli menu empty and cancel states', () => {
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mocks.getGitHubPrerequisiteStatus.mockResolvedValue({ status: 'ready' });
   });
 
   it('shows note and loops back when remove-repo has no source repos', async () => {

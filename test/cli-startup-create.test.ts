@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import type { MissingRepository, RepositoryCheckResult } from '../src/repository-preflight.js';
 import type { UpdateCheckResult } from '../src/update-check.js';
+import type { EnvironmentTargetState } from '../src/environment-target-preflight.js';
+import type { GitHubPrerequisiteStatus } from '../src/github-prerequisites.js';
 
 const mocks = vi.hoisted(() => ({
   confirm: vi.fn(async () => false),
@@ -27,15 +29,27 @@ const mocks = vi.hoisted(() => ({
   checkGitHubRepositories: vi.fn<() => Promise<RepositoryCheckResult>>(async () => ({
     accessible: [],
     inaccessible: [],
+    blocked: [],
   })),
   createGitHubRepositories: vi.fn(async () => undefined),
   manualCreateCommands: vi.fn((_repositories: MissingRepository[]) => []),
+  getGitHubPrerequisiteStatus: vi.fn<() => Promise<GitHubPrerequisiteStatus>>(async () => ({ status: 'ready' })),
+  renderGitHubPrerequisiteGuidance: vi.fn(
+    () =>
+      'GitHub CLI (`gh`) is not available or not authenticated.\nInstall and authenticate it to auto-create missing GitHub repositories:\n\nbrew install gh\ngh auth login',
+  ),
   getOriginUrl: vi.fn(async () => undefined),
   getGitHubAccounts: vi.fn(async () => [{ login: 'example-org', type: 'user' as const }]),
   renderBanner: vi.fn(() => 'mock banner'),
   renderVersionTag: vi.fn((latestVersion?: string) => `mock version${latestVersion ? ` -> ${latestVersion}` : ''}`),
   renderRepositorySetupNote: vi.fn(() => 'repo setup note'),
   installPromptCancelKeyTracker: vi.fn(),
+  inspectEnvironmentTarget: vi.fn<(target: string) => Promise<EnvironmentTargetState>>(async (target) => ({ kind: 'missing_target', target })),
+  expectedTargetConfirmation: vi.fn((target: string, input: string) => target.endsWith(input)),
+  backupTargetPath: vi.fn((target: string) => `${target}.backup-20260516-000000`),
+  renderExistingEnvironmentSummary: vi.fn((state: { target: string }) => `Existing WPMoo environment detected at ${state.target}`),
+  renderForeignEnvironmentTargetWarning: vi.fn((state: { target: string }) => `Target already exists: ${state.target}`),
+  safeResetEnvironment: vi.fn(async () => undefined),
 }));
 
 vi.mock('../src/prompts/index.js', () => ({
@@ -60,6 +74,19 @@ vi.mock('../src/prompt-repositories.js', () => ({
   promptRepositoryUrl: mocks.promptRepositoryUrl,
 }));
 
+vi.mock('../src/environment-target-preflight.js', () => ({
+  inspectEnvironmentTarget: mocks.inspectEnvironmentTarget,
+  expectedTargetConfirmation: mocks.expectedTargetConfirmation,
+  backupTargetPath: mocks.backupTargetPath,
+  renderExistingEnvironmentSummary: mocks.renderExistingEnvironmentSummary,
+  renderForeignEnvironmentTargetWarning: mocks.renderForeignEnvironmentTargetWarning,
+}));
+
+vi.mock('../src/github-prerequisites.js', () => ({
+  getGitHubPrerequisiteStatus: mocks.getGitHubPrerequisiteStatus,
+  renderGitHubPrerequisiteGuidance: mocks.renderGitHubPrerequisiteGuidance,
+}));
+
 vi.mock('../src/environment.js', () => ({
   detectDevelopmentEnvironment: mocks.detectDevelopmentEnvironment,
 }));
@@ -78,6 +105,14 @@ vi.mock('../src/update-check.js', async (importOriginal) => {
 vi.mock('../src/scaffold.js', () => ({
   scaffold: mocks.scaffold,
 }));
+
+vi.mock('../src/safe-reset.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/safe-reset.js')>();
+  return {
+    ...actual,
+    safeResetEnvironment: mocks.safeResetEnvironment,
+  };
+});
 
 vi.mock('../src/repository-preflight.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/repository-preflight.js')>();
@@ -166,6 +201,8 @@ function mockCreatePrompts(options?: {
   initEmptyRepos?: boolean;
   createMissingRepositories?: boolean;
   repoVisibility?: 'private' | 'public';
+  existingEnvironmentAction?: 'update-existing' | 'reinstall-environment' | 'delete-environment' | 'cancel';
+  foreignTargetAction?: 'choose-another-folder' | 'cancel';
 }) {
   const product = options?.product ?? 'odoo_sample_module';
   const environmentFolder = options?.environmentFolder ?? `./${product}_dev`;
@@ -194,6 +231,12 @@ function mockCreatePrompts(options?: {
     if (message.includes('Add another source repo')) return false;
     if (message.includes('Install project-local Odoo Agent Skills')) return installAgentSkills;
     if (message.includes('Initialize repositories that exist but have no commits')) return initEmptyRepos;
+    if (message.includes('This environment folder already exists')) {
+      return options?.existingEnvironmentAction ?? prompt.initialValue;
+    }
+    if (message.includes('What do you want to do?')) {
+      return options?.foreignTargetAction ?? prompt.initialValue;
+    }
     if (message.includes('Create the inaccessible repositories with GitHub CLI')) {
       return options?.createMissingRepositories ?? prompt.initialValue;
     }
@@ -208,8 +251,11 @@ describe('cli startup/create flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.detectDevelopmentEnvironment.mockResolvedValue({ isEnvironment: false, source: 'none' });
+    mocks.inspectEnvironmentTarget.mockImplementation(async (target: string) => ({ kind: 'missing_target', target }));
+    mocks.getGitHubPrerequisiteStatus.mockResolvedValue({ status: 'ready' });
+    mocks.safeResetEnvironment.mockResolvedValue(undefined);
     mocks.repositoryPreflightAvailable.mockResolvedValue(true);
-    mocks.checkGitHubRepositories.mockResolvedValue({ accessible: [], inaccessible: [] });
+    mocks.checkGitHubRepositories.mockResolvedValue({ accessible: [], inaccessible: [], blocked: [] });
     mocks.checkForUpdate.mockResolvedValue({
       status: 'current',
       currentVersion: '0.0.0-test',
@@ -295,6 +341,7 @@ describe('cli startup/create flow', () => {
         },
       ],
       inaccessible: [],
+      blocked: [],
     });
     const { runCli } = await loadCli();
 
@@ -414,6 +461,7 @@ describe('cli startup/create flow', () => {
     mocks.checkGitHubRepositories.mockResolvedValueOnce({
       accessible: [],
       inaccessible: missing,
+      blocked: [],
     });
     const { runCli } = await loadCli();
 
@@ -433,5 +481,109 @@ describe('cli startup/create flow', () => {
 
     expect(mocks.createGitHubRepositories).toHaveBeenCalledWith(missing, 'public');
     expect(mocks.scaffold).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates an existing environment instead of scaffolding over it', async () => {
+    mockCreatePrompts({
+      product: 'existing_module',
+      environmentFolder: './existing_module_dev',
+      existingEnvironmentAction: 'update-existing',
+    });
+    const target = resolve('./existing_module_dev');
+    mocks.inspectEnvironmentTarget.mockResolvedValueOnce({
+      kind: 'existing_environment',
+      target,
+      metadata: {
+        tool: '@wpmoo/toolkit',
+        version: '0.0.0-test',
+        product: 'existing_module',
+        odooVersion: '19.0',
+        devRepo: 'existing_module_dev',
+        devRepoUrl: 'https://github.com/example-org/existing_module_dev.git',
+        sourceRepos: [],
+      },
+    });
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/workspace');
+
+    expect(mocks.safeResetEnvironment).toHaveBeenCalledWith({ target, stage: true });
+    expect(mocks.scaffold).not.toHaveBeenCalled();
+    expect(mocks.outro).toHaveBeenCalledWith(`Updated existing Odoo dev overlay in ${target}.`);
+  });
+
+  it('does not scaffold over a foreign folder when the user cancels', async () => {
+    mockCreatePrompts({
+      product: 'foreign_module',
+      environmentFolder: './foreign_module_dev',
+      foreignTargetAction: 'cancel',
+    });
+    const target = resolve('./foreign_module_dev');
+    mocks.inspectEnvironmentTarget.mockResolvedValueOnce({ kind: 'foreign_target', target });
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/workspace');
+
+    expect(mocks.renderForeignEnvironmentTargetWarning).toHaveBeenCalledWith({ kind: 'foreign_target', target });
+    expect(mocks.scaffold).not.toHaveBeenCalled();
+    expect(mocks.outro).toHaveBeenCalledWith('Create flow cancelled.');
+  });
+
+  it('blocks non-interactive create over an existing WPMoo environment target', async () => {
+    const target = resolve('/tmp/workspace/existing-direct-dev');
+    mocks.inspectEnvironmentTarget.mockResolvedValueOnce({
+      kind: 'existing_environment',
+      target,
+      metadata: {
+        tool: '@wpmoo/toolkit',
+        version: '0.0.0-test',
+        product: 'existing_direct',
+        odooVersion: '19.0',
+        devRepo: 'existing-direct-dev',
+        devRepoUrl: 'https://github.com/example-org/existing-direct-dev.git',
+        sourceRepos: [],
+      },
+    });
+    const { runCli } = await loadCli();
+
+    await expect(
+      runCli(
+        [
+          'create',
+          '--product',
+          'existing_direct',
+          '--target',
+          target,
+          '--source-repo-url',
+          'https://github.com/example-org/existing_direct.git',
+        ],
+        '/tmp/workspace',
+      ),
+    ).rejects.toThrow(`Target already contains a WPMoo environment: ${target}`);
+
+    expect(mocks.scaffold).not.toHaveBeenCalled();
+  });
+
+  it('blocks non-interactive create over a foreign target folder', async () => {
+    const target = resolve('/tmp/workspace/foreign-direct-dev');
+    mocks.inspectEnvironmentTarget.mockResolvedValueOnce({ kind: 'foreign_target', target });
+    const { runCli } = await loadCli();
+
+    await expect(
+      runCli(
+        [
+          'create',
+          '--product',
+          'foreign_direct',
+          '--target',
+          target,
+          '--source-repo-url',
+          'https://github.com/example-org/foreign_direct.git',
+        ],
+        '/tmp/workspace',
+      ),
+    ).rejects.toThrow(`Target already exists: ${target}`);
+
+    expect(mocks.scaffold).not.toHaveBeenCalled();
   });
 });

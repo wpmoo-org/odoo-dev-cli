@@ -23,24 +23,25 @@ WPMoo Toolkit is an independent project and is not affiliated with, endorsed by,
 - Optionally copy project-local Agent Skills from `wpmoo-org/odoo-skills` into generated environments.
 - Use either a guided terminal cockpit or direct CLI commands for the same lifecycle tasks.
 
-## Requirements
+## Prerequisites
 
-- Node.js `>=20.17`
+- Node.js `20.17+`
 - Git
-- Docker and Docker Compose for generated environment runtime commands
-- GitHub CLI (`gh`) is optional. Use it for repository discovery, repository creation, and deeper diagnostics.
+- Docker + Docker Compose for generated environment runtime commands
+- For GitHub-connected setup, install and authenticate GitHub CLI:
+
+  ```bash
+  brew install gh
+  gh auth login
+  ```
+
+GitHub CLI (`gh`) is optional.
+WPMoo uses `gh` to inspect source/dev repositories and to create missing repos during setup. It also uses repository inspection to detect existing non-empty dev repositories and avoid overwriting them; if you do not want GitHub checks, keep setup local-only.
 
 The wizard currently offers Odoo `19.0`, `18.0`, `17.0`, and `16.0`. Generated
 environments now use the compact compose layout (`compose.yaml` with
 `compose/<env>.yaml` overlays). Legacy root-level
 `docker-compose_<version>.yml` layouts are still supported for compatibility.
-
-Set up GitHub CLI only when you want WPMoo to discover your personal account and organizations or create missing repositories from the interactive wizard:
-
-```bash
-brew install gh
-gh auth login
-```
 
 ## Quick Start
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { realpathSync } from 'node:fs';
+import { rm, rename } from 'node:fs/promises';
 import { basename, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -44,10 +45,20 @@ import {
   type SourceSyncOptions,
 } from './source-actions.js';
 import {
+  backupTargetPath,
+  expectedTargetConfirmation,
+  inspectEnvironmentTarget,
+  renderExistingEnvironmentSummary,
+  renderForeignEnvironmentTargetWarning,
+} from './environment-target-preflight.js';
+import {
+  getGitHubPrerequisiteStatus,
+  renderGitHubPrerequisiteGuidance,
+} from './github-prerequisites.js';
+import {
   checkGitHubRepositories,
   createGitHubRepositories,
   manualCreateCommands,
-  repositoryPreflightAvailable,
 } from './repository-preflight.js';
 import { scaffold } from './scaffold.js';
 import { confirmPrompt, introPrompt, isPromptCancel, notePrompt, outroPrompt, selectPrompt, textPrompt } from './prompts/index.js';
@@ -220,6 +231,16 @@ function renderPostCreateGuidance(target: string, cwd: string): string {
   );
 }
 
+type CreateFlowResult =
+  | { kind: 'create'; options: ScaffoldOptions }
+  | { kind: 'updated'; target: string }
+  | { kind: 'deleted'; target: string }
+  | { kind: 'cancelled' };
+
+type ExistingEnvironmentAction = 'update-existing' | 'reinstall-environment' | 'delete-environment' | 'cancel';
+type ForeignTargetAction = 'choose-another-folder' | 'cancel';
+type GitHubPrerequisiteAction = 'retry' | 'continue-local-only' | 'cancel';
+
 function validateRepoName(value: string): string | undefined {
   const normalized = value.trim();
   if (!normalized) return 'Enter a repository name.';
@@ -321,7 +342,122 @@ async function selectCockpitCommandFromMenu(): Promise<CockpitCommand | 'exit'> 
   return selection.command;
 }
 
-async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAction = 'exit'): Promise<ScaffoldOptions> {
+async function resolveEnvironmentTargetFromPrompts(
+  product: string,
+  cancelAction: PromptCancelAction,
+): Promise<{ kind: 'create'; target: string } | { kind: 'updated'; target: string } | { kind: 'deleted'; target: string } | { kind: 'cancelled' }> {
+  const defaultTarget = `./${product}_dev`;
+
+  while (true) {
+    const target = resolve(
+      asString(
+        await textPrompt({
+          message: 'Environment folder',
+          placeholder: defaultTarget,
+          defaultValue: defaultTarget,
+          initialValue: defaultTarget,
+        }),
+        defaultTarget,
+        cancelAction,
+      ),
+    );
+    const state = await inspectEnvironmentTarget(target);
+
+    if (state.kind === 'missing_target') {
+      return { kind: 'create', target };
+    }
+
+    if (state.kind === 'foreign_target') {
+      notePrompt(renderForeignEnvironmentTargetWarning(state), 'Environment folder exists');
+      const action = await selectPrompt({
+        message: 'What do you want to do?',
+        options: [
+          { value: 'choose-another-folder' as const, label: 'Choose another folder' },
+          { value: 'cancel' as const, label: 'Cancel' },
+        ],
+        initialValue: 'choose-another-folder',
+      });
+      handleCancel(action, cancelAction);
+
+      if (action === 'choose-another-folder') {
+        continue;
+      }
+      return { kind: 'cancelled' };
+    }
+
+    notePrompt(renderExistingEnvironmentSummary(state), 'Existing environment');
+    const action = await selectPrompt({
+      message: 'This environment folder already exists. What do you want to do?',
+      options: [
+        { value: 'update-existing' as const, label: 'Update existing environment' },
+        { value: 'reinstall-environment' as const, label: 'Reinstall environment from backup' },
+        { value: 'delete-environment' as const, label: 'Delete environment' },
+        { value: 'cancel' as const, label: 'Cancel' },
+      ],
+      initialValue: 'update-existing',
+    });
+    handleCancel(action, cancelAction);
+
+    if ((action as ExistingEnvironmentAction) === 'update-existing') {
+      await safeResetEnvironment({ target, stage: true });
+      return { kind: 'updated', target };
+    }
+
+    if ((action as ExistingEnvironmentAction) === 'reinstall-environment') {
+      const backup = backupTargetPath(target);
+      await rename(target, backup);
+      notePrompt(`Existing environment moved to:\n${backup}`, 'Environment backup');
+      return { kind: 'create', target };
+    }
+
+    if ((action as ExistingEnvironmentAction) === 'delete-environment') {
+      const expectedName = basename(target);
+      const confirmation = await textPrompt({
+        message: `Type ${expectedName} to confirm deletion`,
+        validate: (value) => (expectedTargetConfirmation(target, value) ? undefined : `Type ${expectedName} exactly to confirm.`),
+      });
+      handleCancel(confirmation, cancelAction);
+      if (!expectedTargetConfirmation(target, String(confirmation))) {
+        throw new Error(`Deletion confirmation did not match ${expectedName}.`);
+      }
+      await rm(target, { recursive: true, force: true });
+      return { kind: 'deleted', target };
+    }
+
+    return { kind: 'cancelled' };
+  }
+}
+
+async function promptGitHubPrerequisites(cancelAction: PromptCancelAction): Promise<boolean> {
+  while (true) {
+    const status = await getGitHubPrerequisiteStatus();
+    if (status.status === 'ready') {
+      return true;
+    }
+
+    notePrompt(renderGitHubPrerequisiteGuidance(status), 'GitHub prerequisites');
+    const action = await selectPrompt({
+      message: 'GitHub repository prerequisites',
+      options: [
+        { value: 'retry' as const, label: 'Retry prerequisite check' },
+        { value: 'continue-local-only' as const, label: 'Continue local-only' },
+        { value: 'cancel' as const, label: 'Cancel' },
+      ],
+      initialValue: 'retry',
+    });
+    handleCancel(action, cancelAction);
+
+    if ((action as GitHubPrerequisiteAction) === 'retry') {
+      continue;
+    }
+    if ((action as GitHubPrerequisiteAction) === 'continue-local-only') {
+      return false;
+    }
+    throw new Error('GitHub prerequisites were not completed.');
+  }
+}
+
+async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAction = 'exit'): Promise<CreateFlowResult> {
   if (showIntro) {
     introPrompt('Create Odoo dev environment');
   }
@@ -336,19 +472,11 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
     cancelAction,
   );
 
-  const defaultTarget = `./${product}_dev`;
-  const target = resolve(
-    asString(
-      await textPrompt({
-        message: 'Environment folder',
-        placeholder: defaultTarget,
-        defaultValue: defaultTarget,
-        initialValue: defaultTarget,
-      }),
-      defaultTarget,
-      cancelAction,
-    ),
-  );
+  const targetResult = await resolveEnvironmentTargetFromPrompts(product, cancelAction);
+  if (targetResult.kind !== 'create') {
+    return targetResult;
+  }
+  const { target } = targetResult;
 
   const connectGitHub = await selectPrompt({
     message: 'Connect this environment to Git/GitHub now?',
@@ -361,7 +489,8 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   handleCancel(connectGitHub, cancelAction);
 
   let selectedGitHubOwner: string | undefined;
-  if (connectGitHub) {
+  const useGitHub = Boolean(connectGitHub) && (await promptGitHubPrerequisites(cancelAction));
+  if (useGitHub) {
     notePrompt(renderRepositorySetupNote(product), 'Repository setup');
     selectedGitHubOwner = await selectDefaultGitHubOwner(cancelAction);
   }
@@ -388,24 +517,27 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
     return Boolean(installAgentSkills);
   }
 
-  if (!connectGitHub) {
+  if (!useGitHub) {
     const installAgentSkills = await promptInstallAgentSkills();
 
     return {
-      product,
-      odooVersion,
-      engine: 'compose',
-      devRepo: basename(target),
-      devRepoUrl: target,
-      sourceRepos: [],
-      target,
-      dryRun: false,
-      initEmptyRepos: false,
-      stage: false,
-      agentSkillsTemplateUrl: installAgentSkills ? defaultAgentSkillsTemplateUrl : undefined,
-      createMissingRepos: false,
-      repoVisibility: 'private',
-      skipSubmodules: true,
+      kind: 'create',
+      options: {
+        product,
+        odooVersion,
+        engine: 'compose',
+        devRepo: basename(target),
+        devRepoUrl: target,
+        sourceRepos: [],
+        target,
+        dryRun: false,
+        initEmptyRepos: false,
+        stage: false,
+        agentSkillsTemplateUrl: installAgentSkills ? defaultAgentSkillsTemplateUrl : undefined,
+        createMissingRepos: false,
+        repoVisibility: 'private',
+        skipSubmodules: true,
+      },
     };
   }
 
@@ -473,19 +605,22 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   handleCancel(initEmpty, cancelAction);
 
   return {
-    product,
-    odooVersion,
-    engine: 'compose',
-    devRepo: inferRepoPath(devRepoUrl),
-    devRepoUrl,
-    sourceRepos,
-    target,
-    dryRun: false,
-    initEmptyRepos: Boolean(initEmpty),
-    stage: true,
-    agentSkillsTemplateUrl: Boolean(installAgentSkills) ? defaultAgentSkillsTemplateUrl : undefined,
-    createMissingRepos: false,
-    repoVisibility: 'private',
+    kind: 'create',
+    options: {
+      product,
+      odooVersion,
+      engine: 'compose',
+      devRepo: inferRepoPath(devRepoUrl),
+      devRepoUrl,
+      sourceRepos,
+      target,
+      dryRun: false,
+      initEmptyRepos: Boolean(initEmpty),
+      stage: true,
+      agentSkillsTemplateUrl: Boolean(installAgentSkills) ? defaultAgentSkillsTemplateUrl : undefined,
+      createMissingRepos: false,
+      repoVisibility: 'private',
+    },
   };
 }
 
@@ -555,10 +690,11 @@ async function ensureAddRepoGitHubRepository(
   options: AddModuleRepoOptions,
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<void> {
-  if (!(await repositoryPreflightAvailable())) {
+  const prerequisiteStatus = await getGitHubPrerequisiteStatus();
+  if (prerequisiteStatus.status !== 'ready') {
     notePrompt(
       [
-        'GitHub CLI (`gh`) is not available or not authenticated.',
+        renderGitHubPrerequisiteGuidance(prerequisiteStatus),
         'The source repo will be used as-is. If it does not exist, create it first or authenticate gh.',
       ].join('\n'),
       'Repository check skipped',
@@ -955,26 +1091,36 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
     return;
   }
 
-  if (!(await repositoryPreflightAvailable())) {
-    const message = [
-      'GitHub CLI (`gh`) is not available or not authenticated.',
-      'Install and authenticate it to auto-create missing GitHub repositories:',
-      '',
-      'brew install gh',
-      'gh auth login',
-    ].join('\n');
+  const prerequisiteStatus = await getGitHubPrerequisiteStatus();
+  if (prerequisiteStatus.status !== 'ready') {
+    const message = renderGitHubPrerequisiteGuidance(prerequisiteStatus);
 
-    if (options.createMissingRepos) {
+    if (options.createMissingRepos || !interactive) {
       throw new Error(message);
     }
 
-    if (interactive) {
-      notePrompt(message, 'Repository check skipped');
-    }
+    notePrompt(message, 'GitHub prerequisites');
     return;
   }
 
-  const { accessible, inaccessible: missing } = await checkGitHubRepositories(options);
+  const { accessible, inaccessible: missing, blocked } = await checkGitHubRepositories(options);
+  if (blocked.length > 0) {
+    const blockedList = blocked
+      .map((repository) => `- ${repository.label}: ${repository.slug}`)
+      .join('\n');
+    notePrompt(
+      [
+        'These dev environment repositories already contain files and cannot be used automatically:',
+        '',
+        blockedList,
+        '',
+        'Choose another dev repository, empty the existing repository, or cancel and handle it manually.',
+      ].join('\n'),
+      'Repository check blocked',
+    );
+    throw new Error(`Dev environment repository is non-empty or could not be verified: ${blocked.map((repo) => repo.slug).join(', ')}`);
+  }
+
   if (interactive && accessible.length > 0) {
     notePrompt(
       [
@@ -1037,6 +1183,60 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
   handleCancel(visibility, 'exit');
 
   await createGitHubRepositories(missing, visibility as RepositoryVisibility);
+}
+
+async function ensureNonInteractiveCreateTarget(options: ScaffoldOptions): Promise<void> {
+  if (options.dryRun) {
+    return;
+  }
+
+  const state = await inspectEnvironmentTarget(options.target);
+  if (state.kind === 'missing_target') {
+    return;
+  }
+
+  if (state.kind === 'existing_environment') {
+    throw new Error(
+      [
+        `Target already contains a WPMoo environment: ${options.target}`,
+        'Run `wpmoo reset` to refresh it, or choose another --target.',
+      ].join('\n'),
+    );
+  }
+
+  throw new Error(renderForeignEnvironmentTargetWarning(state));
+}
+
+async function finishCreateFlow(result: CreateFlowResult, cwd: string, interactive: boolean): Promise<void> {
+  if (result.kind === 'cancelled') {
+    outroPrompt('Create flow cancelled.');
+    return;
+  }
+
+  if (result.kind === 'updated') {
+    outroPrompt(`Updated existing Odoo dev overlay in ${result.target}.`);
+    return;
+  }
+
+  if (result.kind === 'deleted') {
+    outroPrompt(`Deleted Odoo dev overlay in ${result.target}.`);
+    return;
+  }
+
+  const { options } = result;
+  await ensureGitHubRepositories(options, interactive);
+  const scaffoldResult = await scaffold(options);
+
+  if (options.dryRun) {
+    console.log('Dry run: planned files');
+    for (const file of scaffoldResult.plannedFiles) console.log(`- ${file}`);
+    console.log('Dry run: planned commands');
+    for (const command of scaffoldResult.plannedCommands) console.log(`- ${command}`);
+    return;
+  }
+
+  notePrompt(renderPostCreateGuidance(options.target, cwd), 'Next steps');
+  outroPrompt(`Created Odoo dev overlay in ${options.target}. Review staged changes, then commit.`);
 }
 
 async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<'continue' | 'exit'> {
@@ -1137,11 +1337,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
 
     if (!detection.isEnvironment) {
       await showStartup(argv, skipUpdateCheck);
-      const resolvedOptions = await optionsFromPrompts();
-      await ensureGitHubRepositories(resolvedOptions, true);
-      await scaffold(resolvedOptions);
-      notePrompt(renderPostCreateGuidance(resolvedOptions.target, cwd), 'Next steps');
-      outroPrompt(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
+      await finishCreateFlow(await optionsFromPrompts(), cwd, true);
       return;
     }
 
@@ -1303,20 +1499,13 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     await showStartup(argv, skipUpdateCheck);
   }
 
-  const resolvedOptions = options ?? (await optionsFromPrompts());
-  await ensureGitHubRepositories(resolvedOptions, options === undefined);
-  const result = await scaffold(resolvedOptions);
-
-  if (resolvedOptions.dryRun) {
-    console.log('Dry run: planned files');
-    for (const file of result.plannedFiles) console.log(`- ${file}`);
-    console.log('Dry run: planned commands');
-    for (const command of result.plannedCommands) console.log(`- ${command}`);
+  if (options) {
+    await ensureNonInteractiveCreateTarget(options);
+    await finishCreateFlow({ kind: 'create', options }, cwd, false);
     return;
   }
 
-  notePrompt(renderPostCreateGuidance(resolvedOptions.target, cwd), 'Next steps');
-  outroPrompt(`Created Odoo dev overlay in ${resolvedOptions.target}. Review staged changes, then commit.`);
+  await finishCreateFlow(await optionsFromPrompts(), cwd, true);
 }
 
 export function isCliEntrypoint(metaUrl: string, argvPath = process.argv[1]): boolean {
