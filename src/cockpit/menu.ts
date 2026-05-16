@@ -185,6 +185,7 @@ function defaultCommand(serviceStatus?: ServiceRuntimeStatus): CockpitCommand {
 export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): Promise<CockpitTopLevelMenuSelection> {
   const deps = menuDeps(options);
   const choices = topLevelChoices(options.serviceStatus);
+  const cancelAction: 'back' = 'back';
 
   const selected = await deps.select({
     message: '',
@@ -195,7 +196,7 @@ export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): 
     hideMessage: true,
     disabledError: disabledError(options.serviceStatus),
   });
-  deps.handleCancel(selected, 'exit');
+  deps.handleCancel(selected, cancelAction);
 
   if (selected === 'exit') {
     return { kind: 'exit' };

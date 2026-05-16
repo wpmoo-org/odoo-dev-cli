@@ -7,6 +7,7 @@ import {
   type CockpitMenuSelectPrompt,
 } from '../src/cockpit/menu.js';
 import { promptCancelled } from '../src/prompts/index.js';
+import { MenuBackSignal, recordPromptCancelKey } from '../src/menu-navigation.js';
 
 type MenuPromptConfig = Parameters<CockpitMenuSelectPrompt>[0] & {
   choices?: Parameters<CockpitMenuSelectPrompt>[0]['choices'];
@@ -185,7 +186,7 @@ describe('cockpit top-level menu', () => {
     }
   });
 
-  it('does not expose Exit as a selectable command and exits on prompt cancellation', async () => {
+  it('does not expose Exit as a selectable command and handles prompt cancellation with back-style action', async () => {
     const handleCancel = vi.fn();
     const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
       const config = options as MenuPromptConfig;
@@ -198,7 +199,30 @@ describe('cockpit top-level menu', () => {
     await expect(selectCockpitTopLevelMenu({ select: prompt, handleCancel })).resolves.toEqual({
       kind: 'exit',
     });
-    expect(handleCancel).toHaveBeenCalledWith(promptCancelled, 'exit');
+    expect(handleCancel).toHaveBeenCalledWith(promptCancelled, 'back');
+  });
+
+  it('keeps top-level menu open when Escape cancels the top-level selection prompt', async () => {
+    recordPromptCancelKey({ name: 'escape', sequence: '\u001B' });
+    const prompt: CockpitMenuSelectPrompt = vi.fn(async () => promptCancelled);
+
+    await expect(selectCockpitTopLevelMenu({ select: prompt })).rejects.toBeInstanceOf(MenuBackSignal);
+    expect(vi.mocked(prompt)).toHaveBeenCalledTimes(1);
+  });
+
+  it('still exits on Ctrl+C cancellation from the top-level selection prompt', async () => {
+    recordPromptCancelKey({ ctrl: true, name: 'c', sequence: '\u0003' });
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    const prompt: CockpitMenuSelectPrompt = vi.fn(async () => promptCancelled);
+
+    try {
+      await expect(selectCockpitTopLevelMenu({ select: prompt })).resolves.toEqual({
+        kind: 'exit',
+      });
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    } finally {
+      exitSpy.mockRestore();
+    }
   });
 
   it('keeps service commands visible but disables start when services are running', async () => {

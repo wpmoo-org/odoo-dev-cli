@@ -12,12 +12,10 @@ import {
   parseArgs,
   stripInternalFlags,
 } from './args.js';
-import type { CockpitCommand } from './cockpit/command-registry.js';
+import { cockpitCommands, type CockpitCommand } from './cockpit/command-registry.js';
 import { collectDailyActionArgs } from './cockpit/daily-prompts.js';
-import {
-  renderModuleDetails,
-  selectModuleFromBrowser,
-} from './cockpit/module-browser.js';
+import { selectModuleAction, type ModuleActionId } from './cockpit/module-action-menu.js';
+import { selectModuleFromBrowser } from './cockpit/module-browser.js';
 import { selectCockpitTopLevelMenu } from './cockpit/menu.js';
 import { confirmCockpitCommandRisk } from './cockpit/safety.js';
 import { detectDevelopmentEnvironment } from './environment.js';
@@ -32,6 +30,7 @@ import {
   addModuleToSourceRepo,
   removeModuleFromSourceRepo,
   type AddModuleOptions,
+  type ListedModule,
   type RemoveModuleOptions,
 } from './module-actions.js';
 import { supportedOdooVersions } from './odoo-versions.js';
@@ -1289,6 +1288,62 @@ async function finishCreateFlow(result: CreateFlowResult, cwd: string, interacti
   outroPrompt(`Created Odoo dev overlay in ${options.target}. Review staged changes, then commit.`);
 }
 
+function selectedModuleRemovalOptions(
+  module: ListedModule,
+  cwd: string,
+  deleteFiles: boolean,
+): RemoveModuleOptions {
+  return {
+    target: cwd,
+    repoPath: module.repoPath,
+    sourceType: module.sourceType,
+    moduleName: module.moduleName,
+    deleteFiles,
+    stage: true,
+  };
+}
+
+async function runSelectedModuleAction(action: ModuleActionId, module: ListedModule, cwd: string): Promise<void> {
+  if (action === 'back') {
+    return;
+  }
+
+  if (action === 'delete') {
+    const deleteFiles = await confirmPrompt({
+      message: menuPromptMessage('Delete module files too? (y/N)', 'back'),
+      active: 'Y',
+      inactive: 'n',
+      initialValue: false,
+    });
+    handleCancel(deleteFiles, 'back');
+
+    const removeCommand = cockpitCommands.find((entry) => entry.id === 'remove-module');
+    if (removeCommand && !(await confirmCockpitCommandRisk(removeCommand))) {
+      notePrompt(`Module ${module.moduleName} was not removed.`, 'Action skipped');
+      return;
+    }
+
+    await removeModuleFromSourceRepo(selectedModuleRemovalOptions(module, cwd, Boolean(deleteFiles)));
+    notePrompt(`Removed module ${module.moduleName} from source repo ${module.repoPath}.`, 'Done');
+    return;
+  }
+
+  if (action === 'update') {
+    await runDailyAction('update', [module.moduleName], cwd);
+    notePrompt(`Updated module ${module.moduleName}.`, 'Done');
+    return;
+  }
+
+  if (action === 'test') {
+    await runDailyAction('test', [module.moduleName], cwd);
+    notePrompt(`Test completed for module ${module.moduleName}.`, 'Done');
+    return;
+  }
+
+  await runDailyAction('lint', [], cwd);
+  notePrompt('Lint completed.', 'Done');
+}
+
 async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<'continue' | 'exit'> {
   if (command.id === 'exit') {
     return 'exit';
@@ -1327,7 +1382,12 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
       return 'continue';
     }
 
-    notePrompt(renderModuleDetails(selectedModule), 'Module details');
+    const moduleAction = await selectModuleAction(selectedModule);
+    if (!moduleAction || moduleAction === 'back') {
+      return 'continue';
+    }
+
+    await runSelectedModuleAction(moduleAction, selectedModule, cwd);
     return 'continue';
   }
 

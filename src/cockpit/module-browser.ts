@@ -58,6 +58,14 @@ function categoryHeading(label: string): string {
   return `\u001B[1D${rgb(143, 211, 255, label)}`;
 }
 
+function repositoryHeading(repoLabel: string, repoContext: string, width: number): string {
+  return `\u001B[1D${rgb(143, 211, 255, `📁 ${repoLabel.padEnd(width)}`)}${dim(`    ${repoContext}`)}`;
+}
+
+function repositoryContext(module: ListedModule): string {
+  return module.repoSlug ?? module.repoPath;
+}
+
 function sourceContext(module: ListedModule): string {
   return `${module.sourceType}/${module.repoPath}`;
 }
@@ -95,12 +103,15 @@ function deps(options: ModuleBrowserDeps = {}): Required<Pick<ModuleBrowserDeps,
 }
 
 export function moduleBrowserChoices(modules: readonly ListedModule[]): Array<ModuleBrowserChoice | PromptSeparator> {
-  const width = Math.max(...modules.map((module) => module.moduleName.length), 1);
+  const moduleWidth = Math.max(...modules.map((module) => module.moduleName.length), 1);
+  const repositoryWidth = Math.max(...modules.map((module) => module.repoPath.length), 1);
   const choices: Array<ModuleBrowserChoice | PromptSeparator> = [];
 
   for (const sourceType of sourceTypeOrder) {
-    const groupedModules = modules.filter((module) => module.sourceType === sourceType);
-    if (groupedModules.length === 0) {
+    const sourceModules = modules
+      .filter((module) => module.sourceType === sourceType)
+      .sort((left, right) => left.repoPath.localeCompare(right.repoPath) || left.moduleName.localeCompare(right.moduleName));
+    if (sourceModules.length === 0) {
       continue;
     }
 
@@ -109,13 +120,29 @@ export function moduleBrowserChoices(modules: readonly ListedModule[]): Array<Mo
     }
 
     choices.push(promptSeparator(categoryHeading(sourceTypeLabels[sourceType])));
-    choices.push(
-      ...groupedModules.map((module) => ({
-        value: module,
-        name: moduleChoiceName(module, width),
-        short: module.moduleName,
-      })),
-    );
+
+    const modulesByRepo = new Map<string, ListedModule[]>();
+    for (const module of sourceModules) {
+      const bucket = modulesByRepo.get(module.repoPath);
+      if (bucket) {
+        bucket.push(module);
+      } else {
+        modulesByRepo.set(module.repoPath, [module]);
+      }
+    }
+
+    for (const [repoPath, repoModules] of modulesByRepo) {
+      const sortedRepoModules = [...repoModules].sort((left, right) => left.moduleName.localeCompare(right.moduleName));
+      const headingLabel = repositoryHeading(repoPath, repositoryContext(sortedRepoModules[0]), repositoryWidth);
+      choices.push(promptSeparator(headingLabel));
+      choices.push(
+        ...sortedRepoModules.map((module) => ({
+          value: module,
+          name: moduleChoiceName(module, moduleWidth),
+          short: module.moduleName,
+        })),
+      );
+    }
   }
 
   return choices;

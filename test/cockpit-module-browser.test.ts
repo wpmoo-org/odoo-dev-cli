@@ -33,25 +33,42 @@ function moduleLabel(moduleName: string, repoPath: string, width: number): strin
   return `${rgb(226, 184, 96, ` ${moduleName.padEnd(width)}`)}${dim(`  ${repoPath}`)}`;
 }
 
+function moduleHeading(repoPath: string, repoContext: string, width: number): string {
+  const repoLabel = `${repoPath.padEnd(width)}`;
+  return `\u001B[1D${rgb(143, 211, 255, `📁 ${repoLabel}`)}${dim(`    ${repoContext}`)}`;
+}
+
 describe('cockpit module browser', () => {
   it('groups modules by source category with compact source context labels', () => {
     const modules: ListedModule[] = [
-      { moduleName: 'purchase', repoPath: 'sale-workflow', sourceType: 'oca' },
-      { moduleName: 'moo_olympiad', repoPath: 'moo_olympiad', sourceType: 'private' },
-      { moduleName: 'connector_x', repoPath: 'vendor_tools', sourceType: 'external' },
+      {
+        moduleName: 'sale_order_queue',
+        repoPath: 'server-tools',
+        sourceType: 'oca',
+        repoSlug: 'OCA/server-tools',
+      },
+      { moduleName: 'purchase', repoPath: 'server-tools', sourceType: 'oca', repoSlug: 'OCA/server-tools' },
+      { moduleName: 'moo_olympiad', repoPath: 'moo_olympiad', sourceType: 'private', repoSlug: 'wpmoo-org/moo_olympiad' },
+      { moduleName: 'connector_x', repoPath: 'vendor_tools', sourceType: 'external', repoUrl: 'https://example.org/vendor-tools.git' },
     ];
 
     const choices = moduleBrowserChoices(modules);
 
+    const moduleWidth = Math.max(...modules.map((module) => module.moduleName.length), 1);
+    const repoWidth = Math.max(...modules.map((module) => module.repoPath.length), 1);
     expect(choices.map((choice) => (isSeparator(choice) ? choice.separator : choice.name))).toEqual([
       '\u001B[1D' + rgb(143, 211, 255, 'Private'),
-      moduleLabel('moo_olympiad', 'private/moo_olympiad', 'moo_olympiad'.length),
+      moduleHeading('moo_olympiad', 'wpmoo-org/moo_olympiad', repoWidth),
+      moduleLabel('moo_olympiad', 'private/moo_olympiad', moduleWidth),
       ' ',
       '\u001B[1D' + rgb(143, 211, 255, 'OCA'),
-      moduleLabel('purchase', 'oca/sale-workflow', 'moo_olympiad'.length),
+      moduleHeading('server-tools', 'OCA/server-tools', repoWidth),
+      moduleLabel('purchase', 'oca/server-tools', moduleWidth),
+      moduleLabel('sale_order_queue', 'oca/server-tools', moduleWidth),
       ' ',
       '\u001B[1D' + rgb(143, 211, 255, 'External'),
-      moduleLabel('connector_x', 'external/vendor_tools', 'moo_olympiad'.length),
+      moduleHeading('vendor_tools', 'vendor_tools', repoWidth),
+      moduleLabel('connector_x', 'external/vendor_tools', moduleWidth),
     ]);
   });
 
@@ -86,7 +103,7 @@ describe('cockpit module browser', () => {
         navigationHelp: 'back',
         loop: false,
       });
-      expect(choice?.value).toEqual({
+      expect(choice?.value).toMatchObject({
         moduleName: 'moo_olympiad',
         repoPath: 'moo_olympiad',
         sourceType: 'private',
@@ -94,7 +111,7 @@ describe('cockpit module browser', () => {
       return choice?.value;
     });
 
-    await expect(selectModuleFromBrowser(target, { select })).resolves.toEqual({
+    await expect(selectModuleFromBrowser(target, { select })).resolves.toMatchObject({
       moduleName: 'moo_olympiad',
       repoPath: 'moo_olympiad',
       sourceType: 'private',

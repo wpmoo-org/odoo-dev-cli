@@ -16,9 +16,12 @@ export type ListedModule = {
   moduleName: string;
   repoPath: string;
   sourceType: SourceRepoType;
+  repoUrl?: string;
+  repoSlug?: string;
 };
 
 const sourceTypeSortOrder: SourceRepoType[] = ['private', 'oca', 'external'];
+const githubRepoUrlPattern = /^(?:https?:\/\/|git@)github\.com[/:]([^/]+)\/([^/.#?]+)(?:\.git)?(?:[/?#].*)?$/i;
 
 export type AddModuleOptions = {
   target: string;
@@ -39,6 +42,26 @@ export type RemoveModuleOptions = {
 };
 
 const validSourceTypes: SourceRepoType[] = ['private', 'oca', 'external'];
+
+function deriveRepoSlug(repoUrl: string | undefined): string | undefined {
+  if (!repoUrl) {
+    return undefined;
+  }
+
+  const normalized = repoUrl.trim().replace(/[?#].*$/, '');
+  const match = githubRepoUrlPattern.exec(normalized);
+  if (!match) {
+    return undefined;
+  }
+
+  const owner = match[1]?.trim();
+  const repo = match[2]?.trim();
+  if (!owner || !repo) {
+    return undefined;
+  }
+
+  return `${owner}/${repo}`;
+}
 
 function normalizeSourceType(value?: SourceRepoType): SourceRepoType {
   return validSourceTypes.includes(value as SourceRepoType) ? (value as SourceRepoType) : 'private';
@@ -158,16 +181,32 @@ export async function listModulesInSourceRepo(
 
 export async function listModulesInEnvironment(target: string): Promise<ListedModule[]> {
   const sources = await listSources(target);
+  type SourceRepoDescriptor = {
+    repoPath: string;
+    sourceType: SourceRepoType;
+    repoUrl?: string;
+  };
   const sourceRepos =
     sources.length > 0
-      ? sources.map((source) => ({ repoPath: source.path, sourceType: source.type }))
-      : (await listModuleRepos(target)).map((repoPath) => ({ repoPath, sourceType: 'private' as const }));
+      ? sources.map<SourceRepoDescriptor>((source) => ({
+          repoPath: source.path,
+          sourceType: source.type,
+          repoUrl: source.url,
+        }))
+      : (await listModuleRepos(target)).map<SourceRepoDescriptor>((repoPath) => ({ repoPath, sourceType: 'private' }));
 
   const listedModules = await Promise.all(
-    sourceRepos.map(async ({ repoPath, sourceType }) => {
+    sourceRepos.map(async ({ repoPath, sourceType, repoUrl }) => {
       try {
         const moduleNames = await listModulesInSourceRepo(target, repoPath, sourceType);
-        return moduleNames.map((moduleName) => ({ moduleName, repoPath, sourceType }));
+        const repoSlug = deriveRepoSlug(repoUrl);
+        return moduleNames.map((moduleName) => ({
+          moduleName,
+          repoPath,
+          sourceType,
+          ...(repoUrl ? { repoUrl } : {}),
+          ...(repoSlug ? { repoSlug } : {}),
+        }));
       } catch {
         return [];
       }

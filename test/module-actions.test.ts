@@ -282,7 +282,60 @@ describe('module actions', () => {
       { moduleName: 'partner_dashboard', repoPath: 'partner_tools', sourceType: 'external' },
     ];
 
-    await expect(listModulesInEnvironment(target)).resolves.toEqual(expected);
+    await expect(listModulesInEnvironment(target)).resolves.toMatchObject(expected);
+  });
+
+  it('includes optional repository display metadata from source manifest', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-list-context-'));
+    await mkdir(join(target, 'odoo/custom/manifests'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/manifests/sources.yaml'),
+      [
+        'sources:',
+        '  - type: "private"',
+        '    path: "product"',
+        '    url: "https://github.com/wpmoo-org/product.git"',
+        '    addons:',
+        '      - "custom_module"',
+        '  - type: "external"',
+        '    path: "external_tooling"',
+        '    url: "https://example.org/org/external_tooling.tar.gz"',
+        '    addons:',
+        '      - "partner_dashboard"',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await mkdir(join(target, 'odoo/custom/src/private/product'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/private/product/custom_module'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/external/external_tooling'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/external/external_tooling/partner_dashboard'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/private/product/custom_module/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+    await writeFile(
+      join(target, 'odoo/custom/src/external/external_tooling/partner_dashboard/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+
+    await expect(listModulesInEnvironment(target)).resolves.toEqual([
+      {
+        moduleName: 'custom_module',
+        repoPath: 'product',
+        sourceType: 'private',
+        repoUrl: 'https://github.com/wpmoo-org/product.git',
+        repoSlug: 'wpmoo-org/product',
+      },
+      {
+        moduleName: 'partner_dashboard',
+        repoPath: 'external_tooling',
+        sourceType: 'external',
+        repoUrl: 'https://example.org/org/external_tooling.tar.gz',
+      },
+    ]);
   });
 
   it('falls back to legacy private repos when source configuration is empty', async () => {
