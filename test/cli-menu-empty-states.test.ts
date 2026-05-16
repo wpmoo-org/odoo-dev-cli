@@ -16,6 +16,13 @@ const mocks = vi.hoisted(() => ({
   isUpdateCheckSkipped: vi.fn(() => true),
   listSources: vi.fn(async () => [] as { type: 'private' | 'oca' | 'external'; path: string; url: string; addons: string[] }[]),
   listModuleRepos: vi.fn(async () => ['odoo_source_repo']),
+  listModulesInEnvironment: vi.fn(async () => [
+    {
+      moduleName: 'odoo_module_old',
+      repoPath: 'odoo_source_repo',
+      sourceType: 'private' as const,
+    },
+  ]),
   listModulesInSourceRepo: vi.fn(async () => ['odoo_module_old']),
   removeModuleFromSourceRepo: vi.fn(async () => undefined),
   removeModuleRepo: vi.fn(async () => undefined),
@@ -86,6 +93,7 @@ vi.mock('../src/module-actions.js', async (importOriginal) => {
   return {
     ...actual,
     addModuleToSourceRepo: mocks.addModuleToSourceRepo,
+    listModulesInEnvironment: mocks.listModulesInEnvironment,
     listModulesInSourceRepo: mocks.listModulesInSourceRepo,
     removeModuleFromSourceRepo: mocks.removeModuleFromSourceRepo,
   };
@@ -224,19 +232,17 @@ describe('cli menu empty and cancel states', () => {
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
     vi.mocked(prompts.selectPrompt)
       .mockResolvedValueOnce(cockpitCommand('remove-module'))
-      .mockResolvedValueOnce('odoo_source_repo')
       .mockResolvedValueOnce('exit');
-    mocks.listModuleRepos.mockResolvedValueOnce(['odoo_source_repo']);
-    mocks.listModulesInSourceRepo.mockResolvedValueOnce([]);
+    mocks.listModulesInEnvironment.mockResolvedValueOnce([]);
     const { runCli } = await loadCli();
 
     await runCli([], '/tmp/environment');
 
     expect(prompts.notePrompt).toHaveBeenCalledWith(
-      'No Odoo modules found under /tmp/environment/odoo/custom/src/private/odoo_source_repo.\nNext: choose "Add module to source repo" first.',
+      'No Odoo modules found.\nNext: choose "Add module" or "Add source repo" first.',
       'Nothing to remove',
     );
-    expect(prompts.selectPrompt).toHaveBeenCalledTimes(3);
+    expect(prompts.selectPrompt).toHaveBeenCalledTimes(2);
     expect(mocks.removeModuleFromSourceRepo).not.toHaveBeenCalled();
   });
 

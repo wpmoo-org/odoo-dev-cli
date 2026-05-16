@@ -8,8 +8,17 @@ import {
 import { readEnvironmentMetadata } from './environment.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
 import { pathUnderBase, validateModuleName, validateRepoPath } from './path-validation.js';
-import { readAddonsYaml, writeAddonsYaml } from './repo-actions.js';
+import { listModuleRepos, readAddonsYaml, writeAddonsYaml } from './repo-actions.js';
+import { listSources } from './source-actions.js';
 import type { SourceRepoType } from './types.js';
+
+export type ListedModule = {
+  moduleName: string;
+  repoPath: string;
+  sourceType: SourceRepoType;
+};
+
+const sourceTypeSortOrder: SourceRepoType[] = ['private', 'oca', 'external'];
 
 export type AddModuleOptions = {
   target: string;
@@ -145,6 +154,33 @@ export async function listModulesInSourceRepo(
   } catch {
     return [];
   }
+}
+
+export async function listModulesInEnvironment(target: string): Promise<ListedModule[]> {
+  const sources = await listSources(target);
+  const sourceRepos =
+    sources.length > 0
+      ? sources.map((source) => ({ repoPath: source.path, sourceType: source.type }))
+      : (await listModuleRepos(target)).map((repoPath) => ({ repoPath, sourceType: 'private' as const }));
+
+  const listedModules = await Promise.all(
+    sourceRepos.map(async ({ repoPath, sourceType }) => {
+      try {
+        const moduleNames = await listModulesInSourceRepo(target, repoPath, sourceType);
+        return moduleNames.map((moduleName) => ({ moduleName, repoPath, sourceType }));
+      } catch {
+        return [];
+      }
+    }),
+  );
+
+  const sourceTypeOrder = new Map(sourceTypeSortOrder.map((sourceType, index) => [sourceType, index]));
+  return listedModules.flat().sort(
+    (left, right) =>
+      (sourceTypeOrder.get(left.sourceType) ?? 0) - (sourceTypeOrder.get(right.sourceType) ?? 0) ||
+      left.repoPath.localeCompare(right.repoPath) ||
+      left.moduleName.localeCompare(right.moduleName),
+  );
 }
 
 export async function removeModuleFromSourceRepo(

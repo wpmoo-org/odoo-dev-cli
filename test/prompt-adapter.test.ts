@@ -123,6 +123,27 @@ describe('prompt adapter', () => {
     expect(theme.i18n?.disabledError).toBe('This option is disabled and cannot be selected.\nReason: Services stopped.');
   });
 
+  it('renders back-navigation help text for hidden select prompts', async () => {
+    const select = vi.mocked(inquirerSelect);
+    select.mockResolvedValue('native');
+
+    const value = await selectPrompt({
+      message: 'Back-enabled submodule menu',
+      choices: ['native' as const],
+      hideMessage: true,
+      navigationHelp: 'back',
+    });
+
+    expect(value).toBe('native');
+    const [promptArgs] = select.mock.calls[0];
+    const theme = promptArgs.theme as {
+      style?: {
+        keysHelpTip?: (keys: [key: string, action: string][]) => string;
+      };
+    };
+    expect(theme.style?.keysHelpTip?.([])).toBe('↑↓ navigate • ⏎ select • Esc to go back');
+  });
+
   it('creates prompt separators through the adapter', () => {
     const separator = promptSeparator('Services');
 

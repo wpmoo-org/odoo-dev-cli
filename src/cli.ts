@@ -14,6 +14,10 @@ import {
 } from './args.js';
 import type { CockpitCommand } from './cockpit/command-registry.js';
 import { collectDailyActionArgs } from './cockpit/daily-prompts.js';
+import {
+  renderModuleDetails,
+  selectModuleFromBrowser,
+} from './cockpit/module-browser.js';
 import { selectCockpitTopLevelMenu } from './cockpit/menu.js';
 import { confirmCockpitCommandRisk } from './cockpit/safety.js';
 import { detectDevelopmentEnvironment } from './environment.js';
@@ -26,7 +30,6 @@ import { renderHelp } from './help.js';
 import { runLocalCockpit } from './local-cockpit.js';
 import {
   addModuleToSourceRepo,
-  listModulesInSourceRepo,
   removeModuleFromSourceRepo,
   type AddModuleOptions,
   type RemoveModuleOptions,
@@ -822,10 +825,6 @@ async function selectSourceRepo(target: string, cancelAction: PromptCancelAction
   return { repoPath: String(selected), sourceType: 'private' };
 }
 
-function formatSourceRepoPromptPath(target: string, selected: SourceRepoChoice): string {
-  return renderedSourceRepoPath(target, selected.sourceType, selected.repoPath);
-}
-
 function suggestedModuleName(repoPath: string): string {
   return 'odoo_sample_module';
 }
@@ -1082,28 +1081,22 @@ async function removeModuleOptionsFromPrompts(
   showIntro = true,
   cancelAction: PromptCancelAction = 'exit',
 ): Promise<RemoveModuleOptions> {
-  showSubmenuIntro('Remove module from source repo', showIntro, cancelAction);
+  if (showIntro) {
+    introPrompt('Remove module');
+  }
 
   const target = process.cwd();
-  const sourceRepo = await selectSourceRepo(target, cancelAction);
-  const modules = await listModulesInSourceRepo(target, sourceRepo.repoPath, sourceRepo.sourceType);
-  if (modules.length === 0) {
+  const selectedModule = await selectModuleFromBrowser(target, { cancelAction });
+  if (!selectedModule) {
     if (cancelAction === 'back') {
       notePrompt(
-        `No Odoo modules found under ${formatSourceRepoPromptPath(target, sourceRepo)}.\nNext: choose "Add module to source repo" first.`,
+        'No Odoo modules found.\nNext: choose "Add module" or "Add source repo" first.',
         'Nothing to remove',
       );
       handleUnavailableMenuChoice(cancelAction);
     }
-    throw new Error(`No Odoo modules found under ${formatSourceRepoPromptPath(target, sourceRepo)}`);
+    throw new Error('No Odoo modules found');
   }
-
-  const moduleName = await selectPrompt({
-    message: menuPromptMessage('Module to remove', cancelAction),
-    options: modules.map((module) => ({ value: module, label: module })),
-    initialValue: modules[0],
-  });
-  handleCancel(moduleName, cancelAction);
 
   const deleteFiles = await confirmPrompt({
     message: menuPromptMessage('Delete module files too? (y/N)', cancelAction),
@@ -1115,9 +1108,9 @@ async function removeModuleOptionsFromPrompts(
 
   return {
     target,
-    repoPath: sourceRepo.repoPath,
-    sourceType: sourceRepo.sourceType,
-    moduleName: String(moduleName),
+    repoPath: selectedModule.repoPath,
+    sourceType: selectedModule.sourceType,
+    moduleName: selectedModule.moduleName,
     deleteFiles: Boolean(deleteFiles),
     stage: true,
   };
@@ -1323,6 +1316,21 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
     return 'continue';
   }
 
+  if (command.id === 'list-modules') {
+    introPrompt('List modules');
+    const selectedModule = await selectModuleFromBrowser(cwd);
+    if (!selectedModule) {
+      notePrompt(
+        'No Odoo modules found.\nNext: choose "Add module" or "Add source repo" first.',
+        'List modules',
+      );
+      return 'continue';
+    }
+
+    notePrompt(renderModuleDetails(selectedModule), 'Module details');
+    return 'continue';
+  }
+
   if (command.id === 'add-repo') {
     const options = await addRepoOptionsFromPrompts(false, 'back');
     await ensureAddRepoGitHubRepository(options, 'back');
@@ -1351,7 +1359,7 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
   }
 
   if (command.id === 'remove-module') {
-    const options = await removeModuleOptionsFromPrompts(false, 'back');
+    const options = await removeModuleOptionsFromPrompts(true, 'back');
     if (!(await confirmCockpitCommandRisk(command))) {
       notePrompt(`Module ${options.moduleName} was not removed.`, 'Action skipped');
       return 'continue';

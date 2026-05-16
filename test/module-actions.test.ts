@@ -2,9 +2,15 @@ import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { addModuleToSourceRepo, listModulesInSourceRepo, removeModuleFromSourceRepo } from '../src/module-actions.js';
+import {
+  addModuleToSourceRepo,
+  listModulesInEnvironment,
+  listModulesInSourceRepo,
+  removeModuleFromSourceRepo,
+  type ListedModule,
+} from '../src/module-actions.js';
 import type { GitRunner } from '../src/git.js';
 
 function recordingGit(): GitRunner & { calls: Array<{ cwd: string; args: string[] }> } {
@@ -210,6 +216,103 @@ describe('module actions', () => {
       stage: false,
     });
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
+  });
+
+  it('lists modules in all configured source repos and keeps source metadata', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-list-environment-'));
+    await mkdir(join(target, 'odoo/custom/manifests'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/manifests/sources.yaml'),
+      [
+        'sources:',
+        '  - type: "oca"',
+        '    path: "server_tools"',
+        '    url: "https://github.com/OCA/server-tools.git"',
+        '    branch: "19.0"',
+        '    addons:',
+        '      - "queue_job"',
+        '  - type: "external"',
+        '    path: "partner_tools"',
+        '    url: "https://github.com/example/partner-tools.git"',
+        '    branch: "19.0"',
+        '    addons:',
+        '      - "partner_dashboard"',
+        '  - type: "private"',
+        '    path: "product"',
+        '    url: "https://github.com/example/product.git"',
+        '    branch: "19.0"',
+        '    addons:',
+        '      - "custom_module"',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await mkdir(join(target, 'odoo/custom/src/oca/server_tools'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/oca/server_tools/oca_module'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/external/partner_tools'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/external/partner_tools/partner_dashboard'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/private/product'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/private/product/custom_module'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/private/product/zeta_module'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/private/product/custom_module/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+    await writeFile(
+      join(target, 'odoo/custom/src/private/product/zeta_module/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+    await writeFile(
+      join(target, 'odoo/custom/src/oca/server_tools/oca_module/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+    await writeFile(
+      join(target, 'odoo/custom/src/external/partner_tools/partner_dashboard/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+
+    const expected: ListedModule[] = [
+      { moduleName: 'custom_module', repoPath: 'product', sourceType: 'private' },
+      { moduleName: 'zeta_module', repoPath: 'product', sourceType: 'private' },
+      { moduleName: 'oca_module', repoPath: 'server_tools', sourceType: 'oca' },
+      { moduleName: 'partner_dashboard', repoPath: 'partner_tools', sourceType: 'external' },
+    ];
+
+    await expect(listModulesInEnvironment(target)).resolves.toEqual(expected);
+  });
+
+  it('falls back to legacy private repos when source configuration is empty', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-list-fallback-'));
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/private/legacy_repo"]',
+        '\tpath = odoo/custom/src/private/legacy_repo',
+        '\turl = https://github.com/example-org/legacy-repo.git',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await mkdir(join(target, 'odoo/custom/src/private/legacy_repo'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src/private/legacy_repo/legacy_module'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/private/legacy_repo/legacy_module/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+
+    vi.resetModules();
+    vi.doMock('../src/source-actions.js', () => ({
+      listSources: async () => [],
+    }));
+    const moduleActions = await import('../src/module-actions.js');
+
+    const entries: ListedModule[] = await moduleActions.listModulesInEnvironment(target);
+    expect(entries).toEqual([{ moduleName: 'legacy_module', repoPath: 'legacy_repo', sourceType: 'private' }]);
   });
 
   it('rejects traversal repo paths before writing module files', async () => {

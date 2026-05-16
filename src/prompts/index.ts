@@ -19,6 +19,7 @@ export type PromptChoice<T> = {
   short?: string;
   disabled?: boolean | string;
 };
+type SelectNavigationHelp = 'exit' | 'back';
 export type SelectPromptOptions<T> =
   | {
       message: string;
@@ -28,6 +29,7 @@ export type SelectPromptOptions<T> =
       loop?: boolean;
       hideMessage?: boolean;
       disabledError?: string;
+      navigationHelp?: SelectNavigationHelp;
     }
   | {
       message: string;
@@ -37,6 +39,7 @@ export type SelectPromptOptions<T> =
       default?: T;
       hideMessage?: boolean;
       disabledError?: string;
+      navigationHelp?: SelectNavigationHelp;
     };
 export type TextPromptOptions = {
   message: string;
@@ -78,6 +81,7 @@ type InquirerSelectPromptConfig<T> = Parameters<typeof inquirerSelect<T>>[0];
 type HideableSelectPromptConfig<T> = InquirerSelectPromptConfig<T> & {
   hideMessage?: boolean;
   disabledError?: string;
+  navigationHelp?: SelectNavigationHelp;
 };
 type PromptContext = {
   signal: AbortSignal;
@@ -179,7 +183,7 @@ async function withPromptCancelGuard<T>(
 
 function isClackSelectOptions<T>(
   options: SelectPromptOptions<T>,
-): options is { message: string; options: readonly PromptOption<T>[]; initialValue?: T; pageSize?: number; loop?: boolean; hideMessage?: boolean } {
+): options is { message: string; options: readonly PromptOption<T>[]; initialValue?: T; pageSize?: number; loop?: boolean; hideMessage?: boolean; disabledError?: string; navigationHelp?: SelectNavigationHelp } {
   return 'options' in options;
 }
 
@@ -192,6 +196,7 @@ function asInquirerSelectConfig<T>(
     loop?: boolean;
     hideMessage?: boolean;
     disabledError?: string;
+    navigationHelp?: SelectNavigationHelp;
   },
 ): HideableSelectPromptConfig<T> {
   return {
@@ -206,10 +211,16 @@ function asInquirerSelectConfig<T>(
     loop: options.loop,
     hideMessage: options.hideMessage,
     disabledError: options.disabledError,
+    navigationHelp: options.navigationHelp,
   };
 }
 
-function hiddenSelectTheme<T>(disabledError?: string): InquirerSelectPromptConfig<T>['theme'] {
+function hiddenSelectTheme<T>(
+  disabledError?: string,
+  navigationHelp: SelectNavigationHelp = 'exit',
+): InquirerSelectPromptConfig<T>['theme'] {
+  const keysHelpTip = navigationHelp === 'back' ? '↑↓ navigate • ⏎ select • Esc to go back' : '↑↓ navigate • ⏎ select • Ctrl+C exit';
+
   return {
     prefix: '',
     icon: {
@@ -219,7 +230,7 @@ function hiddenSelectTheme<T>(disabledError?: string): InquirerSelectPromptConfi
       message: () => '',
       highlight: (text: string) => text,
       disabled: (text: string) => styleText('dim', text.replace(/ \(disabled\)$/u, ''), { validateStream: false }),
-      keysHelpTip: () => '↑↓ navigate • ⏎ select • Ctrl+C exit',
+      keysHelpTip: () => keysHelpTip,
     },
     i18n: disabledError ? { disabledError } : undefined,
   };
@@ -230,11 +241,16 @@ function withHiddenSelectMessage<T>(config: HideableSelectPromptConfig<T>): Inqu
     return config;
   }
 
-  const { disabledError, hideMessage: _hideMessage, ...inquirerConfig } = config;
+  const {
+    disabledError,
+    hideMessage: _hideMessage,
+    navigationHelp,
+    ...inquirerConfig
+  } = config;
   return {
     ...inquirerConfig,
     message: '',
-    theme: hiddenSelectTheme<T>(disabledError),
+    theme: hiddenSelectTheme<T>(disabledError, navigationHelp),
   };
 }
 

@@ -79,6 +79,10 @@ export const cockpitCommands = [
   dailyCommand('restart', 'services', 'Restart services', 'Restart the Odoo development services.', ['reload']),
   dailyCommand('logs', 'services', 'View logs', 'Stream logs for an Odoo environment service.', ['log', 'tail']),
   dailyCommand('shell', 'services', 'Open shell', 'Open a shell inside the Odoo service container.', ['bash', 'terminal']),
+  internalCommand('list-modules', 'modules', 'List modules', 'Browse detected Odoo modules by source category.', [
+    'modules list',
+    'browse modules',
+  ]),
   dailyCommand('install', 'modules', 'Install module', 'Install one or more Odoo modules into a database.', ['install module']),
   dailyCommand('update', 'modules', 'Update module', 'Update one or more Odoo modules in a database.', ['upgrade']),
   dailyCommand('test', 'modules', 'Run tests', 'Run Odoo tests for one or more modules.', ['tests', 'pytest']),

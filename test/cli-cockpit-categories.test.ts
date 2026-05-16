@@ -71,6 +71,7 @@ describe('cockpit top-level menu', () => {
         inlineCommand('Open shell', 'Open a shell inside the Odoo service container.'),
         ' ',
         category('Modules'),
+        inlineCommand('List modules', 'Browse detected Odoo modules by source category.'),
         inlineCommand('Install module', 'Install one or more Odoo modules into a database.'),
         inlineCommand('Update module', 'Update one or more Odoo modules in a database.'),
         inlineCommand('Run tests', 'Run Odoo tests for one or more modules.'),

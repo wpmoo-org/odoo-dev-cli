@@ -24,6 +24,13 @@ const mocks = vi.hoisted(() => ({
     },
   ]),
   listModuleRepos: vi.fn(async () => ['odoo_sample_module']),
+  listModulesInEnvironment: vi.fn(async () => [
+    {
+      moduleName: 'odoo_sample_module_base',
+      repoPath: 'odoo_sample_module',
+      sourceType: 'private' as const,
+    },
+  ]),
   listModulesInSourceRepo: vi.fn(async () => ['odoo_sample_module_base']),
   removeModuleFromSourceRepo: vi.fn(async () => undefined),
   removeModuleRepo: vi.fn(async () => undefined),
@@ -103,6 +110,7 @@ vi.mock('../src/module-actions.js', async (importOriginal) => {
   return {
     ...actual,
     addModuleToSourceRepo: mocks.addModuleToSourceRepo,
+    listModulesInEnvironment: mocks.listModulesInEnvironment,
     listModulesInSourceRepo: mocks.listModulesInSourceRepo,
     removeModuleFromSourceRepo: mocks.removeModuleFromSourceRepo,
   };
@@ -425,19 +433,29 @@ describe('cli menu environment routes', () => {
 
   it('routes remove-module and calls removeModuleFromSourceRepo with deleteFiles false', async () => {
     const prompts = await import('../src/prompts/index.js');
+    const selectedModule = {
+      moduleName: 'odoo_module_old',
+      repoPath: 'odoo_source_repo',
+      sourceType: 'private' as const,
+    };
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
     vi.mocked(prompts.selectPrompt)
       .mockResolvedValueOnce(cockpitCommand('remove-module'))
-      .mockResolvedValueOnce('odoo_source_repo')
-      .mockResolvedValueOnce('odoo_module_old')
+      .mockResolvedValueOnce(selectedModule)
       .mockResolvedValueOnce('exit');
     vi.mocked(prompts.confirmPrompt).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
-    mocks.listModuleRepos.mockResolvedValueOnce(['odoo_source_repo']);
-    mocks.listModulesInSourceRepo.mockResolvedValueOnce(['odoo_module_old']);
+    mocks.listModulesInEnvironment.mockResolvedValueOnce([selectedModule]);
     const { runCli } = await loadCli();
 
     await runCli([], '/tmp/environment');
 
+    const modulePromptArgs = vi.mocked(prompts.selectPrompt).mock.calls[1]?.[0];
+    expect(modulePromptArgs).toMatchObject({
+      message: '',
+      hideMessage: true,
+      navigationHelp: 'back',
+      loop: false,
+    });
     expect(mocks.removeModuleFromSourceRepo).toHaveBeenCalledWith({
       target: '/tmp/environment',
       repoPath: 'odoo_source_repo',
@@ -446,6 +464,35 @@ describe('cli menu environment routes', () => {
       deleteFiles: false,
       stage: true,
     });
+  });
+
+  it('routes list-modules through the grouped module browser and shows selected module details', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    const selectedModule = {
+      moduleName: 'odoo_sample_module_base',
+      repoPath: 'odoo_sample_module',
+      sourceType: 'private' as const,
+    };
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    mocks.listModulesInEnvironment.mockResolvedValueOnce([selectedModule]);
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('list-modules'))
+      .mockResolvedValueOnce(selectedModule)
+      .mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.listModulesInEnvironment).toHaveBeenCalledWith('/tmp/environment');
+    expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith('List modules');
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
+      [
+        'Name: odoo_sample_module_base',
+        'Source: private/odoo_sample_module',
+        'Path: odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base',
+      ].join('\n'),
+      'Module details',
+    );
   });
 
   it('routes reset and calls safeResetEnvironment after confirmation', async () => {
