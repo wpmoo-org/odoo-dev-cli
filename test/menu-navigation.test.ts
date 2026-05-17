@@ -30,13 +30,13 @@ describe('menu navigation', () => {
     expect(() => handlePromptCancel(false, 'back')).not.toThrow();
   });
 
-  it('adds a concise back hint to submenu intros', () => {
-    expect(menuIntroTitle('Remove module', 'back')).toBe('Remove module · Back (Esc)');
+  it('keeps submenu intros free of inline back hints', () => {
+    expect(menuIntroTitle('Remove module', 'back')).toBe('Remove module');
     expect(menuIntroTitle('Remove module', 'exit')).toBe('Remove module');
   });
 
-  it('adds the back hint to submenu prompt messages', () => {
-    expect(menuPromptMessage('Source repo', 'back')).toBe('Source repo · Esc to go back');
+  it('keeps submenu prompt messages free of inline back hints', () => {
+    expect(menuPromptMessage('Source repo', 'back')).toBe('Source repo');
     expect(menuPromptMessage('What do you want to do?', 'exit')).toBe('What do you want to do?');
   });
 

@@ -30,7 +30,7 @@ Usage:
   npx @wpmoo/toolkit psql [db]
   npx @wpmoo/toolkit install <module[,module]> [db]
   npx @wpmoo/toolkit update <module[,module]> [db]
-  npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
+  npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]
   npx @wpmoo/toolkit resetdb [db] [module[,module]]
   npx @wpmoo/toolkit snapshot [db] [snapshot-name]
   npx @wpmoo/toolkit restore-snapshot [--dry-run] <snapshot-name> [db]
@@ -118,7 +118,7 @@ Task recipes:
   Add OCA module:
     npx @wpmoo/toolkit add-module --repo sale-workflow --module sale_order_line_no_discount --source-type oca
   Run tests:
-    npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]
+    npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]
   Safe reset and recover:
     npx @wpmoo/toolkit snapshot [db] [snapshot-name]
     npx @wpmoo/toolkit reset --dry-run

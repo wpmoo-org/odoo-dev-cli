@@ -23,11 +23,11 @@ export function isMenuBackSignal(error: unknown): error is MenuBackSignal {
 }
 
 export function menuIntroTitle(title: string, action: PromptCancelAction): string {
-  return action === 'back' ? `${title} · Back (Esc)` : title;
+  return title;
 }
 
 export function menuPromptMessage(message: string, action: PromptCancelAction): string {
-  return action === 'back' ? `${message} · Esc to go back` : message;
+  return message;
 }
 
 export function promptCancelOutcome(

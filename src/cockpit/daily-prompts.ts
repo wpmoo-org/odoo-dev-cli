@@ -1,4 +1,5 @@
 import type { DailyActionCommand } from '../daily-actions.js';
+import { listEnvironmentDatabases, type DatabaseListOptions } from '../databases.js';
 import { listModulesInSourceRepo } from '../module-actions.js';
 import { listModuleRepos } from '../repo-actions.js';
 import { listSources } from '../source-actions.js';
@@ -32,10 +33,12 @@ export type DailyActionPromptDeps = {
   select?: (options: DailyActionSelectPromptOptions) => Promise<unknown>;
   text?: (options: DailyActionTextPromptOptions) => Promise<unknown>;
   list?: (options: DailyActionSelectPromptOptions) => Promise<unknown>;
+  databases?: (cwd: string, options?: DatabaseListOptions) => Promise<string[]>;
   handleCancel?: (value: unknown, action: DailyActionPromptCancelAction) => void;
 };
 
 const manualModuleValue = '__wpmoo_manual_module_entry__';
+const manualDatabaseValue = '__wpmoo_manual_database_entry__';
 
 function defaultCancelHandler(value: unknown, action: DailyActionPromptCancelAction): void {
   handlePromptCancel(isPromptCancel(value), action);
@@ -46,6 +49,7 @@ function promptDeps(deps: DailyActionPromptDeps = {}): Required<DailyActionPromp
     select: deps.select ?? ((options) => selectPrompt(options)),
     text: deps.text ?? ((options) => textPrompt(options)),
     list: deps.list ?? ((options) => selectPrompt(options)),
+    databases: deps.databases ?? ((cwd, options) => listEnvironmentDatabases(cwd, options)),
     handleCancel: deps.handleCancel ?? defaultCancelHandler,
   };
 }
@@ -145,6 +149,33 @@ async function optionalTextArg(
   );
 }
 
+async function databaseArg(
+  cwd: string,
+  deps: Required<DailyActionPromptDeps>,
+  message: string,
+  fallback: string,
+  options: DatabaseListOptions = {},
+): Promise<string> {
+  const databases = await deps.databases(cwd, options);
+  if (databases.length > 0) {
+    const selected = await deps.list({
+      message: menuPromptMessage(message, 'back'),
+      options: [
+        ...databases.map((database) => ({ value: database, label: database })),
+        { value: manualDatabaseValue, label: 'Manual entry' },
+      ],
+      initialValue: databases.includes(fallback) ? fallback : databases[0],
+    });
+    deps.handleCancel(selected, 'back');
+
+    if (selected !== manualDatabaseValue) {
+      return String(selected);
+    }
+  }
+
+  return optionalTextArg(deps, message, fallback);
+}
+
 async function optionalModules(cwd: string, deps: Required<DailyActionPromptDeps>): Promise<string | undefined> {
   const modules = await detectedModules(cwd);
   if (modules.length === 0) {
@@ -202,23 +233,16 @@ export async function collectDailyActionArgs(
     return [await optionalTextArg(deps, 'Service', 'odoo')];
   }
   if (command === 'psql') {
-    return [await optionalTextArg(deps, 'Database', 'postgres')];
+    return [await databaseArg(cwd, deps, 'Database', 'postgres', { includeMaintenance: true })];
   }
   if (command === 'install' || command === 'update') {
     const modules = await moduleArg(cwd, deps);
-    const db = asString(
-      await deps.text({
-        message: menuPromptMessage('Database (optional)', 'back'),
-        placeholder: 'devel',
-      }),
-      '',
-      deps,
-    );
-    return db ? [modules, db] : [modules];
+    const db = await databaseArg(cwd, deps, 'Odoo database', 'devel');
+    return [modules, db];
   }
   if (command === 'test') {
     const modules = await moduleArg(cwd, deps);
-    const db = await optionalTextArg(deps, 'Database', 'devel');
+    const db = await databaseArg(cwd, deps, 'Odoo database', 'devel');
     const mode = asString(
       await deps.list({
         message: menuPromptMessage('Mode', 'back'),
@@ -245,17 +269,17 @@ export async function collectDailyActionArgs(
   }
   if (command === 'pot') {
     const modules = await moduleArg(cwd, deps);
-    const db = await optionalTextArg(deps, 'Database', 'devel');
+    const db = await databaseArg(cwd, deps, 'Odoo database', 'devel');
     const output = await optionalTextArg(deps, 'Output file', `i18n/${modules}.pot`);
     return [modules, db, output];
   }
   if (command === 'resetdb') {
-    const db = await optionalTextArg(deps, 'Database', 'devel');
+    const db = await databaseArg(cwd, deps, 'Odoo database', 'devel');
     const modules = await optionalModules(cwd, deps);
     return modules ? [db, modules] : [db];
   }
   if (command === 'snapshot') {
-    const db = await optionalTextArg(deps, 'Database', 'devel');
+    const db = await databaseArg(cwd, deps, 'Odoo database', 'devel');
     const snapshotName = await optionalTextArg(deps, 'Snapshot name', 'before-update');
     return [db, snapshotName];
   }
@@ -268,7 +292,7 @@ export async function collectDailyActionArgs(
       'Snapshot name is required.',
       deps,
     );
-    const db = await optionalTextArg(deps, 'Database', 'devel');
+    const db = await databaseArg(cwd, deps, 'Odoo database', 'devel');
     return [snapshotName, db];
   }
 

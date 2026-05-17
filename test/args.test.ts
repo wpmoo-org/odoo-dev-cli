@@ -215,7 +215,7 @@ describe('args', () => {
     expect(renderHelp()).toContain('npx @wpmoo/toolkit stop');
     expect(renderHelp()).toContain('npx @wpmoo/toolkit logs [service]');
     expect(renderHelp()).toContain('npx @wpmoo/toolkit update <module[,module]> [db]');
-    expect(renderHelp()).toContain('npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode init|update]');
+    expect(renderHelp()).toContain('npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode auto|init|update]');
     expect(renderHelp()).toContain('npx @wpmoo/toolkit resetdb [db] [module[,module]]');
     expect(renderHelp()).toContain('npx @wpmoo/toolkit snapshot [db] [snapshot-name]');
     expect(renderHelp()).toContain('npx @wpmoo/toolkit restore-snapshot [--dry-run] <snapshot-name> [db]');

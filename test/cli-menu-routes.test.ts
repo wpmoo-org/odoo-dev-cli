@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getGitHubRepositoryStatus: vi.fn(async () => ({ status: 'accessible', slug: 'example-org/repo' })),
   installPromptCancelKeyTracker: vi.fn(),
   isUpdateCheckSkipped: vi.fn(() => true),
+  listEnvironmentDatabases: vi.fn(async () => ['devel', 'postgres']),
   getServiceRuntimeStatus: vi.fn(async () => ({ kind: 'stopped' as const })),
   listSources: vi.fn(async () => [
     {
@@ -105,6 +106,10 @@ vi.mock('../src/daily-actions.js', async (importOriginal) => {
     runDailyActionWithStyledOutput: mocks.runDailyActionWithStyledOutput,
   };
 });
+
+vi.mock('../src/databases.js', () => ({
+  listEnvironmentDatabases: mocks.listEnvironmentDatabases,
+}));
 
 vi.mock('../src/repo-actions.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/repo-actions.js')>();
@@ -223,8 +228,10 @@ async function loadCli() {
 }
 
 describe('cli menu environment routes', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    const prompts = await import('../src/prompts/index.js');
     vi.clearAllMocks();
+    vi.mocked(prompts.isPromptCancel).mockImplementation(() => false);
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     mocks.getGitHubPrerequisiteStatus.mockResolvedValue({ status: 'ready' });
@@ -568,42 +575,111 @@ describe('cli menu environment routes', () => {
     }
   });
 
-  it('returns from direct update module results to the update module selection page', async () => {
+  it.each([
+    {
+      commandId: 'update',
+      title: 'Update module',
+      textValues: [],
+      selectValuesAfterModule: [],
+      expectedCommand: 'update',
+      expectedArgv: ['odoo_sample_module_base'],
+      expectsDatabasePrompt: false,
+    },
+    {
+      commandId: 'test',
+      title: 'Run tests',
+      textValues: [],
+      selectValuesAfterModule: [],
+      expectedCommand: 'test',
+      expectedArgv: ['odoo_sample_module_base'],
+      expectsDatabasePrompt: false,
+    },
+    {
+      commandId: 'lint',
+      title: 'Run lint',
+      textValues: [],
+      selectValuesAfterModule: [],
+      expectedCommand: 'lint',
+      expectedArgv: [],
+      expectsDatabasePrompt: false,
+    },
+    {
+      commandId: 'pot',
+      title: 'Generate POT',
+      textValues: [],
+      selectValuesAfterModule: [],
+      expectedCommand: 'pot',
+      expectedArgv: ['odoo_sample_module_base'],
+      expectsDatabasePrompt: false,
+    },
+  ] as const)('uses the grouped module browser for direct $title', async ({
+    commandId,
+    title,
+    textValues,
+    selectValuesAfterModule,
+    expectedCommand,
+    expectedArgv,
+    expectsDatabasePrompt,
+  }) => {
     const prompts = await import('../src/prompts/index.js');
+    const selectedModule = {
+      moduleName: 'odoo_sample_module_base',
+      repoPath: 'odoo_sample_module',
+      sourceType: 'private' as const,
+    };
     const originalStdoutIsTTY = process.stdout.isTTY;
     const originalStdinIsTTY = process.stdin.isTTY;
     Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
     Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
     const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as never);
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
-    mocks.listModulesInSourceRepo.mockResolvedValue(['odoo_sample_module_base']);
+    mocks.listModulesInEnvironment.mockResolvedValue([selectedModule]);
     mocks.runDailyActionWithStyledOutput.mockImplementationOnce(async () => {
       setImmediate(() => process.stdin.emit('keypress', '', { name: 'escape' }));
     });
-    vi.mocked(prompts.isPromptCancel).mockImplementation((value) => value === 'cancelled-update-selection');
+    vi.mocked(prompts.isPromptCancel).mockImplementation((value) => value === 'cancelled-module-selection');
     vi.mocked(prompts.selectPrompt)
-      .mockResolvedValueOnce(cockpitCommand('update'))
-      .mockResolvedValueOnce('odoo_sample_module_base')
-      .mockResolvedValueOnce('cancelled-update-selection')
+      .mockResolvedValueOnce(cockpitCommand(commandId))
+      .mockResolvedValueOnce(selectedModule);
+    for (const selectedValue of selectValuesAfterModule) {
+      vi.mocked(prompts.selectPrompt).mockResolvedValueOnce(selectedValue);
+    }
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce('cancelled-module-selection')
       .mockResolvedValueOnce('exit');
-    vi.mocked(prompts.textPrompt).mockResolvedValueOnce('');
+    for (const textValue of textValues) {
+      vi.mocked(prompts.textPrompt).mockResolvedValueOnce(textValue);
+    }
     const { runCli } = await loadCli();
 
     try {
       await runCli([], '/tmp/environment');
 
-      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledWith('update', ['odoo_sample_module_base'], '/tmp/environment');
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledWith(expectedCommand, expectedArgv, '/tmp/environment');
       expect(mocks.runDailyAction).not.toHaveBeenCalled();
+      expect(vi.mocked(prompts.textPrompt)).not.toHaveBeenCalled();
+      if (expectsDatabasePrompt) {
+        expect(mocks.listEnvironmentDatabases).toHaveBeenCalledWith('/tmp/environment', {});
+        const databaseSelectionCall = vi.mocked(prompts.selectPrompt).mock.calls.find((call) => {
+          const options = call[0] as { message?: string; options?: Array<{ value: string }> };
+          return options.options?.some((option) => option.value === 'devel');
+        });
+        expect(databaseSelectionCall?.[0]).toMatchObject({
+          message: 'Odoo database',
+        });
+      } else {
+        expect(mocks.listEnvironmentDatabases).not.toHaveBeenCalled();
+      }
       const moduleSelectionCalls = vi.mocked(prompts.selectPrompt).mock.calls.filter((call) => {
-        const options = call[0] as { options?: Array<{ value: string }> };
-        return options.options?.some((option) => option.value === 'odoo_sample_module_base');
+        const options = call[0] as { choices?: Array<{ value?: { moduleName?: string } }> };
+        return options.choices?.some((option) => option.value?.moduleName === 'odoo_sample_module_base');
       });
       expect(moduleSelectionCalls).toHaveLength(2);
-      expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith('Update module');
+      expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith(title);
       expect(writeSpy).toHaveBeenCalledWith('\u001B[2J\u001B[H');
       const moduleSelectionOrders = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder.filter((_, index) => {
-        const options = vi.mocked(prompts.selectPrompt).mock.calls[index]?.[0] as { options?: Array<{ value: string }> };
-        return options.options?.some((option) => option.value === 'odoo_sample_module_base');
+        const options = vi.mocked(prompts.selectPrompt).mock.calls[index]?.[0] as { choices?: Array<{ value?: { moduleName?: string } }> };
+        return options.choices?.some((option) => option.value?.moduleName === 'odoo_sample_module_base');
       });
       const runOrder = mocks.runDailyActionWithStyledOutput.mock.invocationCallOrder[0];
       const clearBeforeSecondSelection = writeSpy.mock.invocationCallOrder.find(

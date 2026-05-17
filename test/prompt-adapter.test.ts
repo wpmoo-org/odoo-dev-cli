@@ -163,7 +163,7 @@ describe('prompt adapter', () => {
       };
     };
     expect(theme.style?.keysHelpTip?.([])).toBe(
-      '\u001B[38;2;226;184;96mAlready in Cockpit. Press Ctrl+C to exit.\u001B[39m\n↑↓ navigate • ⏎ select • Ctrl+C exit',
+      '\u001B[2m\u001B[38;2;226;184;96mAlready in Cockpit. Press Ctrl+C to exit.\u001B[0m\n↑↓ navigate • ⏎ select • Ctrl+C exit',
     );
   });
 
@@ -256,7 +256,7 @@ describe('prompt adapter', () => {
     });
 
     const resultPromise = inputPrompt({
-      message: 'Source repo · Esc to go back',
+      message: 'Source repo',
     });
 
     process.stdin.emit('keypress', '', { name: 'escape', sequence: '\u001B' });

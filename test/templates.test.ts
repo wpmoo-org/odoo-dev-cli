@@ -155,6 +155,8 @@ describe('template rendering', () => {
     expect(script).toContain('"restore-snapshot")');
     expect(script).toContain('Usage: ./moo restore-snapshot [--dry-run] <snapshot-name> [db]');
     expect(script).toContain('./scripts/restore-snapshot.sh');
+    expect(script).toContain('Usage: ./moo test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]');
+    expect(script).toContain('Invalid value for --mode: expected auto, init, or update');
     expect(script).toContain('"lint")');
     expect(script).toContain('./scripts/lint.sh');
     expect(script).toContain('"pot")');

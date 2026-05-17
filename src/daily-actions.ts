@@ -69,7 +69,7 @@ function usage(command: DailyActionCommand): string {
   if (command === 'psql') return 'Usage: wpmoo psql [db]';
   if (command === 'install') return 'Usage: wpmoo install <module[,module]> [db]';
   if (command === 'update') return 'Usage: wpmoo update <module[,module]> [db]';
-  if (command === 'test') return 'Usage: wpmoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]';
+  if (command === 'test') return 'Usage: wpmoo test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]';
   if (command === 'resetdb') return 'Usage: wpmoo resetdb [db] [module[,module]]';
   if (command === 'snapshot') return 'Usage: wpmoo snapshot [db] [snapshot-name]';
   if (command === 'restore-snapshot') return 'Usage: wpmoo restore-snapshot [--dry-run] <snapshot-name> [db]';
@@ -125,8 +125,8 @@ function testArgs(argv: string[]): string[] {
 
     const value = rest[index + 1];
     if (!value || value.startsWith('--')) throw new Error(`Missing value for ${option}`);
-    if (option === '--mode' && value !== 'init' && value !== 'update') {
-      throw new Error('Invalid value for --mode: expected init or update');
+    if (option === '--mode' && value !== 'auto' && value !== 'init' && value !== 'update') {
+      throw new Error('Invalid value for --mode: expected auto, init, or update');
     }
     index += 1;
   }

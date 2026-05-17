@@ -67,7 +67,7 @@ describe('repository URL prompts', () => {
     });
   });
 
-  it('adds the back hint to repository URL prompt messages when returning to a menu is available', async () => {
+  it('keeps repository URL prompt messages free of inline back hints', async () => {
     const api = promptApi(false, 'https://github.com/wpmoo-org/odoo_sample_module.git');
     const suggestedUrl = 'https://github.com/cangir/odoo_sample_module.git';
 
@@ -85,13 +85,13 @@ describe('repository URL prompts', () => {
       {
         type: 'confirm',
         options: {
-          message: `Use Source repo URL? (Y/n) · Esc to go back\n${suggestedUrl}`,
+          message: `Use Source repo URL? (Y/n)\n${suggestedUrl}`,
         },
       },
       {
         type: 'text',
         options: {
-          message: 'Source repo URL · Esc to go back',
+          message: 'Source repo URL',
         },
       },
     ]);

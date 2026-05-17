@@ -480,7 +480,7 @@ usage() {
     "psql") echo "Usage: ./moo psql [db]" ;;
     "install") echo "Usage: ./moo install <module[,module]> [db]" ;;
     "update") echo "Usage: ./moo update <module[,module]> [db]" ;;
-    "test") echo "Usage: ./moo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]" ;;
+    "test") echo "Usage: ./moo test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]" ;;
     "resetdb") echo "Usage: ./moo resetdb [db] [module[,module]]" ;;
     "snapshot") echo "Usage: ./moo snapshot [db] [snapshot-name]" ;;
     "restore-snapshot") echo "Usage: ./moo restore-snapshot [--dry-run] <snapshot-name> [db]" ;;
@@ -555,8 +555,8 @@ validate_test_args() {
           echo "Missing value for --mode" >&2
           exit 2
         fi
-        if [[ "$2" != "init" && "$2" != "update" ]]; then
-          echo "Invalid value for --mode: expected init or update" >&2
+        if [[ "$2" != "auto" && "$2" != "init" && "$2" != "update" ]]; then
+          echo "Invalid value for --mode: expected auto, init, or update" >&2
           exit 2
         fi
         shift 2

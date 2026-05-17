@@ -10,6 +10,7 @@ type PromptAnswers = {
   select?: unknown[];
   text?: unknown[];
   list?: unknown[];
+  databases?: string[];
 };
 
 function promptDeps(answers: PromptAnswers): DailyActionPromptDeps {
@@ -28,6 +29,9 @@ function promptDeps(answers: PromptAnswers): DailyActionPromptDeps {
     async list(options) {
       const answer = listAnswers.shift();
       return answer ?? options.initialValue ?? '';
+    },
+    async databases() {
+      return answers.databases ?? [];
     },
   };
 }
@@ -78,6 +82,27 @@ describe('cockpit daily action prompts', () => {
     await expect(collectDailyActionArgs('psql', target, promptDeps({ text: [''] }))).resolves.toEqual(['postgres']);
   });
 
+  it('keeps maintenance databases available for psql', async () => {
+    const target = await makeEnvironment();
+    const databaseOptions: unknown[] = [];
+
+    await expect(
+      collectDailyActionArgs('psql', target, {
+        async list() {
+          return 'postgres';
+        },
+        async text(options) {
+          return options.defaultValue ?? '';
+        },
+        async databases(_cwd, options) {
+          databaseOptions.push(options);
+          return ['postgres'];
+        },
+      }),
+    ).resolves.toEqual(['postgres']);
+    expect(databaseOptions).toEqual([{ includeMaintenance: true }]);
+  });
+
   it('builds test argv from module, db, mode, and optional tags prompts', async () => {
     const target = await makeEnvironment();
 
@@ -87,8 +112,9 @@ describe('cockpit daily action prompts', () => {
         target,
         promptDeps({
           select: ['sale'],
-          text: ['staging', '/sale'],
-          list: ['init'],
+          text: ['/sale'],
+          list: ['staging', 'init'],
+          databases: ['devel', 'staging'],
         }),
       ),
     ).resolves.toEqual(['sale', '--db', 'staging', '--mode', 'init', '--tags', '/sale']);
@@ -103,10 +129,28 @@ describe('cockpit daily action prompts', () => {
         target,
         promptDeps({
           select: ['sale'],
-          text: ['', ''],
+          text: [''],
+          list: ['devel'],
+          databases: ['devel', 'postgres'],
         }),
       ),
     ).resolves.toEqual(['sale', 'devel', 'i18n/sale.pot']);
+  });
+
+  it('offers connected databases for database-backed commands', async () => {
+    const target = await makeEnvironment();
+
+    await expect(
+      collectDailyActionArgs(
+        'update',
+        target,
+        promptDeps({
+          select: ['sale'],
+          list: ['prod'],
+          databases: ['devel', 'prod'],
+        }),
+      ),
+    ).resolves.toEqual(['sale', 'prod']);
   });
 
   it('offers modules from non-private source repositories', async () => {
@@ -121,8 +165,11 @@ describe('cockpit daily action prompts', () => {
         async text(options) {
           return options.defaultValue ?? '';
         },
+        async databases() {
+          return [];
+        },
       }),
-    ).resolves.toEqual(['purchase']);
+    ).resolves.toEqual(['purchase', 'devel']);
   });
 
   it('requires restore-snapshot snapshot name before db', async () => {
@@ -144,6 +191,6 @@ describe('cockpit daily action prompts', () => {
           text: ['custom_addon,other_addon', ''],
         }),
       ),
-    ).resolves.toEqual(['custom_addon,other_addon']);
+    ).resolves.toEqual(['custom_addon,other_addon', 'devel']);
   });
 });

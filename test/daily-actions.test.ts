@@ -95,6 +95,10 @@ describe('daily actions', () => {
       scriptPath: join(target, 'scripts/test.sh'),
       args: ['sale', '--db', 'devel', '--mode', 'update', '--tags', '/sale'],
     });
+    await expect(dailyActionPlan('test', ['sale', '--mode', 'auto'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/test.sh'),
+      args: ['sale', '--mode', 'auto'],
+    });
   });
 
   it('maps compose maintenance commands to fixed scripts with positional arguments', async () => {
@@ -138,7 +142,7 @@ describe('daily actions', () => {
       'Usage: wpmoo update <module[,module]> [db]',
     );
     await expect(dailyActionPlan('test', ['--db', 'devel'], target)).rejects.toThrow(
-      'Usage: wpmoo test <module[,module]> [--db <db>] [--mode init|update] [--tags <tags>]',
+      'Usage: wpmoo test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]',
     );
   });
 
@@ -284,7 +288,7 @@ describe('daily actions', () => {
     const target = await makeEnvironment({ scripts: ['test.sh'] });
 
     await expect(dailyActionPlan('test', ['module_a', '--mode', 'broken'], target)).rejects.toThrow(
-      'Invalid value for --mode: expected init or update',
+      'Invalid value for --mode: expected auto, init, or update',
     );
     await expect(dailyActionPlan('test', ['module_a', '--db'], target)).rejects.toThrow('Missing value for --db');
     await expect(dailyActionPlan('test', ['module_a', '--tags'], target)).rejects.toThrow('Missing value for --tags');

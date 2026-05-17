@@ -226,7 +226,7 @@ function hiddenSelectTheme<T>(
   navigationWarning?: string,
 ): InquirerSelectPromptConfig<T>['theme'] {
   const keysHelpTip = navigationHelp === 'back' ? '↑↓ navigate • ⏎ select • Esc to go back' : '↑↓ navigate • ⏎ select • Ctrl+C exit';
-  const renderedWarning = navigationWarning ? `\u001B[38;2;226;184;96m${navigationWarning}\u001B[39m` : undefined;
+  const renderedWarning = navigationWarning ? `\u001B[2m\u001B[38;2;226;184;96m${navigationWarning}\u001B[0m` : undefined;
 
   return {
     prefix: '',

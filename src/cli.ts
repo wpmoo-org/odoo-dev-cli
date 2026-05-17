@@ -22,6 +22,7 @@ import { confirmCockpitCommandRisk } from './cockpit/safety.js';
 import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
 import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
+import { listEnvironmentDatabases, type DatabaseListOptions } from './databases.js';
 import { isDailyActionCommand, runDailyAction, runDailyActionWithStyledOutput, type DailyActionCommand } from './daily-actions.js';
 import { getDoctorReport, runDoctor, type DoctorCommandOptions } from './doctor.js';
 import { getOriginUrl, realGit } from './git.js';
@@ -363,6 +364,7 @@ function renderBackHelp(): string {
 }
 
 const COCKPIT_ESCAPE_WARNING = 'Already in Cockpit. Press Ctrl+C to exit.';
+const manualDatabaseValue = '__wpmoo_manual_database_entry__';
 
 async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: StartupBannerDetails): Promise<void> {
   if (skipUpdateCheck) {
@@ -1365,6 +1367,7 @@ function commandActionTitle(command: DailyActionCommand): string {
   if (command === 'update') return 'Update module';
   if (command === 'test') return 'Test module';
   if (command === 'lint') return 'Run lint';
+  if (command === 'pot') return 'Generate POT';
   return command;
 }
 
@@ -1381,12 +1384,76 @@ function shouldReturnToDailySelection(command: DailyActionCommand): boolean {
   return ['install', 'update', 'test', 'pot'].includes(command);
 }
 
+function shouldUseModuleBrowserForDailySelection(command: DailyActionCommand): boolean {
+  return ['update', 'test', 'lint', 'pot'].includes(command);
+}
+
 function dailyActionSelectedLabel(command: DailyActionCommand, argv: readonly string[]): string | undefined {
   if (['install', 'update', 'test', 'pot'].includes(command)) {
     return argv[0];
   }
 
   return undefined;
+}
+
+async function selectDatabaseArg(
+  cwd: string,
+  message: string,
+  fallback: string,
+  options: DatabaseListOptions = {},
+): Promise<string> {
+  const databases = await listEnvironmentDatabases(cwd, options);
+  if (databases.length > 0) {
+    const selected = await selectPrompt({
+      message: menuPromptMessage(message, 'back'),
+      options: [
+        ...databases.map((database) => ({ value: database, label: database })),
+        { value: manualDatabaseValue, label: 'Manual entry' },
+      ],
+      initialValue: databases.includes(fallback) ? fallback : databases[0],
+    });
+    handleCancel(selected, 'back');
+
+    if (selected !== manualDatabaseValue) {
+      return String(selected);
+    }
+  }
+
+  return asString(
+    await textPrompt({
+      message: menuPromptMessage(message, 'back'),
+      defaultValue: fallback,
+      placeholder: fallback,
+    }),
+    fallback,
+    'back',
+  );
+}
+
+async function collectCockpitModuleDailyActionArgs(
+  command: DailyActionCommand,
+  module: ListedModule,
+  cwd: string,
+): Promise<string[]> {
+  const moduleName = module.moduleName;
+
+  if (command === 'update') {
+    return [moduleName];
+  }
+
+  if (command === 'test') {
+    return [moduleName];
+  }
+
+  if (command === 'lint') {
+    return [];
+  }
+
+  if (command === 'pot') {
+    return [moduleName];
+  }
+
+  throw new Error(`Unsupported module action command: ${command}`);
 }
 
 async function renderDailyActionResultPageHeader(title: string, selectedLabel: string | undefined, cwd: string): Promise<void> {
@@ -1506,12 +1573,64 @@ async function runSelectedModuleAction(action: ModuleActionId, module: ListedMod
   return runSelectedModuleDailyAction(action, module, cwd);
 }
 
+async function runCockpitModuleDailyCommand(command: CockpitCommand, cwd: string): Promise<void> {
+  if (command.target.kind !== 'daily') {
+    return;
+  }
+
+  const dailyCommand = command.target.command;
+  while (true) {
+    let selectedModule: ListedModule;
+    let argv: string[];
+    try {
+      await renderCockpitSubmenuPage(command.label, cwd);
+      const module = await selectModuleFromBrowser(cwd);
+      if (!module) {
+        notePrompt(
+          'No Odoo modules found.\nNext: choose "Add module" or "Add source repo" first.',
+          command.label,
+        );
+        return;
+      }
+      selectedModule = module;
+      argv = await collectCockpitModuleDailyActionArgs(dailyCommand, selectedModule, cwd);
+    } catch (error) {
+      if (isMenuBackSignal(error)) {
+        return;
+      }
+      throw error;
+    }
+
+    if (!(await confirmCockpitCommandRisk(command))) {
+      notePrompt(`${command.slashAlias} was not run.`, 'Action skipped');
+      return;
+    }
+
+    const returnedByBack = await runDailyActionResultPage(
+      dailyCommand,
+      argv,
+      cwd,
+      command.label,
+      selectedModule.moduleName,
+      commandCompletedLabel(dailyCommand),
+    );
+    if (!returnedByBack) {
+      return;
+    }
+  }
+}
+
 async function runCockpitDailyCommand(command: CockpitCommand, cwd: string): Promise<void> {
   if (command.target.kind !== 'daily') {
     return;
   }
 
   const dailyCommand = command.target.command;
+  if (shouldUseModuleBrowserForDailySelection(dailyCommand)) {
+    await runCockpitModuleDailyCommand(command, cwd);
+    return;
+  }
+
   if (!shouldReturnToDailySelection(dailyCommand)) {
     const argv = await collectDailyActionArgs(dailyCommand, cwd);
     if (!(await confirmCockpitCommandRisk(command))) {
