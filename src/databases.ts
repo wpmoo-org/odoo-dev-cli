@@ -4,6 +4,12 @@ export type DatabaseListOptions = {
   includeMaintenance?: boolean;
 };
 
+export type DatabaseListResult =
+  | { ok: true; databases: string[] }
+  | { ok: false; databases: []; error?: string };
+
+export type DatabaseListResponse = string[] | DatabaseListResult;
+
 const maintenanceDatabases = new Set(['postgres']);
 const listDatabasesQuery = [
   'SELECT datname',
@@ -33,7 +39,15 @@ export function parseDatabaseListOutput(output: string, options: DatabaseListOpt
   return databases;
 }
 
-export async function listEnvironmentDatabases(cwd: string, options: DatabaseListOptions = {}): Promise<string[]> {
+export function normalizeDatabaseListResult(result: DatabaseListResponse): DatabaseListResult {
+  if (Array.isArray(result)) {
+    return { ok: true, databases: result };
+  }
+
+  return result;
+}
+
+export async function listEnvironmentDatabases(cwd: string, options: DatabaseListOptions = {}): Promise<DatabaseListResult> {
   const queryLiteral = JSON.stringify(listDatabasesQuery);
   const command = [
     `query=${queryLiteral}`,
@@ -44,16 +58,24 @@ export async function listEnvironmentDatabases(cwd: string, options: DatabaseLis
   return new Promise((resolve) => {
     const child = spawn('bash', ['-lc', command], {
       cwd,
-      stdio: ['ignore', 'pipe', 'ignore'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
+    let errorOutput = '';
 
     child.stdout?.on('data', (chunk: Buffer) => {
       output += chunk.toString('utf8');
     });
-    child.on('error', () => resolve([]));
+    child.stderr?.on('data', (chunk: Buffer) => {
+      errorOutput += chunk.toString('utf8');
+    });
+    child.on('error', (error) => resolve({ ok: false, databases: [], error: error.message }));
     child.on('close', (code) => {
-      resolve(code === 0 ? parseDatabaseListOutput(output, options) : []);
+      resolve(
+        code === 0
+          ? { ok: true, databases: parseDatabaseListOutput(output, options) }
+          : { ok: false, databases: [], error: errorOutput.trim() || `Database list command exited with ${code}` },
+      );
     });
   });
 }

@@ -76,7 +76,7 @@ describe('cockpit top-level menu', () => {
         inlineCommand('Install module', 'Install one or more Odoo modules into a database.'),
         inlineCommand('Update module', 'Update one or more Odoo modules in a database.'),
         inlineCommand('Run tests', 'Run Odoo tests for one or more modules.'),
-        inlineCommand('Run lint', 'Run the configured module lint checks.'),
+        inlineCommand('Run environment lint', 'Run the configured environment lint checks.'),
         inlineCommand('Generate POT', 'Generate translation template files for a module.'),
         inlineCommand('Add module', 'Add a module folder to a source repository.'),
         inlineCommand('Remove module', 'Remove a module folder from a source repository.'),

@@ -313,7 +313,12 @@ const BANNER_TAGLINE = 'Development, staging and production workflows for Odoo p
 
 type BannerOptions = {
   version?: string;
+  color?: boolean;
 };
+
+function shouldRenderBannerColor(options: BannerOptions): boolean {
+  return options.color ?? process.env.NO_COLOR === undefined;
+}
 
 function gradientColor(column: number, width: number): string {
   const ratio = width <= 1 ? 0 : column / (width - 1);
@@ -326,7 +331,11 @@ function gradientColor(column: number, width: number): string {
   return `\u001B[38;2;${r};${g};${b}m`;
 }
 
-function applyBannerGradient(banner: string): string {
+function applyBannerGradient(banner: string, color: boolean): string {
+  if (!color) {
+    return banner;
+  }
+
   const lines = banner.split('\n');
 
   return lines
@@ -339,34 +348,40 @@ function applyBannerGradient(banner: string): string {
     .join('\n');
 }
 
-function renderDimInfo(value: string): string {
+function renderDimInfo(value: string, color: boolean): string {
+  if (!color) return value;
   return `${ANSI_DIM}${ANSI_INFO}${value}${ANSI_RESET}`;
 }
 
-function renderMetaInfo(value: string): string {
+function renderMetaInfo(value: string, color: boolean): string {
+  if (!color) return value;
   return `${ANSI_META}${value}${ANSI_RESET}`;
 }
 
-function renderSuccessInfo(value: string): string {
+function renderSuccessInfo(value: string, color: boolean): string {
+  if (!color) return value;
   return `${ANSI_SUCCESS}${value}${ANSI_DEFAULT_FOREGROUND}`;
 }
 
-function renderErrorInfo(value: string): string {
+function renderErrorInfo(value: string, color: boolean): string {
+  if (!color) return value;
   return `${ANSI_ERROR}${value}${ANSI_DEFAULT_FOREGROUND}`;
 }
 
-function renderWarningInfo(value: string): string {
+function renderWarningInfo(value: string, color: boolean): string {
+  if (!color) return value;
   return `${ANSI_WARNING}${value}${ANSI_DEFAULT_FOREGROUND}`;
 }
 
-function renderTaglineInfo(value: string): string {
+function renderTaglineInfo(value: string, color: boolean): string {
+  if (!color) return value;
   return `${ANSI_TAGLINE}${value}${ANSI_RESET}`;
 }
 
-function renderBannerDetail(value: string): string {
+function renderBannerDetail(value: string, color: boolean): string {
   const match = /^(Environment|Status|Last):(.*)$/u.exec(value);
   if (!match) {
-    return renderDimInfo(value);
+    return renderDimInfo(value, color);
   }
 
   const label = match[1];
@@ -378,41 +393,42 @@ function renderBannerDetail(value: string): string {
       const marker = statusMatch[1] ?? '';
       const message = statusMatch[2] ?? '';
       const renderMarker = message === 'Services running' ? renderSuccessInfo : renderWarningInfo;
-      return `${renderMetaInfo(`${label}:`)} ${renderMarker(marker)}${renderTaglineInfo(` ${message}`)}`;
+      return `${renderMetaInfo(`${label}:`, color)} ${renderMarker(marker, color)}${renderTaglineInfo(` ${message}`, color)}`;
     }
   }
 
   if (label === 'Last') {
     const completedMatch = /^(.*?)( ✓ completed)$/u.exec(detail);
     if (completedMatch) {
-      return `${renderMetaInfo(`${label}:`)}${renderDimInfo(completedMatch[1] ?? '')}${renderSuccessInfo(completedMatch[2] ?? '')}`;
+      return `${renderMetaInfo(`${label}:`, color)}${renderDimInfo(completedMatch[1] ?? '', color)}${renderSuccessInfo(completedMatch[2] ?? '', color)}`;
     }
 
     const errorMatch = /^(.*?)( ✗ Error)(: .*)?$/u.exec(detail);
     if (errorMatch) {
       return [
-        renderMetaInfo(`${label}:`),
-        renderDimInfo(errorMatch[1] ?? ''),
-        renderErrorInfo(errorMatch[2] ?? ''),
-        renderTaglineInfo(errorMatch[3] ?? ''),
+        renderMetaInfo(`${label}:`, color),
+        renderDimInfo(errorMatch[1] ?? '', color),
+        renderErrorInfo(errorMatch[2] ?? '', color),
+        renderTaglineInfo(errorMatch[3] ?? '', color),
       ].join('');
     }
   }
 
-  return `${renderMetaInfo(`${label}:`)}${renderDimInfo(detail)}`;
+  return `${renderMetaInfo(`${label}:`, color)}${renderDimInfo(detail, color)}`;
 }
 
 export function renderBanner(details: readonly string[] = [], options: BannerOptions = {}): string {
-  const title = `${applyBannerGradient('WPMoo Toolkit')}${options.version ? `  ${renderDimInfo(options.version)}` : ''}`;
+  const color = shouldRenderBannerColor(options);
+  const title = `${applyBannerGradient('WPMoo Toolkit', color)}${options.version ? `  ${renderDimInfo(options.version, color)}` : ''}`;
   const header = [
     title,
-    applyBannerGradient('Workflow Platform · Micro Object Oriented'),
-    renderTaglineInfo(BANNER_TAGLINE),
-    applyBannerGradient('━'.repeat(BANNER_TAGLINE.length)),
+    applyBannerGradient('Workflow Platform · Micro Object Oriented', color),
+    renderTaglineInfo(BANNER_TAGLINE, color),
+    applyBannerGradient('━'.repeat(BANNER_TAGLINE.length), color),
   ].join('\n');
-  const detailsBlock = details.length > 0 ? `\n${details.map((line) => renderBannerDetail(line)).join('\n')}` : '';
+  const detailsBlock = details.length > 0 ? `\n${details.map((line) => renderBannerDetail(line, color)).join('\n')}` : '';
 
-  return `\n${ANSI_BOLD}${header}${ANSI_RESET}${detailsBlock}`;
+  return color ? `\n${ANSI_BOLD}${header}${ANSI_RESET}${detailsBlock}` : `\n${header}${detailsBlock}`;
 }
 
 export function renderGitignore(): string {

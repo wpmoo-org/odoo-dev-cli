@@ -22,7 +22,7 @@ import { confirmCockpitCommandRisk } from './cockpit/safety.js';
 import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
 import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
-import { listEnvironmentDatabases, type DatabaseListOptions } from './databases.js';
+import { listEnvironmentDatabases, normalizeDatabaseListResult, type DatabaseListOptions } from './databases.js';
 import { isDailyActionCommand, runDailyAction, runDailyActionWithStyledOutput, type DailyActionCommand } from './daily-actions.js';
 import { getDoctorReport, runDoctor, type DoctorCommandOptions } from './doctor.js';
 import { getOriginUrl, realGit } from './git.js';
@@ -1124,7 +1124,7 @@ async function removeModuleOptionsFromPrompts(
   }
 
   const deleteFiles = await confirmPrompt({
-    message: menuPromptMessage('Delete module files too? (y/N)', cancelAction),
+    message: menuPromptMessage('Delete module files too?', cancelAction),
     active: 'Y',
     inactive: 'n',
     initialValue: false,
@@ -1347,7 +1347,7 @@ function moduleDailyActionArgs(action: ModuleActionId, module: ListedModule): st
 function moduleActionTitle(action: ModuleActionId): string {
   if (action === 'update') return 'Update module';
   if (action === 'test') return 'Test module';
-  if (action === 'lint') return 'Run lint';
+  if (action === 'lint') return 'Run environment lint';
   if (action === 'delete') return 'Delete module';
   return 'Module action';
 }
@@ -1355,14 +1355,14 @@ function moduleActionTitle(action: ModuleActionId): string {
 function moduleActionCompletedLabel(action: ModuleActionId): string {
   if (action === 'update') return 'Update';
   if (action === 'test') return 'Test';
-  if (action === 'lint') return 'Lint';
+  if (action === 'lint') return 'Environment lint';
   return 'Action';
 }
 
 function commandActionTitle(command: DailyActionCommand): string {
   if (command === 'update') return 'Update module';
   if (command === 'test') return 'Test module';
-  if (command === 'lint') return 'Run lint';
+  if (command === 'lint') return 'Run environment lint';
   if (command === 'pot') return 'Generate POT';
   return command;
 }
@@ -1371,7 +1371,7 @@ function commandCompletedLabel(command: DailyActionCommand): string {
   if (command === 'install') return 'Install';
   if (command === 'update') return 'Update';
   if (command === 'test') return 'Test';
-  if (command === 'lint') return 'Lint';
+  if (command === 'lint') return 'Environment lint';
   if (command === 'pot') return 'Generate POT';
   return command;
 }
@@ -1398,7 +1398,8 @@ async function selectDatabaseArg(
   fallback: string,
   options: DatabaseListOptions = {},
 ): Promise<string> {
-  const databases = await listEnvironmentDatabases(cwd, options);
+  const databaseResult = normalizeDatabaseListResult(await listEnvironmentDatabases(cwd, options));
+  const databases: string[] = databaseResult.databases;
   if (databases.length > 0) {
     const selected = await selectPrompt({
       message: menuPromptMessage(message, 'back'),
@@ -1417,7 +1418,10 @@ async function selectDatabaseArg(
 
   return asString(
     await textPrompt({
-      message: menuPromptMessage(message, 'back'),
+      message: menuPromptMessage(
+        databaseResult.ok ? message : `${message} (database list unavailable; enter manually)`,
+        'back',
+      ),
       defaultValue: fallback,
       placeholder: fallback,
     }),
@@ -1540,7 +1544,7 @@ async function runSelectedModuleDailyAction(action: ModuleActionId, module: List
     moduleDailyActionArgs(action, module),
     cwd,
     moduleActionTitle(action),
-    module.moduleName,
+    action === 'lint' ? undefined : module.moduleName,
     moduleActionCompletedLabel(action),
   );
 }
@@ -1548,7 +1552,7 @@ async function runSelectedModuleDailyAction(action: ModuleActionId, module: List
 async function runSelectedModuleAction(action: ModuleActionId, module: ListedModule, cwd: string): Promise<boolean> {
   if (action === 'delete') {
     const deleteFiles = await confirmPrompt({
-      message: menuPromptMessage('Delete module files too? (y/N)', 'back'),
+      message: menuPromptMessage('Delete module files too?', 'back'),
       active: 'Y',
       inactive: 'n',
       initialValue: false,

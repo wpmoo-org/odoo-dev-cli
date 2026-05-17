@@ -10,7 +10,7 @@ type PromptAnswers = {
   select?: unknown[];
   text?: unknown[];
   list?: unknown[];
-  databases?: string[];
+  databases?: string[] | { ok: false; databases: []; error?: string };
 };
 
 function promptDeps(answers: PromptAnswers): DailyActionPromptDeps {
@@ -151,6 +151,28 @@ describe('cockpit daily action prompts', () => {
         }),
       ),
     ).resolves.toEqual(['sale', 'prod']);
+  });
+
+  it('makes database discovery failures visible before manual entry', async () => {
+    const target = await makeEnvironment();
+    const textMessages: string[] = [];
+
+    await expect(
+      collectDailyActionArgs('update', target, {
+        async select() {
+          return 'sale';
+        },
+        async text(options) {
+          textMessages.push(options.message);
+          return 'staging';
+        },
+        async databases() {
+          return { ok: false, databases: [], error: 'docker compose failed' };
+        },
+      }),
+    ).resolves.toEqual(['sale', 'staging']);
+
+    expect(textMessages).toEqual(['Odoo database (database list unavailable; enter manually)']);
   });
 
   it('offers modules from non-private source repositories', async () => {

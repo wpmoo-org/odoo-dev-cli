@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { execa } from 'execa';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   renderBanner,
@@ -19,6 +19,7 @@ import { packageName, packageVersion } from '../src/version.js';
 const expectedFallbackPackageSpec = `${packageName()}@${packageVersion()}`;
 
 describe('template rendering', () => {
+  const originalNoColor = process.env.NO_COLOR;
   const bannerTagline = 'Development, staging and production workflows for Odoo projects.';
   const bannerDivider = '━'.repeat(bannerTagline.length);
   const options = {
@@ -46,6 +47,18 @@ describe('template rendering', () => {
       },
     ],
   };
+
+  beforeEach(() => {
+    delete process.env.NO_COLOR;
+  });
+
+  afterEach(() => {
+    if (originalNoColor === undefined) {
+      delete process.env.NO_COLOR;
+    } else {
+      process.env.NO_COLOR = originalNoColor;
+    }
+  });
 
   it('renders addons.yaml from source repos', () => {
     expect(renderAddonsYaml(options)).toContain('private/odoo_sample_module:');
@@ -393,6 +406,25 @@ describe('template rendering', () => {
     expect(banner).toContain('\u001B[38;2;209;95;127m');
     expect(banner).not.toContain('\u001B[38;2;192;78;133m');
     expect(banner).toContain('\u001B[0m');
+  });
+
+  it('omits ANSI styling from the CLI banner when NO_COLOR is set', () => {
+    const originalNoColor = process.env.NO_COLOR;
+    process.env.NO_COLOR = '1';
+
+    try {
+      const banner = renderBanner(['Status: ● Services running', 'Last: Ready'], { version: 'v0.8.69' });
+
+      expect(banner).not.toMatch(/\u001B\[[0-9;]*m/u);
+      expect(banner.trim()).toContain('WPMoo Toolkit  v0.8.69');
+      expect(banner).toContain('Status: ● Services running');
+    } finally {
+      if (originalNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = originalNoColor;
+      }
+    }
   });
 
   it('renders gitignore for Docker, Odoo, and local files', () => {

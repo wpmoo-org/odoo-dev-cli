@@ -18,7 +18,7 @@ const moduleActions: readonly { id: ModuleActionId; label: string }[] = [
   { id: 'delete', label: 'Delete module' },
   { id: 'update', label: 'Update' },
   { id: 'test', label: 'Test' },
-  { id: 'lint', label: 'Lint' },
+  { id: 'lint', label: 'Run environment lint' },
 ];
 
 export type ModuleActionSelectPrompt = (options: {

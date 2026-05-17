@@ -86,7 +86,7 @@ export const cockpitCommands = [
   dailyCommand('install', 'modules', 'Install module', 'Install one or more Odoo modules into a database.', ['install module']),
   dailyCommand('update', 'modules', 'Update module', 'Update one or more Odoo modules in a database.', ['upgrade']),
   dailyCommand('test', 'modules', 'Run tests', 'Run Odoo tests for one or more modules.', ['tests', 'pytest']),
-  dailyCommand('lint', 'modules', 'Run lint', 'Run the configured module lint checks.', ['check', 'quality']),
+  dailyCommand('lint', 'modules', 'Run environment lint', 'Run the configured environment lint checks.', ['check', 'quality']),
   dailyCommand('pot', 'modules', 'Generate POT', 'Generate translation template files for a module.', ['translation', 'i18n']),
   dailyCommand('psql', 'database', 'Open psql', 'Open a PostgreSQL prompt for an environment database.', ['postgres', 'sql']),
   dailyCommand('snapshot', 'database', 'Create snapshot', 'Create a database snapshot.', ['backup', 'dump']),

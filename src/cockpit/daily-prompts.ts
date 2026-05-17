@@ -1,5 +1,10 @@
 import type { DailyActionCommand } from '../daily-actions.js';
-import { listEnvironmentDatabases, type DatabaseListOptions } from '../databases.js';
+import {
+  listEnvironmentDatabases,
+  normalizeDatabaseListResult,
+  type DatabaseListOptions,
+  type DatabaseListResponse,
+} from '../databases.js';
 import { listModulesInSourceRepo } from '../module-actions.js';
 import { listModuleRepos } from '../repo-actions.js';
 import { listSources } from '../source-actions.js';
@@ -33,7 +38,7 @@ export type DailyActionPromptDeps = {
   select?: (options: DailyActionSelectPromptOptions) => Promise<unknown>;
   text?: (options: DailyActionTextPromptOptions) => Promise<unknown>;
   list?: (options: DailyActionSelectPromptOptions) => Promise<unknown>;
-  databases?: (cwd: string, options?: DatabaseListOptions) => Promise<string[]>;
+  databases?: (cwd: string, options?: DatabaseListOptions) => Promise<DatabaseListResponse>;
   handleCancel?: (value: unknown, action: DailyActionPromptCancelAction) => void;
 };
 
@@ -156,7 +161,8 @@ async function databaseArg(
   fallback: string,
   options: DatabaseListOptions = {},
 ): Promise<string> {
-  const databases = await deps.databases(cwd, options);
+  const databaseResult = normalizeDatabaseListResult(await deps.databases(cwd, options));
+  const databases: string[] = databaseResult.databases;
   if (databases.length > 0) {
     const selected = await deps.list({
       message: menuPromptMessage(message, 'back'),
@@ -173,7 +179,11 @@ async function databaseArg(
     }
   }
 
-  return optionalTextArg(deps, message, fallback);
+  return optionalTextArg(
+    deps,
+    databaseResult.ok ? message : `${message} (database list unavailable; enter manually)`,
+    fallback,
+  );
 }
 
 async function optionalModules(cwd: string, deps: Required<DailyActionPromptDeps>): Promise<string | undefined> {

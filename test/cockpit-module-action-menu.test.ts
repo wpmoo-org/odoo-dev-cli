@@ -31,7 +31,7 @@ describe('cockpit module action menu', () => {
       });
 
       const labels = options.choices.map(choiceLabel);
-      expect(labels).toEqual(['Delete module', 'Update', 'Test', 'Lint']);
+      expect(labels).toEqual(['Delete module', 'Update', 'Test', 'Run environment lint']);
       return 'update';
     });
 

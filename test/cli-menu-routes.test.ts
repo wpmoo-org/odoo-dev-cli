@@ -109,6 +109,8 @@ vi.mock('../src/daily-actions.js', async (importOriginal) => {
 
 vi.mock('../src/databases.js', () => ({
   listEnvironmentDatabases: mocks.listEnvironmentDatabases,
+  normalizeDatabaseListResult: (result: unknown) =>
+    Array.isArray(result) ? { ok: true, databases: result } : result,
 }));
 
 vi.mock('../src/repo-actions.js', async (importOriginal) => {
@@ -482,12 +484,18 @@ describe('cli menu environment routes', () => {
       deleteFiles: false,
       stage: true,
     });
+    expect(vi.mocked(prompts.confirmPrompt)).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        message: 'Delete module files too?',
+      }),
+    );
   });
 
   it.each([
     ['update', 'update', ['odoo_sample_module_base'], 'Update module'],
     ['test', 'test', ['odoo_sample_module_base'], 'Test module'],
-    ['lint', 'lint', [], 'Run lint'],
+    ['lint', 'lint', [], 'Run environment lint'],
   ] as const)('routes list-modules selected module action %s to a result page', async (moduleAction, dailyAction, argv, title) => {
     const prompts = await import('../src/prompts/index.js');
     const selectedModule = {
@@ -596,7 +604,7 @@ describe('cli menu environment routes', () => {
     },
     {
       commandId: 'lint',
-      title: 'Run lint',
+      title: 'Run environment lint',
       textValues: [],
       selectValuesAfterModule: [],
       expectedCommand: 'lint',
@@ -743,6 +751,12 @@ describe('cli menu environment routes', () => {
       deleteFiles: false,
       stage: true,
     });
+    expect(vi.mocked(prompts.confirmPrompt)).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        message: 'Delete module files too?',
+      }),
+    );
   });
 
   it('routes reset and calls safeResetEnvironment after confirmation', async () => {
