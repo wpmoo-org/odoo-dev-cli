@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   restartCli: vi.fn(async () => 1),
   isUpdateCheckSkipped: vi.fn((argv: string[]) => argv.includes('--no-update-check')),
   scaffold: vi.fn(async () => ({ plannedFiles: [], plannedCommands: [] })),
+  getSystemPrerequisiteStatus: vi.fn(async () => ({ ok: true, checks: [], issues: [] })),
+  renderSystemPrerequisiteGuidance: vi.fn(() => 'mock prerequisite guidance'),
   repositoryPreflightAvailable: vi.fn(async () => true),
   checkGitHubRepositories: vi.fn<() => Promise<RepositoryCheckResult>>(async () => ({
     accessible: [],
@@ -102,6 +104,11 @@ vi.mock('../src/update-check.js', async (importOriginal) => {
 
 vi.mock('../src/scaffold.js', () => ({
   scaffold: mocks.scaffold,
+}));
+
+vi.mock('../src/system-prerequisites.js', () => ({
+  getSystemPrerequisiteStatus: mocks.getSystemPrerequisiteStatus,
+  renderSystemPrerequisiteGuidance: mocks.renderSystemPrerequisiteGuidance,
 }));
 
 vi.mock('../src/repository-preflight.js', async (importOriginal) => {
@@ -235,6 +242,7 @@ describe('cli repository preflight in create flow', () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     mocks.detectDevelopmentEnvironment.mockResolvedValue({ isEnvironment: false, source: 'none' });
     mocks.repositoryPreflightAvailable.mockResolvedValue(true);
+    mocks.getSystemPrerequisiteStatus.mockResolvedValue({ ok: true, checks: [], issues: [] });
     mocks.getGitHubPrerequisiteStatus.mockResolvedValue({ status: 'ready' });
     mocks.inspectEnvironmentTarget.mockImplementation(async (target: string) => ({ kind: 'missing_target', target }));
     mocks.checkGitHubRepositories.mockResolvedValue({ accessible: [], inaccessible: [], blocked: [] });

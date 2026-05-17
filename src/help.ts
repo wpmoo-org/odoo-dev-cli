@@ -91,6 +91,8 @@ Cockpit:
 
 Wizard local-only path:
   Run npx @wpmoo/toolkit from a workspace directory to open the create wizard.
+  Before setup starts, WPMoo checks Git, Docker, Docker Compose, and Docker Engine.
+  If required tools are missing, WPMoo offers installer guidance before writing files.
   Choose any environment folder; the default is ./<product>_dev.
   Skip Git/GitHub connection to create a local-only environment.
   Add source repos later from the cockpit or with add-repo.

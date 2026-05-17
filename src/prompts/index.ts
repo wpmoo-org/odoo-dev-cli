@@ -290,23 +290,31 @@ function hiddenSelectTheme<T>(
   disabledError?: string,
   navigationHelp: SelectNavigationHelp = 'exit',
   navigationWarning?: SelectNavigationWarning,
+  hideMessage = true,
 ): InquirerSelectPromptConfig<T>['theme'] {
-  const keysHelpTip = navigationHelp === 'back' ? '↑↓ navigate • ⏎ select • Esc to go back' : '↑↓ navigate • ⏎ select • Ctrl+C exit';
+  const keysHelpTip =
+    navigationHelp === 'back'
+      ? '↑↓ navigate • ⏎ select • Esc to go back'
+      : '↑↓ navigate • ⏎ select • Ctrl+C exit';
+  const style: NonNullable<InquirerSelectPromptConfig<T>['theme']>['style'] = {
+    highlight: (text: string) => text,
+    disabled: (text: string) => styleText('dim', text.replace(/ \(disabled\)$/u, ''), { validateStream: false }),
+    keysHelpTip: () => {
+      const warning = renderedNavigationWarning(navigationWarning);
+      return warning ? `${warning}\n${keysHelpTip}` : keysHelpTip;
+    },
+  };
+
+  if (hideMessage) {
+    style.message = () => '';
+  }
 
   return {
     prefix: '',
     icon: {
       cursor: '\u001B[38;2;226;184;96m❯\u001B[39m',
     },
-    style: {
-      message: () => '',
-      highlight: (text: string) => text,
-      disabled: (text: string) => styleText('dim', text.replace(/ \(disabled\)$/u, ''), { validateStream: false }),
-      keysHelpTip: () => {
-        const warning = renderedNavigationWarning(navigationWarning);
-        return warning ? `${warning}\n${keysHelpTip}` : keysHelpTip;
-      },
-    },
+    style,
     i18n: disabledError ? { disabledError } : undefined,
   };
 }
@@ -330,14 +338,10 @@ function withHiddenSelectMessage<T>(config: HideableSelectPromptConfig<T>): Inqu
     escapeBehavior: _escapeBehavior,
     ...inquirerConfig
   } = config;
-  if (!config.hideMessage) {
-    return inquirerConfig;
-  }
-
   return {
     ...inquirerConfig,
-    message: '',
-    theme: hiddenSelectTheme<T>(disabledError, navigationHelp, navigationWarning),
+    message: config.hideMessage ? '' : inquirerConfig.message,
+    theme: hiddenSelectTheme<T>(disabledError, navigationHelp, navigationWarning, Boolean(config.hideMessage)),
   };
 }
 

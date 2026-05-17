@@ -71,6 +71,10 @@ import {
   manualCreateCommands,
 } from './repository-preflight.js';
 import { scaffold } from './scaffold.js';
+import {
+  getSystemPrerequisiteStatus,
+  renderSystemPrerequisiteGuidance,
+} from './system-prerequisites.js';
 import { confirmPrompt, introPrompt, isPromptCancel, notePrompt, outroPrompt, selectPrompt, textPrompt } from './prompts/index.js';
 import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo, SourceRepoType } from './types.js';
@@ -280,6 +284,7 @@ type CreateFlowResult =
 type ExistingEnvironmentAction = 'update-existing' | 'reinstall-environment' | 'delete-environment' | 'cancel';
 type ForeignTargetAction = 'choose-another-folder' | 'cancel';
 type GitHubPrerequisiteAction = 'retry' | 'continue-local-only' | 'cancel';
+type SystemPrerequisiteAction = 'check-again';
 
 function validateRepoName(value: string): string | undefined {
   const normalized = value.trim();
@@ -338,6 +343,12 @@ function renderLastCommandError(command: CockpitCommand, error: unknown): string
 function clearCockpitScreen(): void {
   if (process.stdout.isTTY) {
     process.stdout.write('\u001B[2J\u001B[H');
+  }
+}
+
+function clearPrerequisiteScreen(): void {
+  if (process.stdout.isTTY) {
+    process.stdout.write('\u001B[3J\u001B[2J\u001B[H');
   }
 }
 
@@ -1248,6 +1259,44 @@ async function ensureGitHubRepositories(options: ScaffoldOptions, interactive: b
   await createGitHubRepositories(missing, visibility as RepositoryVisibility);
 }
 
+async function ensureSystemPrerequisites(interactive: boolean): Promise<boolean> {
+  while (true) {
+    const status = await getSystemPrerequisiteStatus();
+    if (status.ok) {
+      return true;
+    }
+
+    const guidance = renderSystemPrerequisiteGuidance(status);
+    if (!interactive) {
+      throw new Error(guidance);
+    }
+
+    clearPrerequisiteScreen();
+    console.log(renderStartupBanner());
+    console.log(renderVersionTag());
+    console.log();
+    console.log(guidance);
+    console.log();
+    const action = await selectPrompt({
+      message: 'If you have installed the prerequisites',
+      options: [
+        {
+          value: 'check-again' as const,
+          label: `${renderActionText('Check again')}${dim(' (Enter to re-check again)')}`,
+        },
+      ],
+      initialValue: 'check-again',
+      loop: false,
+      navigationHelp: 'exit',
+    });
+    handleCancel(action, 'exit');
+
+    if ((action as SystemPrerequisiteAction) === 'check-again') {
+      continue;
+    }
+  }
+}
+
 async function ensureNonInteractiveCreateTarget(options: ScaffoldOptions): Promise<void> {
   if (options.dryRun) {
     return;
@@ -1270,7 +1319,12 @@ async function ensureNonInteractiveCreateTarget(options: ScaffoldOptions): Promi
   throw new Error(renderForeignEnvironmentTargetWarning(state));
 }
 
-async function finishCreateFlow(result: CreateFlowResult, cwd: string, interactive: boolean): Promise<void> {
+async function finishCreateFlow(
+  result: CreateFlowResult,
+  cwd: string,
+  interactive: boolean,
+  checkSystemPrerequisites = true,
+): Promise<void> {
   if (result.kind === 'cancelled') {
     outroPrompt('Create flow cancelled.');
     return;
@@ -1287,6 +1341,9 @@ async function finishCreateFlow(result: CreateFlowResult, cwd: string, interacti
   }
 
   const { options } = result;
+  if (!options.dryRun && checkSystemPrerequisites && !(await ensureSystemPrerequisites(interactive))) {
+    return;
+  }
   await ensureGitHubRepositories(options, interactive);
   const scaffoldResult = await scaffold(options);
 
@@ -1801,7 +1858,10 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
 
     if (!detection.isEnvironment) {
       await showStartup(argv, skipUpdateCheck);
-      await finishCreateFlow(await optionsFromPrompts(), cwd, true);
+      if (!(await ensureSystemPrerequisites(true))) {
+        return;
+      }
+      await finishCreateFlow(await optionsFromPrompts(), cwd, true, false);
       return;
     }
 
@@ -1987,7 +2047,10 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     return;
   }
 
-  await finishCreateFlow(await optionsFromPrompts(), cwd, true);
+  if (!(await ensureSystemPrerequisites(true))) {
+    return;
+  }
+  await finishCreateFlow(await optionsFromPrompts(), cwd, true, false);
 }
 
 export function isCliEntrypoint(metaUrl: string, argvPath = process.argv[1]): boolean {

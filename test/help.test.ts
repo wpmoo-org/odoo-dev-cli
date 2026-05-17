@@ -116,6 +116,8 @@ describe('help', () => {
     const output = renderHelp();
 
     expect(output).toContain('Wizard local-only path:');
+    expect(output).toContain('Before setup starts, WPMoo checks Git, Docker, Docker Compose, and Docker Engine.');
+    expect(output).toContain('If required tools are missing, WPMoo offers installer guidance before writing files.');
     expect(output).toContain('Choose any environment folder; the default is ./<product>_dev.');
     expect(output).toContain('Skip Git/GitHub connection to create a local-only environment.');
     expect(output).toContain('Add source repos later from the cockpit or with add-repo.');
@@ -123,6 +125,7 @@ describe('help', () => {
 
   it('documents optional GitHub setup in the README quick start', () => {
     expect(readme).toContain('GitHub CLI (`gh`) is optional.');
+    expect(readme).toContain('Before environment setup starts, WPMoo checks Git, Docker, Docker Compose, and the Docker Engine.');
     expect(readme).toContain('Choose any environment folder; the default is `./<product>_dev`.');
     expect(readmeText).toContain('Choose local-only setup to skip Git/GitHub connection and source repo prompts.');
     expect(readmeText).toContain(

@@ -144,6 +144,30 @@ describe('prompt adapter', () => {
     expect(theme.style?.keysHelpTip?.([])).toBe('↑↓ navigate • ⏎ select • Esc to go back');
   });
 
+  it('renders exit help text for visible select prompts when requested', async () => {
+    const select = vi.mocked(inquirerSelect);
+    select.mockResolvedValue('retry');
+
+    const value = await selectPrompt({
+      message: 'If you have installed the prerequisites',
+      options: [{ value: 'retry' as const, label: 'Check again' }],
+      navigationHelp: 'exit',
+      loop: false,
+    });
+
+    expect(value).toBe('retry');
+    const [promptArgs] = select.mock.calls[0];
+    const theme = promptArgs.theme as {
+      style?: {
+        message?: (text: string, status: string) => string;
+        keysHelpTip?: (keys: [key: string, action: string][]) => string;
+      };
+    };
+    expect(promptArgs.message).toBe('If you have installed the prerequisites');
+    expect(theme.style?.message).toBeUndefined();
+    expect(theme.style?.keysHelpTip?.([])).toBe('↑↓ navigate • ⏎ select • Ctrl+C exit');
+  });
+
   it('renders hidden select navigation warnings above the bottom help text', async () => {
     const select = vi.mocked(inquirerSelect);
     select.mockResolvedValue('native');

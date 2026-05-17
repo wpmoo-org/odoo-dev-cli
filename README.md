@@ -1,6 +1,6 @@
 ![WPMoo Toolkit for Odoo development workflows](docs/assets/wpmoo-banner.png)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-toolkit/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/wpmoo-org/wpmoo-toolkit/actions/workflows/ci.yml) [![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&style=flat-square)](https://github.com/wpmoo-org/wpmoo-toolkit) [![npm](https://img.shields.io/npm/v/@wpmoo/toolkit?label=npm&logo=npm&style=flat-square&color=blue)](https://www.npmjs.com/package/@wpmoo/toolkit) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/wpmoo-org/wpmoo-odoo/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo/actions/workflows/ci.yml) [![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![npm](https://img.shields.io/npm/v/@wpmoo/odoo?label=npm&logo=npm&style=flat-square&color=blue)](https://www.npmjs.com/package/@wpmoo/odoo) [![coverage](https://img.shields.io/codecov/c/github/wpmoo-org/wpmoo-odoo?branch=main&label=coverage&logo=codecov&style=flat-square&color=blue)](https://codecov.io/gh/wpmoo-org/wpmoo-odoo) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE) [![Odoo Tool](https://img.shields.io/badge/Odoo-Tool-714B67?style=flat-square)](https://github.com/wpmoo-org/wpmoo-odoo) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=000000&style=flat-square)](https://www.buymeacoffee.com/cangir) [![Patreon](https://img.shields.io/badge/Patreon-Support-F96854?logo=patreon&logoColor=white&style=flat-square)](https://www.patreon.com/wpmoo)
 
 # WPMoo Toolkit
 
@@ -23,7 +23,7 @@ WPMoo is that layer. It does not try to replace the whole ecosystem. It gives an
 ## What It Solves
 
 - Creates a repeatable Odoo development environment from a product name, Odoo version, and one or more source repositories.
-- Keeps Odoo source repositories under `odoo/custom/src/private`, `odoo/custom/src/oca`, or `odoo/custom/src/external` as Git submodules.
+- Keeps Odoo source repositories under `private`, `oca`, or `external` categories as Git submodules in `odoo/custom/src/`.
 - Provides a guided terminal cockpit for services, modules, database work, diagnostics, repository management, and maintenance.
 - Includes direct commands for automation and CI-friendly terminal workflows.
 - Adds recovery tools such as `status`, `doctor`, `snapshot`, `restore-snapshot`, and safe reset.
@@ -41,12 +41,14 @@ WPMoo is that layer. It does not try to replace the whole ecosystem. It gives an
 - Docker and Docker Compose for generated environment runtime commands
 - Optional: GitHub CLI (`gh`) when you want setup to inspect or create GitHub repositories
 
+Before environment setup starts, WPMoo checks Git, Docker, Docker Compose, and the Docker Engine. If a required tool is missing, the wizard stops before asking setup questions, shows official download links inline with the missing tools, and lets you check again or exit with `Ctrl+C`. Install the missing tools, restart your terminal if PATH changed, start Docker Desktop, then run `npx @wpmoo/toolkit` again.
+
 ```bash
 brew install gh
 gh auth login
 ```
 
-GitHub CLI is optional. WPMoo can run local-only and source repositories can be added later.
+GitHub CLI (`gh`) is optional. WPMoo can run local-only and source repositories can be added later.
 
 ## Quick Setup
 
@@ -61,9 +63,14 @@ Short aliases are also available:
 ```bash
 npx wpmoo
 npx @wpmoo/odoo
+npx @wpmoo/odoo-dev
 ```
 
+Legacy package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain available for compatibility.
+
 When the current directory is not already a WPMoo environment, the CLI opens the create flow. It asks for a product slug, Odoo version, and environment folder. The default environment folder is `./<product>_dev`.
+
+Choose any environment folder; the default is `./<product>_dev`. Choose local-only setup to skip Git/GitHub connection and source repo prompts. Add source repositories later from the cockpit (`Repositories` -> `add-repo`) or `npx @wpmoo/toolkit add-repo`. Direct `create` commands keep the existing repo URL options; use `--target <path>` to choose a custom folder.
 
 After setup, enter the generated environment and open the cockpit:
 
@@ -131,6 +138,24 @@ Every cockpit action maps to a direct command, so the same workflow can be used 
 ./moo snapshot devel before-update
 ./moo restore-snapshot --dry-run before-update devel
 ```
+
+Module source actions also have direct commands. Default is `private`; pass `--source-type oca` or `--source-type external` for non-private source repositories:
+
+```bash
+npx @wpmoo/toolkit add-module --repo sale-workflow --module sale_order_line_no_discount --source-type oca
+npx @wpmoo/toolkit remove-module --repo sale-workflow --module sale_order_line_no_discount --source-type oca
+```
+
+For automation and VS Code cockpit integration, selected commands support JSON output:
+
+```bash
+npx @wpmoo/toolkit status --json
+npx @wpmoo/toolkit source list --json
+npx @wpmoo/toolkit source sync --json
+npx @wpmoo/toolkit doctor --json
+```
+
+JSON output is optional; human-readable output remains the default.
 
 ## Documentation
 
