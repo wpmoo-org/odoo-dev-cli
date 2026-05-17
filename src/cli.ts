@@ -363,7 +363,6 @@ function renderBackHelp(): string {
   return ansi('Esc to go back', ANSI_DIM_INFO, ANSI_RESET);
 }
 
-const COCKPIT_ESCAPE_WARNING = 'Already in Cockpit. Press Ctrl+C to exit.';
 const manualDatabaseValue = '__wpmoo_manual_database_entry__';
 
 async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: StartupBannerDetails): Promise<void> {
@@ -406,11 +405,8 @@ async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: S
   console.log();
 }
 
-async function selectCockpitCommandFromMenu(
-  serviceStatus: ServiceRuntimeStatus,
-  navigationWarning?: string,
-): Promise<CockpitCommand | 'exit'> {
-  const selection = await selectCockpitTopLevelMenu({ serviceStatus, navigationWarning });
+async function selectCockpitCommandFromMenu(serviceStatus: ServiceRuntimeStatus): Promise<CockpitCommand | 'exit'> {
+  const selection = await selectCockpitTopLevelMenu({ serviceStatus });
 
   if (selection.kind === 'exit') {
     return 'exit';
@@ -1808,8 +1804,6 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     let lastStatus = 'Last: Ready';
     let status = await getEnvironmentStatus(cwd);
     let serviceStatus = await getServiceRuntimeStatus(cwd, status);
-    let topLevelEscapeCount = 0;
-    let topLevelNavigationWarning: string | undefined;
     await showStartup(argv, skipUpdateCheck, () => renderCockpitStatusLines(status, serviceStatus, lastStatus));
     const renderCockpitMenuShell = () => {
       clearCockpitScreen();
@@ -1818,9 +1812,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     };
     while (true) {
       try {
-        const command = await selectCockpitCommandFromMenu(serviceStatus, topLevelNavigationWarning);
-        topLevelEscapeCount = 0;
-        topLevelNavigationWarning = undefined;
+        const command = await selectCockpitCommandFromMenu(serviceStatus);
 
         if (command === 'exit') {
           return;
@@ -1849,8 +1841,6 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
         renderCockpitMenuShell();
       } catch (error) {
         if (isMenuBackSignal(error)) {
-          topLevelEscapeCount += 1;
-          topLevelNavigationWarning = topLevelEscapeCount >= 3 ? COCKPIT_ESCAPE_WARNING : undefined;
           continue;
         }
         throw error;

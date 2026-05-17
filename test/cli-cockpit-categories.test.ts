@@ -7,7 +7,7 @@ import {
   type CockpitMenuSelectPrompt,
 } from '../src/cockpit/menu.js';
 import { promptCancelled } from '../src/prompts/index.js';
-import { MenuBackSignal, recordPromptCancelKey } from '../src/menu-navigation.js';
+import { recordPromptCancelKey } from '../src/menu-navigation.js';
 
 type MenuPromptConfig = Parameters<CockpitMenuSelectPrompt>[0] & {
   choices?: Parameters<CockpitMenuSelectPrompt>[0]['choices'];
@@ -202,11 +202,18 @@ describe('cockpit top-level menu', () => {
     expect(handleCancel).toHaveBeenCalledWith(promptCancelled, 'back');
   });
 
-  it('keeps top-level menu open when Escape cancels the top-level selection prompt', async () => {
-    recordPromptCancelKey({ name: 'escape', sequence: '\u001B' });
-    const prompt: CockpitMenuSelectPrompt = vi.fn(async () => promptCancelled);
+  it('configures Escape as ignored for the active top-level prompt', async () => {
+    const startCommand = cockpitCommands.find((command) => command.id === 'start');
+    expect(startCommand).toBeDefined();
+    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
+      expect(options.escapeBehavior).toBe('ignore');
+      return startCommand;
+    });
 
-    await expect(selectCockpitTopLevelMenu({ select: prompt })).rejects.toBeInstanceOf(MenuBackSignal);
+    await expect(selectCockpitTopLevelMenu({ select: prompt })).resolves.toEqual({
+      kind: 'command',
+      command: startCommand,
+    });
     expect(vi.mocked(prompt)).toHaveBeenCalledTimes(1);
   });
 

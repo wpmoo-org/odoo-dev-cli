@@ -265,6 +265,39 @@ describe('prompt adapter', () => {
     expect(consumePromptCancelKey()).toBe('escape');
   });
 
+  it('can ignore Escape keypresses without aborting an active select prompt', async () => {
+    const select = vi.mocked(inquirerSelect);
+    const inquirerKeypress = vi.fn();
+    const error = new Error('Prompt aborted');
+    error.name = 'AbortPromptError';
+    select.mockImplementationOnce((_config, context) => {
+      if (!context?.signal) {
+        throw new Error('Expected prompt context signal.');
+      }
+
+      return new Promise<string>((resolve, reject) => {
+        process.stdin.on('keypress', inquirerKeypress);
+        context.signal?.addEventListener('abort', () => reject(error), { once: true });
+        setImmediate(() => {
+          process.stdin.off('keypress', inquirerKeypress);
+          resolve('native');
+        });
+      });
+    });
+
+    const resultPromise = selectPrompt({
+      message: 'Cockpit',
+      choices: ['native' as const],
+      hideMessage: true,
+      escapeBehavior: 'ignore',
+    });
+    process.stdin.emit('keypress', '', { name: 'escape', sequence: '\u001B' });
+
+    await expect(resultPromise).resolves.toBe('native');
+    expect(inquirerKeypress).not.toHaveBeenCalled();
+    expect(consumePromptCancelKey()).toBeUndefined();
+  });
+
   it('renders intro, note, and outro output with ASCII text', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 

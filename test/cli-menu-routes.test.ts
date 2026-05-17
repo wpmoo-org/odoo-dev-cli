@@ -693,17 +693,15 @@ describe('cli menu environment routes', () => {
     }
   });
 
-  it('shows a bottom warning after three top-level Escape presses without clearing the cockpit', async () => {
+  it('configures top-level Escape as a no-op in the active cockpit prompt', async () => {
     const prompts = await import('../src/prompts/index.js');
-    const { recordPromptCancelKey } = await import('../src/menu-navigation.js');
     const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as never);
-    vi.mocked(prompts.isPromptCancel).mockImplementation((value) => value === 'cancelled-top-level');
-    vi.mocked(prompts.selectPrompt).mockImplementation(async () => {
-      const callCount = vi.mocked(prompts.selectPrompt).mock.calls.length;
-      if (callCount <= 3) {
-        recordPromptCancelKey({ name: 'escape', sequence: '\u001B' });
-        return 'cancelled-top-level';
-      }
+    vi.mocked(prompts.selectPrompt).mockImplementation(async (options) => {
+      const config = options as {
+        escapeBehavior?: string;
+      };
+
+      expect(config.escapeBehavior).toBe('ignore');
       return 'exit';
     });
     const { runCli } = await loadCli();
@@ -711,11 +709,7 @@ describe('cli menu environment routes', () => {
     try {
       await runCli([], '/tmp/environment');
 
-      const warningConfigs = vi.mocked(prompts.selectPrompt).mock.calls.map((call) => {
-        return (call[0] as { navigationWarning?: string }).navigationWarning;
-      });
-      expect(warningConfigs.slice(0, 3)).toEqual([undefined, undefined, undefined]);
-      expect(warningConfigs[3]).toBe('Already in Cockpit. Press Ctrl+C to exit.');
+      expect(vi.mocked(prompts.selectPrompt)).toHaveBeenCalledTimes(1);
       expect(writeSpy).not.toHaveBeenCalledWith('\u001B[2J\u001B[H');
     } finally {
       writeSpy.mockRestore();

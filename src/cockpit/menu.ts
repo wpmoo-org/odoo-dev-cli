@@ -41,14 +41,15 @@ export type CockpitMenuSelectPrompt = (options: {
   loop?: boolean;
   hideMessage?: boolean;
   disabledError?: string;
-  navigationWarning?: string;
+  navigationWarning?: string | (() => string | undefined);
+  escapeBehavior?: 'cancel' | 'ignore';
 }) => Promise<unknown>;
 
 type CockpitMenuDeps = {
   select?: CockpitMenuSelectPrompt;
   handleCancel?: (value: unknown, action: 'exit' | 'back') => void;
   serviceStatus?: ServiceRuntimeStatus;
-  navigationWarning?: string;
+  navigationWarning?: string | (() => string | undefined);
 };
 
 const categoryLabels: Record<CockpitCommandCategory, string> = {
@@ -198,6 +199,7 @@ export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): 
     hideMessage: true,
     disabledError: disabledError(options.serviceStatus),
     navigationWarning: options.navigationWarning,
+    escapeBehavior: 'ignore',
   });
   deps.handleCancel(selected, cancelAction);
 

@@ -3,7 +3,7 @@ import { styleText } from 'node:util';
 import inquirerSelect, { Separator as InquirerSeparator } from '@inquirer/select';
 import inquirerSearch from '@inquirer/search';
 import { confirm as inquirerConfirm, input as inquirerInput } from '@inquirer/prompts';
-import { recordPromptCancelKey } from '../menu-navigation.js';
+import { consumePromptCancelKey, recordPromptCancelKey } from '../menu-navigation.js';
 
 export type PromptCancellation = typeof promptCancelled;
 export type PromptOption<T> = {
@@ -20,6 +20,8 @@ export type PromptChoice<T> = {
   disabled?: boolean | string;
 };
 type SelectNavigationHelp = 'exit' | 'back';
+type SelectNavigationWarning = string | (() => string | undefined);
+type SelectEscapeBehavior = 'cancel' | 'ignore';
 export type SelectPromptOptions<T> =
   | {
       message: string;
@@ -30,7 +32,8 @@ export type SelectPromptOptions<T> =
       hideMessage?: boolean;
       disabledError?: string;
       navigationHelp?: SelectNavigationHelp;
-      navigationWarning?: string;
+      navigationWarning?: SelectNavigationWarning;
+      escapeBehavior?: SelectEscapeBehavior;
     }
   | {
       message: string;
@@ -41,7 +44,8 @@ export type SelectPromptOptions<T> =
       hideMessage?: boolean;
       disabledError?: string;
       navigationHelp?: SelectNavigationHelp;
-      navigationWarning?: string;
+      navigationWarning?: SelectNavigationWarning;
+      escapeBehavior?: SelectEscapeBehavior;
     };
 export type TextPromptOptions = {
   message: string;
@@ -84,10 +88,19 @@ type HideableSelectPromptConfig<T> = InquirerSelectPromptConfig<T> & {
   hideMessage?: boolean;
   disabledError?: string;
   navigationHelp?: SelectNavigationHelp;
-  navigationWarning?: string;
+  navigationWarning?: SelectNavigationWarning;
+  escapeBehavior?: SelectEscapeBehavior;
 };
 type PromptContext = {
   signal: AbortSignal;
+};
+type PromptCancelGuardOptions = {
+  escapeBehavior?: SelectEscapeBehavior;
+};
+type KeypressKey = {
+  ctrl?: boolean;
+  name?: string;
+  sequence?: string;
 };
 
 export const promptCancelled = Symbol.for('wpmoo.prompt.cancelled');
@@ -148,10 +161,44 @@ function asInquirerSearchConfig<T>(options: SearchPromptOptions<T>): InquirerSea
   };
 }
 
-function installEscapeAbortController(controller: AbortController): () => void {
+function isEscapeKey(key: unknown): key is KeypressKey {
+  if (typeof key !== 'object' || key === null) {
+    return false;
+  }
+
+  const candidate = key as KeypressKey;
+  return candidate.name === 'escape' || candidate.sequence === '\u001B';
+}
+
+function installIgnoredEscapeFilter(options: PromptCancelGuardOptions): () => void {
   emitKeypressEvents(process.stdin);
-  const listener = (_value: string, key: { ctrl?: boolean; name?: string; sequence?: string }) => {
-    if (key.name !== 'escape' && key.sequence !== '\u001B') {
+  const input = process.stdin;
+  const originalEmit = input.emit;
+  const patchedEmit = function patchedEmit(this: NodeJS.ReadStream, eventName: string | symbol, ...args: unknown[]): boolean {
+    if (eventName === 'keypress' && isEscapeKey(args[1])) {
+      consumePromptCancelKey();
+      return true;
+    }
+
+    return Reflect.apply(originalEmit, this, [eventName, ...args]) as boolean;
+  };
+
+  input.emit = patchedEmit as typeof input.emit;
+  return () => {
+    if (input.emit === patchedEmit) {
+      input.emit = originalEmit;
+    }
+  };
+}
+
+function installEscapeAbortController(controller: AbortController, options: PromptCancelGuardOptions = {}): () => void {
+  emitKeypressEvents(process.stdin);
+  if (options.escapeBehavior === 'ignore') {
+    return installIgnoredEscapeFilter(options);
+  }
+
+  const listener = (_value: string, key: KeypressKey) => {
+    if (!isEscapeKey(key)) {
       return;
     }
 
@@ -167,9 +214,10 @@ function installEscapeAbortController(controller: AbortController): () => void {
 
 async function withPromptCancelGuard<T>(
   callback: (context: PromptContext) => Promise<T>,
+  options: PromptCancelGuardOptions = {},
 ): Promise<T | PromptCancellation> {
   const controller = new AbortController();
-  const removeEscapeListener = installEscapeAbortController(controller);
+  const removeEscapeListener = installEscapeAbortController(controller, options);
 
   try {
     return await callback({ signal: controller.signal });
@@ -186,7 +234,18 @@ async function withPromptCancelGuard<T>(
 
 function isClackSelectOptions<T>(
   options: SelectPromptOptions<T>,
-): options is { message: string; options: readonly PromptOption<T>[]; initialValue?: T; pageSize?: number; loop?: boolean; hideMessage?: boolean; disabledError?: string; navigationHelp?: SelectNavigationHelp } {
+): options is {
+  message: string;
+  options: readonly PromptOption<T>[];
+  initialValue?: T;
+  pageSize?: number;
+  loop?: boolean;
+  hideMessage?: boolean;
+  disabledError?: string;
+  navigationHelp?: SelectNavigationHelp;
+  navigationWarning?: SelectNavigationWarning;
+  escapeBehavior?: SelectEscapeBehavior;
+} {
   return 'options' in options;
 }
 
@@ -200,7 +259,8 @@ function asInquirerSelectConfig<T>(
     hideMessage?: boolean;
     disabledError?: string;
     navigationHelp?: SelectNavigationHelp;
-    navigationWarning?: string;
+    navigationWarning?: SelectNavigationWarning;
+    escapeBehavior?: SelectEscapeBehavior;
   },
 ): HideableSelectPromptConfig<T> {
   return {
@@ -217,16 +277,21 @@ function asInquirerSelectConfig<T>(
     disabledError: options.disabledError,
     navigationHelp: options.navigationHelp,
     navigationWarning: options.navigationWarning,
+    escapeBehavior: options.escapeBehavior,
   };
+}
+
+function renderedNavigationWarning(navigationWarning?: SelectNavigationWarning): string | undefined {
+  const warning = typeof navigationWarning === 'function' ? navigationWarning() : navigationWarning;
+  return warning ? `\u001B[2m\u001B[38;2;226;184;96m${warning}\u001B[0m` : undefined;
 }
 
 function hiddenSelectTheme<T>(
   disabledError?: string,
   navigationHelp: SelectNavigationHelp = 'exit',
-  navigationWarning?: string,
+  navigationWarning?: SelectNavigationWarning,
 ): InquirerSelectPromptConfig<T>['theme'] {
   const keysHelpTip = navigationHelp === 'back' ? '↑↓ navigate • ⏎ select • Esc to go back' : '↑↓ navigate • ⏎ select • Ctrl+C exit';
-  const renderedWarning = navigationWarning ? `\u001B[2m\u001B[38;2;226;184;96m${navigationWarning}\u001B[0m` : undefined;
 
   return {
     prefix: '',
@@ -237,14 +302,23 @@ function hiddenSelectTheme<T>(
       message: () => '',
       highlight: (text: string) => text,
       disabled: (text: string) => styleText('dim', text.replace(/ \(disabled\)$/u, ''), { validateStream: false }),
-      keysHelpTip: () => (renderedWarning ? `${renderedWarning}\n${keysHelpTip}` : keysHelpTip),
+      keysHelpTip: () => {
+        const warning = renderedNavigationWarning(navigationWarning);
+        return warning ? `${warning}\n${keysHelpTip}` : keysHelpTip;
+      },
     },
     i18n: disabledError ? { disabledError } : undefined,
   };
 }
 
 function withHiddenSelectMessage<T>(config: HideableSelectPromptConfig<T>): InquirerSelectPromptConfig<T> {
-  if (!config.hideMessage) {
+  if (
+    !config.hideMessage &&
+    !config.disabledError &&
+    !config.navigationHelp &&
+    !config.navigationWarning &&
+    !config.escapeBehavior
+  ) {
     return config;
   }
 
@@ -253,8 +327,13 @@ function withHiddenSelectMessage<T>(config: HideableSelectPromptConfig<T>): Inqu
     hideMessage: _hideMessage,
     navigationHelp,
     navigationWarning,
+    escapeBehavior: _escapeBehavior,
     ...inquirerConfig
   } = config;
+  if (!config.hideMessage) {
+    return inquirerConfig;
+  }
+
   return {
     ...inquirerConfig,
     message: '',
@@ -297,11 +376,17 @@ export function isPromptCancel(value: unknown): value is PromptCancellation {
 export async function selectPrompt<T>(
   options: SelectPromptOptions<T>,
 ): Promise<T | PromptCancellation> {
+  const guardOptions: PromptCancelGuardOptions = {
+    escapeBehavior: options.escapeBehavior,
+  };
   if (isClackSelectOptions(options)) {
-    return withPromptCancelGuard((context) => inquirerSelect(withHiddenSelectMessage(asInquirerSelectConfig(options)), context));
+    return withPromptCancelGuard(
+      (context) => inquirerSelect(withHiddenSelectMessage(asInquirerSelectConfig(options)), context),
+      guardOptions,
+    );
   }
 
-  return withPromptCancelGuard((context) => inquirerSelect(withHiddenSelectMessage(options), context));
+  return withPromptCancelGuard((context) => inquirerSelect(withHiddenSelectMessage(options), context), guardOptions);
 }
 
 export async function inputPrompt(options: TextPromptOptions): Promise<string | PromptCancellation> {
