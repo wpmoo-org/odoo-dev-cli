@@ -53,8 +53,12 @@ class OdooSampleModuleBase(models.Model):
     _description = "Odoo Sample Module Base"
 `,
     );
-    await expect(readFile(join(modulePath, 'security/ir.model.access.csv'), 'utf8')).resolves.toContain(
-      'id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink',
+    await expect(readFile(join(modulePath, 'security/ir.model.access.csv'), 'utf8')).resolves.toBe(
+      [
+        'id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink',
+        'access_odoo_sample_module_base_user,access_odoo_sample_module_base_user,model_odoo_sample_module_base,base.group_user,1,1,1,1',
+        '',
+      ].join('\n'),
     );
     const manifest = await readFile(join(modulePath, '__manifest__.py'), 'utf8');
     expect(manifest).toContain('"version": "18.0.1.0.0"');
@@ -412,7 +416,7 @@ class OdooSampleModuleBase(models.Model):
     ).rejects.toThrow('Invalid module name');
   });
 
-  it('rejects Python-invalid module names before writing module files', async () => {
+  it('rejects module names that cannot produce lower snake_case Python files', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-invalid-name-'));
     await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
 
@@ -421,6 +425,16 @@ class OdooSampleModuleBase(models.Model):
         target,
         repoPath: 'odoo_sample_module',
         moduleName: 'invalid-module',
+        odooVersion: '19.0',
+        stage: false,
+      }),
+    ).rejects.toThrow('Invalid module name');
+
+    await expect(
+      addModuleToSourceRepo({
+        target,
+        repoPath: 'odoo_sample_module',
+        moduleName: 'InvalidModule',
         odooVersion: '19.0',
         stage: false,
       }),

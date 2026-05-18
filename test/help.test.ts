@@ -91,6 +91,25 @@ describe('help', () => {
     expect(output).toContain('--source-type <category>     Source repo category for add-repo/remove-repo/add-module/remove-module. One of private, oca, external. Default: private.');
   });
 
+  it('documents add-module skeleton files and module name rules', () => {
+    const output = renderHelp();
+
+    expect(output).toContain(
+      'Creates a minimal skeleton: __init__.py, __manifest__.py, models/<module>.py, models/__init__.py, and security/ir.model.access.csv.',
+    );
+    expect(output).toContain('No XML view/menu files are generated yet; views/.gitkeep is a placeholder.');
+    expect(output).toContain('Module names must be lower snake_case; use letters, numbers, and underscores only.');
+    expect(output).toContain('Must be lower snake_case; use letters, numbers, and underscores only.');
+    expect(readme).toContain('`add-module` creates a minimal Odoo module skeleton');
+    expect(readme).toContain('`__init__.py`');
+    expect(readme).toContain('`__manifest__.py`');
+    expect(readme).toContain('`models/<module>.py`');
+    expect(readme).toContain('`models/__init__.py`');
+    expect(readme).toContain('`security/ir.model.access.csv`');
+    expect(readme).toContain('It does not generate XML view/menu files yet; `views/.gitkeep` is only a placeholder.');
+    expect(readme).toContain('Module names must be lower `snake_case`; use letters, numbers, and underscores only.');
+  });
+
   it('documents JSON output options for automation and cockpit integration', () => {
     const output = renderHelp();
 

@@ -123,6 +123,16 @@ function manifestContent(moduleName: string, odooVersion: string): string {
 `;
 }
 
+function accessCsvContent(moduleName: string): string {
+  const modelId = modelTechnicalName(moduleName).replace(/\./g, '_');
+
+  return [
+    'id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink',
+    `access_${modelId}_user,access_${modelId}_user,model_${modelId},base.group_user,1,1,1,1`,
+    '',
+  ].join('\n');
+}
+
 async function writeIfMissing(path: string, content: string): Promise<void> {
   try {
     await readFile(path, 'utf8');
@@ -154,7 +164,7 @@ export async function addModuleToSourceRepo(
   await writeIfMissing(join(destination, `models/${moduleName}.py`), modelContent(moduleName));
   await writeIfMissing(
     join(destination, 'security/ir.model.access.csv'),
-    'id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink\n',
+    accessCsvContent(moduleName),
   );
   await writeIfMissing(join(destination, 'views/.gitkeep'), '');
 

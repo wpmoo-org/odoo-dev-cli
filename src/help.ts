@@ -58,6 +58,7 @@ Options:
   --source-type <category>     Source repo category for add-repo/remove-repo/add-module/remove-module. One of private, oca, external. Default: private.
   --repo <name>                Source repo folder name for repo/module actions.
   --module <name>              Odoo module technical name for module actions.
+                               Must be lower snake_case; use letters, numbers, and underscores only.
   --delete-files               Also delete module files in remove-module. Default: false.
   --odoo-version <branch>      Override the environment Odoo branch for add-repo/add-module.
   --source-repo-url <url>      Source repo URL. Repeat for multiple repos.
@@ -115,6 +116,9 @@ Task recipes:
     npx @wpmoo/toolkit source sync
   Add module:
     npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> --source-type private|oca|external
+    Creates a minimal skeleton: __init__.py, __manifest__.py, models/<module>.py, models/__init__.py, and security/ir.model.access.csv.
+    No XML view/menu files are generated yet; views/.gitkeep is a placeholder.
+    Module names must be lower snake_case; use letters, numbers, and underscores only.
   Remove module:
     npx @wpmoo/toolkit remove-module --repo <source-repo> --module <module-name> --source-type private|oca|external
   Add OCA module:

@@ -1,7 +1,7 @@
 import { isAbsolute, relative, resolve } from 'node:path';
 
 const windowsDrivePattern = /^[a-zA-Z]:/;
-const pythonPackageNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const odooModuleNamePattern = /^[a-z][a-z0-9_]*$/;
 
 function invalidPathError(label: string): Error {
   return new Error(`Invalid ${label}: use a single path segment without traversal.`);
@@ -44,8 +44,8 @@ export function validateRepoPath(value: string): string {
 
 export function validateModuleName(value: string): string {
   const moduleName = validatePathSegment(value, 'module name');
-  if (!pythonPackageNamePattern.test(moduleName)) {
-    throw new Error('Invalid module name: use letters, numbers, and underscores, and do not start with a number.');
+  if (!odooModuleNamePattern.test(moduleName)) {
+    throw new Error('Invalid module name: use lower snake_case letters, numbers, and underscores, and start with a letter.');
   }
   return moduleName;
 }

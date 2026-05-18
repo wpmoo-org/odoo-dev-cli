@@ -107,6 +107,7 @@ import {
   menuPromptMessage,
   type PromptCancelAction,
 } from './menu-navigation.js';
+import { validateModuleName } from './path-validation.js';
 
 function handleCancel(value: unknown, action: PromptCancelAction): void {
   handlePromptCancel(isPromptCancel(value), action);
@@ -865,6 +866,15 @@ function suggestedModuleName(repoPath: string): string {
   return 'odoo_sample_module';
 }
 
+function validateModuleNameInput(value: string): string | undefined {
+  try {
+    validateModuleName(value);
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : 'Invalid module name.';
+  }
+}
+
 async function addModuleOptionsFromArgs(argv: string[]): Promise<ModulePromptOptions | undefined> {
   const { values } = parseArgs(argv);
   const repoPath = stringOption(values, 'repo') ?? stringOption(values, 'sourcePath');
@@ -896,7 +906,7 @@ async function addModuleOptionsFromPrompts(
     await textPrompt({
       message: menuPromptMessage('Module name', cancelAction),
       placeholder: suggestedModuleName(sourceRepo.repoPath),
-      validate: (value) => (value.trim() ? undefined : 'Enter the module technical name.'),
+      validate: validateModuleNameInput,
     }),
     suggestedModuleName(sourceRepo.repoPath),
     cancelAction,

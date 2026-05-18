@@ -439,7 +439,7 @@ describe('cli direct command routes', () => {
     expect(promptMocks.outro).toHaveBeenCalledWith('Added module sale_demo under source repo odoo_sample_module.');
   });
 
-  it('routes add-module with --source-type oca to addModuleToSourceRepo', async () => {
+  it('routes add-module with a skeleton-safe module name and --source-type oca to addModuleToSourceRepo', async () => {
     const { runCli } = await loadCli();
     const target = resolve('/tmp/worker-a-add-module-oca');
 
@@ -447,11 +447,11 @@ describe('cli direct command routes', () => {
       [
         'add-module',
         '--repo',
-        'odoo_sample_module',
+        'sale-workflow',
         '--source-type',
         'oca',
         '--module',
-        'sale_demo',
+        'sale_order_line_no_discount',
         '--target',
         target,
         '--stage=false',
@@ -459,11 +459,12 @@ describe('cli direct command routes', () => {
       '/tmp/ignored-cwd',
     );
 
+    expect(mocks.commandOdooVersion).toHaveBeenCalledWith(target, undefined);
     expect(mocks.addModuleToSourceRepo).toHaveBeenCalledWith({
       target,
-      repoPath: 'odoo_sample_module',
+      repoPath: 'sale-workflow',
       sourceType: 'oca',
-      moduleName: 'sale_demo',
+      moduleName: 'sale_order_line_no_discount',
       odooVersion: '18.0-mocked',
       stage: false,
     });

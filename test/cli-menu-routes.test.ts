@@ -389,6 +389,12 @@ describe('cli menu environment routes', () => {
 
     await runCli([], '/tmp/environment');
 
+    const modulePromptArgs = vi.mocked(prompts.textPrompt).mock.calls[0]?.[0];
+    expect(modulePromptArgs?.validate?.('invalid-module')).toBe(
+      'Invalid module name: use lower snake_case letters, numbers, and underscores, and start with a letter.',
+    );
+    expect(modulePromptArgs?.validate?.('odoo_module_new')).toBeUndefined();
+
     expect(mocks.addModuleToSourceRepo).toHaveBeenCalledWith({
       target: '/tmp/environment',
       repoPath: 'odoo_source_repo',
