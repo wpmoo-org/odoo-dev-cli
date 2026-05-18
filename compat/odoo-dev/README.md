@@ -1,14 +1,14 @@
 # @wpmoo/odoo-dev
 
-Deprecated compatibility package for the renamed WPMoo Odoo CLI.
+Deprecated compatibility package for the renamed WPMoo Toolkit CLI.
 
 This package has moved to:
 
 ```bash
-npx @wpmoo/odoo
+npx @wpmoo/toolkit
 ```
 
 Existing commands that install or execute `@wpmoo/odoo-dev` are delegated to
-`@wpmoo/odoo@latest` so older scripts have a migration window.
+`@wpmoo/toolkit@latest` so older scripts have a migration window.
 
-Please update automation and documentation to use `@wpmoo/odoo` directly.
+Please update automation and documentation to use `@wpmoo/toolkit` directly.

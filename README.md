@@ -58,15 +58,20 @@ Run the guided wizard from the workspace where you keep Odoo projects:
 npx @wpmoo/toolkit
 ```
 
-Short aliases are also available:
+Short alias:
 
 ```bash
 npx wpmoo
+```
+
+Deprecated compatibility aliases:
+
+```bash
 npx @wpmoo/odoo
 npx @wpmoo/odoo-dev
 ```
 
-Legacy package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain available for compatibility.
+Deprecated package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain available as compatibility aliases that redirect to `@wpmoo/toolkit`.
 
 When the current directory is not already a WPMoo environment, the CLI opens the create flow. It asks for a product slug, Odoo version, and environment folder. The default environment folder is `./<product>_dev`.
 

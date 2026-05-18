@@ -7,14 +7,14 @@ const delegateArgs = [
   'exec',
   '--yes',
   '--package',
-  '@wpmoo/odoo@latest',
+  '@wpmoo/toolkit@latest',
   '--',
   'wpmoo',
   ...args,
 ];
 
 console.error(
-  '@wpmoo/odoo-dev has been renamed to @wpmoo/odoo. Delegating to @wpmoo/odoo@latest.',
+  '@wpmoo/odoo-dev has been renamed to @wpmoo/toolkit. Delegating to @wpmoo/toolkit@latest.',
 );
 
 if (process.env.WPMOO_ODOO_DEV_SHIM_DRY_RUN === '1') {

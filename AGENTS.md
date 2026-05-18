@@ -4,9 +4,12 @@ Guidance for coding agents working in this repository.
 
 ## Project overview
 
-- Package: `@wpmoo/odoo`
-- Purpose: TypeScript Node CLI for WPMoo Odoo lifecycle workflows, starting with Docker Compose based environment creation and maintenance.
-- Runtime: Node.js `>=20`, ESM (`"type": "module"`).
+- Package: `@wpmoo/toolkit`; legacy `@wpmoo/odoo` and `@wpmoo/odoo-dev`
+  packages are deprecated compatibility aliases that redirect here.
+- Purpose: TypeScript Node CLI for WPMoo development, staging, and production
+  lifecycle workflows, starting with Docker Compose based Odoo environment
+  creation and maintenance.
+- Runtime: Node.js `>=20.17`, ESM (`"type": "module"`).
 - Source code lives in `src/`; tests live in `test/`.
 - Built files are emitted to `dist/` and should not be edited by hand.
 
@@ -15,9 +18,7 @@ Guidance for coding agents working in this repository.
 Run these before handing off code changes when relevant:
 
 ```bash
-npm test
-npm run typecheck
-npm run build
+npm run typecheck && npm test && npm run build
 ```
 
 Useful focused commands:
@@ -49,12 +50,17 @@ npx vitest run test/<file>.test.ts
 ## Repository behavior notes
 
 - The CLI stages generated results with `git add .` but does not commit.
-- Source repositories are managed as Git submodules under `odoo/custom/src/private`.
-- Product source repositories live under `odoo/custom/src/private` and are exposed through `/mnt/wpmoo-addons`.
+- Source repositories are managed as Git submodules under
+  `odoo/custom/src/{private,oca,external}`.
+- Product source repositories are exposed in generated environments through
+  `/mnt/wpmoo-addons`.
 - Compose resources are copied by the CLI and provide the Docker/Odoo helper scripts.
 - Maintenance commands rely on `.wpmoo/odoo.json` inside generated environments.
-- User-facing package/operator examples should use `npx @wpmoo/odoo ...`;
-  generated environment daily command examples should use `./moo ...`.
+- User-facing package/operator examples should use `npx @wpmoo/toolkit ...` or
+  `npx wpmoo ...`; generated environment daily command examples should use
+  `./moo ...`.
+- Mention `@wpmoo/odoo` and `@wpmoo/odoo-dev` only as deprecated compatibility
+  aliases that redirect to `@wpmoo/toolkit`.
 - Normal releases use `npm run release:check`, then an annotated version tag
   that triggers GitHub Actions Trusted Publishing. Do not document manual
   `npm publish` except as an explicit fallback.
