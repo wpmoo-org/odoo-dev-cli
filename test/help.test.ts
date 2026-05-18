@@ -18,15 +18,15 @@ describe('help', () => {
     );
   });
 
-  it('documents the official package, short alias, and legacy compatibility paths', () => {
+  it('documents the official package, short alias, and deprecated compatibility aliases', () => {
     const output = renderHelp();
 
     expect(output).toContain('Package aliases:');
     expect(output).toContain('npx @wpmoo/toolkit is the official package path.');
     expect(output).toContain('npx wpmoo is the short alias.');
-    expect(output).toContain('npx @wpmoo/odoo and npx @wpmoo/odoo-dev remain legacy compatibility paths.');
+    expect(output).toContain('npx @wpmoo/odoo and npx @wpmoo/odoo-dev remain deprecated compatibility aliases.');
     expect(readme).toContain('npx wpmoo');
-    expect(readme).toContain('Legacy package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain');
+    expect(readme).toContain('Deprecated package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain');
   });
 
   it('includes status in usage', () => {

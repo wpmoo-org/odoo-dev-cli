@@ -75,7 +75,7 @@ Options:
 Package aliases:
   npx @wpmoo/toolkit is the official package path.
   npx wpmoo is the short alias.
-  npx @wpmoo/odoo and npx @wpmoo/odoo-dev remain legacy compatibility paths.
+  npx @wpmoo/odoo and npx @wpmoo/odoo-dev remain deprecated compatibility aliases.
 
 Daily actions:
   Daily actions must be run from a generated environment root containing .wpmoo/odoo.json.
