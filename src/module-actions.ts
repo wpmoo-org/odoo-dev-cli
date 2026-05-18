@@ -83,6 +83,27 @@ function titleizeModule(moduleName: string): string {
     .join(' ');
 }
 
+function moduleClassName(moduleName: string): string {
+  const className = titleizeModule(moduleName).replace(/[^A-Za-z0-9]/g, '');
+  return /^[A-Za-z_]/.test(className) ? className : `X${className}`;
+}
+
+function modelTechnicalName(moduleName: string): string {
+  return moduleName.replace(/[_-]+/g, '.').toLowerCase();
+}
+
+function modelContent(moduleName: string): string {
+  const moduleTitle = titleizeModule(moduleName);
+
+  return `from odoo import models
+
+
+class ${moduleClassName(moduleName)}(models.Model):
+    _name = "${modelTechnicalName(moduleName)}"
+    _description = "${moduleTitle}"
+`;
+}
+
 function manifestContent(moduleName: string, odooVersion: string): string {
   const moduleTitle = titleizeModule(moduleName);
 
@@ -129,7 +150,8 @@ export async function addModuleToSourceRepo(
 
   await writeIfMissing(join(destination, '__init__.py'), 'from . import models\n');
   await writeIfMissing(join(destination, '__manifest__.py'), manifestContent(moduleName, options.odooVersion));
-  await writeIfMissing(join(destination, 'models/__init__.py'), '');
+  await writeIfMissing(join(destination, 'models/__init__.py'), `from . import ${moduleName}\n`);
+  await writeIfMissing(join(destination, `models/${moduleName}.py`), modelContent(moduleName));
   await writeIfMissing(
     join(destination, 'security/ir.model.access.csv'),
     'id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink\n',

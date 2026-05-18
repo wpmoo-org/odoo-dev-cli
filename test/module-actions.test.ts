@@ -41,7 +41,18 @@ describe('module actions', () => {
 
     const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
     await expect(readFile(join(modulePath, '__init__.py'), 'utf8')).resolves.toBe('from . import models\n');
-    await expect(readFile(join(modulePath, 'models/__init__.py'), 'utf8')).resolves.toBe('');
+    await expect(readFile(join(modulePath, 'models/__init__.py'), 'utf8')).resolves.toBe(
+      'from . import odoo_sample_module_base\n',
+    );
+    await expect(readFile(join(modulePath, 'models/odoo_sample_module_base.py'), 'utf8')).resolves.toBe(
+      `from odoo import models
+
+
+class OdooSampleModuleBase(models.Model):
+    _name = "odoo.sample.module.base"
+    _description = "Odoo Sample Module Base"
+`,
+    );
     await expect(readFile(join(modulePath, 'security/ir.model.access.csv'), 'utf8')).resolves.toContain(
       'id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink',
     );
@@ -395,6 +406,21 @@ describe('module actions', () => {
         target,
         repoPath: 'odoo_sample_module',
         moduleName: '../injected_mod',
+        odooVersion: '19.0',
+        stage: false,
+      }),
+    ).rejects.toThrow('Invalid module name');
+  });
+
+  it('rejects Python-invalid module names before writing module files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-invalid-name-'));
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
+
+    await expect(
+      addModuleToSourceRepo({
+        target,
+        repoPath: 'odoo_sample_module',
+        moduleName: 'invalid-module',
         odooVersion: '19.0',
         stage: false,
       }),

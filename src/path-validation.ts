@@ -1,6 +1,7 @@
 import { isAbsolute, relative, resolve } from 'node:path';
 
 const windowsDrivePattern = /^[a-zA-Z]:/;
+const pythonPackageNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function invalidPathError(label: string): Error {
   return new Error(`Invalid ${label}: use a single path segment without traversal.`);
@@ -42,7 +43,11 @@ export function validateRepoPath(value: string): string {
 }
 
 export function validateModuleName(value: string): string {
-  return validatePathSegment(value, 'module name');
+  const moduleName = validatePathSegment(value, 'module name');
+  if (!pythonPackageNamePattern.test(moduleName)) {
+    throw new Error('Invalid module name: use letters, numbers, and underscores, and do not start with a number.');
+  }
+  return moduleName;
 }
 
 export function validateAddonName(value: string): string {
