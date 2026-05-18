@@ -45,9 +45,10 @@ describe('module actions', () => {
     await expect(readFile(join(modulePath, 'security/ir.model.access.csv'), 'utf8')).resolves.toContain(
       'id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink',
     );
-    await expect(readFile(join(modulePath, '__manifest__.py'), 'utf8')).resolves.toContain(
-      '"version": "18.0.1.0.0"',
-    );
+    const manifest = await readFile(join(modulePath, '__manifest__.py'), 'utf8');
+    expect(manifest).toContain('"version": "18.0.1.0.0"');
+    expect(manifest).toContain('"summary": "Odoo Sample Module Base module"');
+    expect(manifest).not.toContain('"summary": "TODO"');
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
       'private/odoo_sample_module:\n  - odoo_sample_module_base',
     );

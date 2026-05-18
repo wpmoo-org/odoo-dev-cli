@@ -84,11 +84,13 @@ function titleizeModule(moduleName: string): string {
 }
 
 function manifestContent(moduleName: string, odooVersion: string): string {
+  const moduleTitle = titleizeModule(moduleName);
+
   return `{
-    "name": "${titleizeModule(moduleName)}",
+    "name": "${moduleTitle}",
     "version": "${odooVersion}.1.0.0",
     "category": "Productivity",
-    "summary": "TODO",
+    "summary": "${moduleTitle} module",
     "depends": ["base"],
     "data": [
         "security/ir.model.access.csv",
