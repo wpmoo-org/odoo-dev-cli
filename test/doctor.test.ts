@@ -627,4 +627,92 @@ describe('doctor', () => {
     });
     expect(report.errors).toEqual([]);
   });
+
+  it('marks partial PostgreSQL diagnostics as unavailable without failing doctor', async () => {
+    const calls: string[][] = [];
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner(calls);
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        calls.push([command, ...args]);
+        return {
+          stdout: [
+            'database_count|2',
+            'active_connections|3',
+          ].join('\n'),
+          stderr: '',
+        };
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+
+    expect(report.ok).toBe(true);
+    expect(report.checks).not.toContain(expect.stringContaining('OK PostgreSQL diagnostics'));
+    expect(report.warnings).toEqual([
+      'PostgreSQL diagnostics unavailable: incomplete diagnostic rows: missing total_database_size_bytes, slow_query_logging, pg_stat_statements, shared_buffers',
+    ]);
+    expect(report.postgres).toEqual({
+      requested: true,
+      available: false,
+      diagnostics: {
+        databaseCount: 2,
+        activeConnections: 3,
+      },
+      warning:
+        'incomplete diagnostic rows: missing total_database_size_bytes, slow_query_logging, pg_stat_statements, shared_buffers',
+    });
+    expect(report.errors).toEqual([]);
+  });
+
+  it('marks malformed PostgreSQL numeric diagnostics as unavailable without failing doctor', async () => {
+    const calls: string[][] = [];
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner(calls);
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        calls.push([command, ...args]);
+        return {
+          stdout: [
+            'database_count|two',
+            'active_connections|3',
+            'total_database_size_bytes|10485760',
+            'slow_query_logging|500ms',
+            'pg_stat_statements|available',
+            'shared_buffers|128MB',
+          ].join('\n'),
+          stderr: '',
+        };
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+
+    expect(report.ok).toBe(true);
+    expect(report.checks).not.toContain(expect.stringContaining('OK PostgreSQL diagnostics'));
+    expect(report.warnings).toEqual([
+      'PostgreSQL diagnostics unavailable: malformed diagnostic values: database_count',
+    ]);
+    expect(report.postgres).toEqual({
+      requested: true,
+      available: false,
+      diagnostics: {
+        activeConnections: 3,
+        totalDatabaseSizeBytes: 10485760,
+        slowQueryLogging: '500ms',
+        pgStatStatements: 'available',
+        sharedBuffers: '128MB',
+      },
+      warning: 'malformed diagnostic values: database_count',
+    });
+    expect(report.errors).toEqual([]);
+  });
 });

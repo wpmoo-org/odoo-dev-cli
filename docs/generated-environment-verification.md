@@ -76,6 +76,8 @@ database is unavailable, doctor reports a warning instead of failing the whole
 environment check.
 JSON output preserves `checks` and `warnings` while adding a structured
 `postgres` object when `--postgres` is requested.
+Incomplete or malformed PostgreSQL metric rows are reported as unavailable
+diagnostics.
 
 ## Safe reset policy
 
