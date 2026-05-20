@@ -104,7 +104,8 @@ Status and doctor:
   doctor: deeper health check. May check Docker CLI access and GitHub workflows.
   doctor --fix: applies safe file-level repairs. Runs doctor again after fixes.
   doctor --postgres: adds read-only PostgreSQL diagnostics such as database size,
-    active connections, slow-query readiness, extension visibility, and settings.
+    sessions currently running queries with pg_stat_activity.state = 'active',
+    slow-query readiness, extension visibility, and settings.
 
 Task recipes:
   Create environment:

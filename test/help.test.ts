@@ -43,6 +43,8 @@ describe('help', () => {
     expect(output).toContain('doctor: deeper health check.');
     expect(output).toContain('doctor --fix: applies safe file-level repairs.');
     expect(output).toContain('doctor --postgres: adds read-only PostgreSQL diagnostics');
+    expect(output).toContain('sessions currently running queries');
+    expect(output).toContain("pg_stat_activity.state = 'active'");
     expect(output).toContain('May check Docker CLI access and GitHub workflows.');
   });
 
@@ -131,6 +133,8 @@ describe('help', () => {
     expect(output).toContain('npx @wpmoo/toolkit doctor --json');
     expect(output).toContain('npx @wpmoo/toolkit doctor --json [--postgres]');
     expect(output).toContain('doctor --json --postgres includes a structured postgres object for automation.');
+    expect(readme).toContain('sessions currently running queries');
+    expect(readme).toContain("`pg_stat_activity.state = 'active'`");
     expect(output).toContain('--postgres');
     expect(output).toContain('Include read-only PostgreSQL health/performance diagnostics in doctor.');
     expect(readme).toContain('`doctor --json --postgres` includes a structured `postgres` object for automation.');

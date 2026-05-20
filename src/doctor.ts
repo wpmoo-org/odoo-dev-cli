@@ -115,6 +115,7 @@ WITH metrics(metric, value) AS (
   SELECT 'active_connections', count(*)::text
     FROM pg_stat_activity
     WHERE datname IS NOT NULL
+      AND state = 'active'
   UNION ALL
   SELECT 'total_database_size_bytes', COALESCE(sum(pg_database_size(datname)), 0)::text
     FROM pg_database
