@@ -13,7 +13,7 @@ import {
 } from '../src/daily-actions.js';
 import { markerPath } from '../src/environment.js';
 
-async function makeEnvironment(options: { scripts?: string[] } = {}): Promise<string> {
+async function makeEnvironment(options: { scripts?: string[]; env?: string } = {}): Promise<string> {
   const target = await mkdtemp(join(tmpdir(), 'wpmoo-daily-actions-'));
   await mkdir(join(target, '.wpmoo'), { recursive: true });
   await writeFile(
@@ -33,6 +33,9 @@ async function makeEnvironment(options: { scripts?: string[] } = {}): Promise<st
   await mkdir(join(target, 'scripts'), { recursive: true });
   for (const script of options.scripts ?? []) {
     await writeFile(join(target, 'scripts', script), '#!/usr/bin/env bash\n');
+  }
+  if (options.env !== undefined) {
+    await writeFile(join(target, '.env'), options.env);
   }
 
   return target;
@@ -129,6 +132,36 @@ describe('daily actions', () => {
     await expect(dailyActionPlan('pot', ['sale,stock', 'devel', 'i18n/sale.pot'], target)).resolves.toMatchObject({
       scriptPath: join(target, 'scripts/pot.sh'),
       args: ['sale,stock', 'devel', 'i18n/sale.pot'],
+    });
+  });
+
+  it('blocks destructive maintenance commands in stage and prod unless explicitly allowed', async () => {
+    const stageTarget = await makeEnvironment({
+      scripts: ['resetdb.sh', 'restore-snapshot.sh'],
+      env: 'WPMOO_ENV=stage\n',
+    });
+    const prodTarget = await makeEnvironment({
+      scripts: ['restore-snapshot.sh'],
+      env: 'WPMOO_ENV=prod\n',
+    });
+    const allowedTarget = await makeEnvironment({
+      scripts: ['resetdb.sh'],
+      env: 'WPMOO_ENV=stage\nWPMOO_ALLOW_DESTRUCTIVE=1\n',
+    });
+
+    await expect(dailyActionPlan('resetdb', ['devel'], stageTarget)).rejects.toThrow(
+      "Refusing destructive command 'resetdb' in WPMOO_ENV=stage. Set WPMOO_ALLOW_DESTRUCTIVE=1 to run it intentionally.",
+    );
+    await expect(dailyActionPlan('restore-snapshot', ['before-update', 'devel'], prodTarget)).rejects.toThrow(
+      "Refusing destructive command 'restore-snapshot' in WPMOO_ENV=prod. Set WPMOO_ALLOW_DESTRUCTIVE=1 to run it intentionally.",
+    );
+    await expect(dailyActionPlan('restore-snapshot', ['--dry-run', 'before-update', 'devel'], prodTarget)).resolves.toMatchObject({
+      scriptPath: join(prodTarget, 'scripts/restore-snapshot.sh'),
+      args: ['--dry-run', 'before-update', 'devel'],
+    });
+    await expect(dailyActionPlan('resetdb', ['devel'], allowedTarget)).resolves.toMatchObject({
+      scriptPath: join(allowedTarget, 'scripts/resetdb.sh'),
+      args: ['devel'],
     });
   });
 

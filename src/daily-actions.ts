@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { readEnvFile, selectedComposeEnvironment } from './compose-layout.js';
 import { markerPath } from './environment.js';
 
 export const dailyActionCommands = [
@@ -150,6 +151,32 @@ function scriptArgs(command: DailyActionCommand, argv: string[]): string[] {
   return positionalArgs(command, argv, 1, 3);
 }
 
+function isDestructiveCommand(command: DailyActionCommand, args: string[]): boolean {
+  if (command === 'resetdb') return true;
+  return command === 'restore-snapshot' && args[0] !== '--dry-run';
+}
+
+function destructiveCommandError(command: DailyActionCommand, envName: string): string {
+  return `Refusing destructive command '${command}' in WPMOO_ENV=${envName}. Set WPMOO_ALLOW_DESTRUCTIVE=1 to run it intentionally.`;
+}
+
+async function assertDestructiveCommandAllowed(command: DailyActionCommand, args: string[], cwd: string): Promise<void> {
+  if (!isDestructiveCommand(command, args)) {
+    return;
+  }
+
+  const env = await readEnvFile(cwd);
+  const envName = process.env.WPMOO_ENV?.trim() || selectedComposeEnvironment(env);
+  if (envName !== 'stage' && envName !== 'prod') {
+    return;
+  }
+
+  const allowDestructive = process.env.WPMOO_ALLOW_DESTRUCTIVE?.trim() || env?.get('WPMOO_ALLOW_DESTRUCTIVE')?.trim();
+  if (allowDestructive !== '1') {
+    throw new Error(destructiveCommandError(command, envName));
+  }
+}
+
 async function assertEnvironmentRoot(cwd: string): Promise<void> {
   try {
     await access(join(cwd, markerPath));
@@ -175,11 +202,13 @@ export async function dailyActionPlan(
 ): Promise<DailyActionPlan> {
   await assertEnvironmentRoot(cwd);
   const scriptPath = await assertScriptExists(cwd, dailyActionScripts[command]);
+  const args = scriptArgs(command, argv);
+  await assertDestructiveCommandAllowed(command, args, cwd);
 
   return {
     cwd,
     scriptPath,
-    args: scriptArgs(command, argv),
+    args,
   };
 }
 
