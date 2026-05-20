@@ -23,6 +23,7 @@ not validate staging or production deployments.
 | Doctor checks | Metadata, compose files, scripts, source repo paths, and local tooling checks behave as expected. | `npx @wpmoo/toolkit doctor` or `./moo doctor` |
 | Doctor safe fixes | Safe file-level fixes are applied only with `--fix`, then doctor runs again and reports any remaining manual issues. | `npx @wpmoo/toolkit doctor --fix` |
 | Generated Postgres checks | For PostgreSQL 18 environments, doctor validates db mount targets avoid old PG image-specific paths and can normalize safe targets with `--fix`. | `npx @wpmoo/toolkit doctor`, `npx @wpmoo/toolkit doctor --fix` |
+| PostgreSQL diagnostics | Optional read-only database health/performance diagnostics report database count, active connections, total database size, slow-query readiness, extension visibility, and selected settings without failing doctor when the database is unavailable. | `npx @wpmoo/toolkit doctor --postgres`, `npx @wpmoo/toolkit doctor --json --postgres` |
 | Source repo add/remove | Source repository registration and submodule lifecycle behave correctly. | `npx @wpmoo/toolkit add-repo ...`, `npx @wpmoo/toolkit remove-repo ...` |
 | Source manifest sync | Source repo metadata, `.gitmodules`, and `odoo/custom/manifests/sources.yaml` stay aligned. | `npx @wpmoo/toolkit source list`, `npx @wpmoo/toolkit source sync` |
 | Module add/remove | Module registration changes are applied to the selected source repo config. | `npx @wpmoo/toolkit add-module ...`, `npx @wpmoo/toolkit remove-module ...` |
@@ -66,6 +67,15 @@ no longer accepted by the package `doctor` check.
 `doctor --fix` may rewrite these safe mount targets to `/var/lib/postgresql`.
 It does not upgrade existing database data; if a real PostgreSQL major upgrade
 is involved, use PostgreSQL upgrade tooling first.
+
+Use `doctor --postgres` when the database container is running and you want
+read-only PostgreSQL diagnostics. The check uses fixed diagnostic queries for
+database count, active connections, aggregate database size, slow-query logging
+readiness, `pg_stat_statements` availability, and `shared_buffers`. If the
+database is unavailable, doctor reports a warning instead of failing the whole
+environment check.
+JSON output preserves `checks` and `warnings` while adding a structured
+`postgres` object when `--postgres` is requested.
 
 ## Safe reset policy
 

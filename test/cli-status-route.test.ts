@@ -177,4 +177,28 @@ describe('cli status route', () => {
       }),
     );
   });
+
+  it('passes opt-in PostgreSQL diagnostics to doctor JSON output', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await runCli(['doctor', '--json', '--postgres'], '/tmp/example-environment');
+
+    expect(mocks.getDoctorReport).toHaveBeenCalledWith('/tmp/example-environment', { postgres: true });
+    expect(mocks.runDoctor).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledOnce();
+  });
+
+  it('passes opt-in PostgreSQL diagnostics to human doctor output', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await runCli(['doctor', '--postgres'], '/tmp/example-environment');
+
+    expect(mocks.runDoctor).toHaveBeenCalledWith('/tmp/example-environment', { postgres: true });
+    expect(mocks.getDoctorReport).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith('doctor report');
+  });
 });

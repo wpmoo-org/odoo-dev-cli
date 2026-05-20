@@ -160,9 +160,15 @@ npx @wpmoo/toolkit status --json
 npx @wpmoo/toolkit source list --json
 npx @wpmoo/toolkit source sync --json
 npx @wpmoo/toolkit doctor --json
+npx @wpmoo/toolkit doctor --postgres
+npx @wpmoo/toolkit doctor --json --postgres
 ```
 
 JSON output is optional; human-readable output remains the default.
+`doctor --postgres` adds read-only PostgreSQL health and performance diagnostics
+such as database size, active connections, slow-query readiness, extension
+visibility, and settings.
+`doctor --json --postgres` includes a structured `postgres` object for automation.
 
 ## Documentation
 
