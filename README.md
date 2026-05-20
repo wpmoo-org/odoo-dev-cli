@@ -151,7 +151,7 @@ npx @wpmoo/toolkit add-module --repo sale-workflow --module sale_order_line_no_d
 npx @wpmoo/toolkit remove-module --repo sale-workflow --module sale_order_line_no_discount --source-type oca
 ```
 
-`add-module` creates a minimal Odoo module skeleton with `__init__.py`, `__manifest__.py`, `models/<module>.py`, `models/__init__.py`, `security/ir.model.access.csv`, and `views/<module>_menus.xml`. The menu XML adds a basic Odoo action and menu entry for the generated model. Module names must be lower `snake_case`; use letters, numbers, and underscores only.
+`add-module` creates a minimal Odoo module skeleton with `__init__.py`, `__manifest__.py`, `models/<module>.py`, `models/__init__.py`, `security/ir.model.access.csv`, `views/<module>_views.xml`, and `views/<module>_menus.xml`. The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and menu entry. Module names must be lower `snake_case`; use letters, numbers, and underscores only.
 
 For automation and VS Code cockpit integration, selected commands support JSON output:
 

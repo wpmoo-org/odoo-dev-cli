@@ -98,15 +98,22 @@ function actionViewMode(odooVersion: string): string {
   return Number.isFinite(majorVersion) && majorVersion < 18 ? 'tree,form' : 'list,form';
 }
 
+function listViewTag(odooVersion: string): 'list' | 'tree' {
+  const majorVersion = Number.parseInt(odooVersion.split('.', 1)[0] ?? '', 10);
+  return Number.isFinite(majorVersion) && majorVersion < 18 ? 'tree' : 'list';
+}
+
 function modelContent(moduleName: string): string {
   const moduleTitle = titleizeModule(moduleName);
 
-  return `from odoo import models
+  return `from odoo import fields, models
 
 
 class ${moduleClassName(moduleName)}(models.Model):
     _name = "${modelTechnicalName(moduleName)}"
     _description = "${moduleTitle}"
+
+    name = fields.Char(required=True, default="New")
 `;
 }
 
@@ -121,12 +128,47 @@ function manifestContent(moduleName: string, odooVersion: string): string {
     "depends": ["base"],
     "data": [
         "security/ir.model.access.csv",
+        "views/${moduleName}_views.xml",
         "views/${moduleName}_menus.xml",
     ],
     "installable": True,
     "application": False,
     "license": "LGPL-3",
 }
+`;
+}
+
+function viewXmlContent(moduleName: string, odooVersion: string): string {
+  const moduleTitle = titleizeModule(moduleName);
+  const technicalName = modelTechnicalName(moduleName);
+  const primaryViewTag = listViewTag(odooVersion);
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_${moduleName}_${primaryViewTag}" model="ir.ui.view">
+        <field name="name">${technicalName}.${primaryViewTag}</field>
+        <field name="model">${technicalName}</field>
+        <field name="arch" type="xml">
+            <${primaryViewTag} string="${moduleTitle}">
+                <field name="name"/>
+            </${primaryViewTag}>
+        </field>
+    </record>
+
+    <record id="view_${moduleName}_form" model="ir.ui.view">
+        <field name="name">${technicalName}.form</field>
+        <field name="model">${technicalName}</field>
+        <field name="arch" type="xml">
+            <form string="${moduleTitle}">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>
 `;
 }
 
@@ -275,6 +317,7 @@ export async function addModuleToSourceRepo(
     join(destination, 'security/ir.model.access.csv'),
     accessCsvContent(moduleName),
   );
+  await writeIfMissing(join(destination, `views/${moduleName}_views.xml`), viewXmlContent(moduleName, options.odooVersion));
   await writeIfMissing(join(destination, `views/${moduleName}_menus.xml`), menuXmlContent(moduleName, options.odooVersion));
   await writeIfMissing(join(destination, 'views/.gitkeep'), '');
 
