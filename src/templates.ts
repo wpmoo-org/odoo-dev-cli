@@ -509,6 +509,21 @@ usage() {
   esac
 }
 
+show_help() {
+  cat <<'HELP'
+Usage: ./moo <command> [args]
+
+Daily commands:
+  start, stop, logs, restart, shell, psql
+  install, update, test, resetdb, snapshot, restore-snapshot, lint, pot
+
+Management commands:
+  status, source, add-repo, remove-repo, add-module, remove-module, reset, doctor
+
+Run ./moo <command> with invalid arguments to see command-specific usage.
+HELP
+}
+
 fail_usage() {
   usage "$1" >&2
   exit 2
@@ -645,8 +660,24 @@ run_script() {
   exec "$script" "$@"
 }
 
+run_package_command() {
+  exec npx --yes ${fallbackPackageSpec()} "$@"
+}
+
 command="\${1:-}"
 case "$command" in
+  "")
+    run_package_command "$@"
+    ;;
+  "--help"|"-h"|"help")
+    show_help
+    ;;
+  "--version"|"-v"|"version")
+    run_package_command "$@"
+    ;;
+  "create"|"status"|"add-repo"|"remove-repo"|"add-module"|"remove-module"|"source"|"reset"|"doctor")
+    run_package_command "$@"
+    ;;
   "start")
     shift
     require_no_args "$command" "$@"
@@ -731,7 +762,9 @@ case "$command" in
     run_script ./scripts/pot.sh "$@"
     ;;
   *)
-    exec npx --yes ${fallbackPackageSpec()} "$@"
+    echo "Unknown ./moo command: $command" >&2
+    echo "Run ./moo --help to see supported commands." >&2
+    exit 2
     ;;
 esac
 `;

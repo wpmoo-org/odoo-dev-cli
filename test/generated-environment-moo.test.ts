@@ -91,6 +91,31 @@ describe('generated environment moo delegation matrix', () => {
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor\n`);
   });
 
+  it('prints generated command help without falling back to npx', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+
+    const result = await execa(join(root, 'moo'), ['--help'], { cwd: root, env });
+
+    expect(result.stdout).toContain('Usage: ./moo <command> [args]');
+    expect(result.stdout).toContain('Daily commands:');
+    expect(result.stdout).toContain('start, stop, logs, restart, shell, psql');
+    expect(result.stdout).toContain('install, update, test, resetdb, snapshot, restore-snapshot, lint, pot');
+    expect(result.stdout).toContain('Management commands:');
+    expect(result.stdout).toContain('status, source, add-repo, remove-repo, add-module, remove-module, reset, doctor');
+    await expect(readFile(callsPath, 'utf8')).rejects.toThrow();
+  });
+
+  it('rejects unsupported generated commands with a local help hint', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+
+    const result = await execa(join(root, 'moo'), ['not-a-command'], { cwd: root, env, reject: false });
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain('Unknown ./moo command: not-a-command');
+    expect(result.stderr).toContain('Run ./moo --help to see supported commands.');
+    await expect(readFile(callsPath, 'utf8')).rejects.toThrow();
+  });
+
   it('blocks destructive commands in stage and prod unless explicitly allowed', async () => {
     const { callsPath, env, root } = await createMooFixture();
     await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\n');

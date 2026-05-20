@@ -174,6 +174,10 @@ describe('template rendering', () => {
     expect(script).toContain('./scripts/lint.sh');
     expect(script).toContain('"pot")');
     expect(script).toContain('./scripts/pot.sh');
+    expect(script).toContain('Usage: ./moo <command> [args]');
+    expect(script).toContain('"--help"|"-h"|"help")');
+    expect(script).toContain('Unknown ./moo command: $command');
+    expect(script).toContain('Run ./moo --help to see supported commands.');
     expect(script).toContain(`exec npx --yes ${expectedFallbackPackageSpec} "$@"`);
   });
 
