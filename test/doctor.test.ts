@@ -596,6 +596,7 @@ describe('doctor', () => {
     });
     const postgresCall = calls.find(([command]) => command === 'bash');
     expect(postgresCall?.[2]).toContain('pg_stat_activity');
+    expect(postgresCall?.[2]).toMatch(/\bstate\s*=\s*'active'/u);
     expect(postgresCall?.[2]).toContain('pg_database_size');
     expect(postgresCall?.[2]).not.toMatch(/\b(ALTER|CREATE|DELETE|DROP|INSERT|UPDATE)\b/u);
   });
