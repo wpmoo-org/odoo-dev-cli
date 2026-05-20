@@ -1,6 +1,6 @@
 {
   "name": "wpmoo",
-  "version": "0.9.9",
+  "version": "0.9.10",
   "description": "Short npx alias for the WPMoo Toolkit CLI.",
   "type": "module",
   "repository": {
@@ -23,6 +23,6 @@
     "node": ">=20.17"
   },
   "dependencies": {
-    "@wpmoo/toolkit": "0.9.9"
+    "@wpmoo/toolkit": "0.9.10"
   }
 }
