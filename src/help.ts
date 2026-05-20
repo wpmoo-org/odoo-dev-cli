@@ -110,6 +110,7 @@ Status and doctor:
   doctor --fix: applies safe file-level repairs. Runs doctor again after fixes.
   doctor --postgres: adds read-only PostgreSQL diagnostics such as database size,
     active connections, slow-query readiness, extension visibility, and settings.
+    Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics.
 
 Task recipes:
   Create environment:
@@ -153,6 +154,7 @@ Machine-readable JSON output:
     npx @wpmoo/toolkit source sync --json
     npx @wpmoo/toolkit doctor --json
     doctor --json --postgres includes a structured postgres object for automation.
+    Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics.
 
 Example:
   npx @wpmoo/toolkit create \\

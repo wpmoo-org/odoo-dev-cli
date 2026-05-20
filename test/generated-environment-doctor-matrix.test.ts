@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { dailyActionScripts } from '../src/daily-actions.js';
-import { runDoctor, type DoctorCommandRunner } from '../src/doctor.js';
+import { getDoctorReport, runDoctor, type DoctorCommandRunner } from '../src/doctor.js';
 import { markerPath } from '../src/environment.js';
 
 const metadata = {
@@ -221,6 +221,41 @@ describe('generated environment doctor matrix', () => {
 
     await expect(runDoctor(target, runner)).resolves.toContain('WARN GitHub CLI auth: not logged in');
     await expect(runDoctor(target, runner)).resolves.toContain('Doctor checks passed.');
+  });
+
+  it('treats incomplete PostgreSQL diagnostic rows as unavailable in generated environments', async () => {
+    const target = await makeGeneratedEnvironment({
+      env: 'ODOO_VERSION=19.0\nHTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = fakeRunner();
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        return {
+          stdout: 'database_count|1\nshared_buffers|128MB\n',
+          stderr: '',
+        };
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+
+    expect(report.ok).toBe(true);
+    expect(report.postgres).toEqual({
+      requested: true,
+      available: false,
+      diagnostics: {
+        databaseCount: 1,
+        sharedBuffers: '128MB',
+      },
+      warning:
+        'incomplete diagnostic rows: missing active_connections, total_database_size_bytes, slow_query_logging, pg_stat_statements',
+    });
+    expect(report.warnings).toEqual([
+      'PostgreSQL diagnostics unavailable: incomplete diagnostic rows: missing active_connections, total_database_size_bytes, slow_query_logging, pg_stat_statements',
+    ]);
+    expect(report.errors).toEqual([]);
   });
 
   it('fails when source submodule status reports an uninitialized repo', async () => {

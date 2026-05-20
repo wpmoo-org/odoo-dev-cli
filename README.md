@@ -173,6 +173,7 @@ JSON output is optional; human-readable output remains the default.
 such as database size, active connections, slow-query readiness, extension
 visibility, and settings.
 `doctor --json --postgres` includes a structured `postgres` object for automation.
+Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics.
 
 ## Documentation
 

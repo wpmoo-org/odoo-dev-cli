@@ -200,12 +200,36 @@ function renderPostgresDiagnostics(diagnostics: Partial<Record<PostgresDiagnosti
   return parts.length > 0 ? `OK PostgreSQL diagnostics ${parts.join(' ')}` : undefined;
 }
 
+function missingPostgresDiagnosticKeys(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): PostgresDiagnosticKey[] {
+  return postgresDiagnosticKeys.filter((key) => !diagnostics[key]);
+}
+
+function unavailablePostgresDiagnosticsWarning(
+  diagnostics: Partial<Record<PostgresDiagnosticKey, string>>,
+  missingKeys: PostgresDiagnosticKey[],
+): string {
+  return Object.keys(diagnostics).length === 0
+    ? 'no diagnostic rows returned'
+    : `incomplete diagnostic rows: missing ${missingKeys.join(', ')}`;
+}
+
 function integerDiagnostic(value: string | undefined): number | undefined {
   if (!value || !/^\d+$/u.test(value)) {
     return undefined;
   }
 
   return Number.parseInt(value, 10);
+}
+
+function malformedPostgresDiagnosticKeys(
+  diagnostics: Partial<Record<PostgresDiagnosticKey, string>>,
+): PostgresDiagnosticKey[] {
+  const numericKeys: PostgresDiagnosticKey[] = [
+    'database_count',
+    'active_connections',
+    'total_database_size_bytes',
+  ];
+  return numericKeys.filter((key) => diagnostics[key] !== undefined && integerDiagnostic(diagnostics[key]) === undefined);
 }
 
 function structuredPostgresDiagnostics(
@@ -700,21 +724,28 @@ export async function getDoctorReport(
   if (actualOptions.postgres) {
     try {
       const postgresDiagnostics = await readPostgresDiagnostics(target, actualRunner);
-      const renderedPostgresDiagnostics = renderPostgresDiagnostics(postgresDiagnostics);
-      if (renderedPostgresDiagnostics) {
-        checks.push(renderedPostgresDiagnostics);
+      const missingKeys = missingPostgresDiagnosticKeys(postgresDiagnostics);
+      const malformedKeys = malformedPostgresDiagnosticKeys(postgresDiagnostics);
+      if (missingKeys.length === 0 && malformedKeys.length === 0) {
+        const renderedPostgresDiagnostics = renderPostgresDiagnostics(postgresDiagnostics);
+        if (renderedPostgresDiagnostics) {
+          checks.push(renderedPostgresDiagnostics);
+        }
         report.postgres = {
           requested: true,
           available: true,
           diagnostics: structuredPostgresDiagnostics(postgresDiagnostics),
         };
       } else {
-        const warning = 'no diagnostic rows returned';
+        const warning =
+          malformedKeys.length > 0
+            ? `malformed diagnostic values: ${malformedKeys.join(', ')}`
+            : unavailablePostgresDiagnosticsWarning(postgresDiagnostics, missingKeys);
         warnings.push(`PostgreSQL diagnostics unavailable: ${warning}`);
         report.postgres = {
           requested: true,
           available: false,
-          diagnostics: {},
+          diagnostics: structuredPostgresDiagnostics(postgresDiagnostics),
           warning,
         };
       }
