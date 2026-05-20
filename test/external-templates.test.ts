@@ -71,5 +71,6 @@ describe('external template helpers', () => {
     expect(envExample).toContain('WPMOO_ENV=dev');
     expect(envExample).toContain('WPMOO_SNAPSHOT_RETENTION_COUNT=0');
     expect(envExample).toContain('WPMOO_ALLOW_DESTRUCTIVE=1');
+    expect(envExample).toContain('WPMOO_ALLOW_PROD_LIFECYCLE=1');
   });
 });

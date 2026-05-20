@@ -232,6 +232,10 @@ resources/odoo/entrypoint.sh
 
 Development uses compose.yaml plus compose/dev.yaml by default.
 Set WPMOO_ENV=stage or WPMOO_ENV=prod only after providing production-grade secrets and volumes.
+In WPMOO_ENV=prod, module lifecycle commands such as install, update, and test
+require WPMOO_ALLOW_PROD_LIFECYCLE=1. Destructive database commands such as
+resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage
+and prod. restore-snapshot --dry-run remains available for preview.
 
 If copied from the standalone resource, additional compose notes are in
 \`docs/compose.md\`.
@@ -614,6 +618,23 @@ require_destructive_allowed() {
   fi
 }
 
+allow_prod_lifecycle() {
+  local value="\${WPMOO_ALLOW_PROD_LIFECYCLE:-$(env_file_value WPMOO_ALLOW_PROD_LIFECYCLE)}"
+  [[ "$value" == "1" ]]
+}
+
+require_prod_lifecycle_allowed() {
+  local command="$1"
+  local env_name
+  env_name="$(selected_env)"
+  if [[ "$env_name" == "prod" ]]; then
+    if ! allow_prod_lifecycle; then
+      echo "Refusing production lifecycle command '$command' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally." >&2
+      exit 1
+    fi
+  fi
+}
+
 run_script() {
   local script="$1"
   shift
@@ -659,16 +680,19 @@ case "$command" in
   "install")
     shift
     require_module_args "$command" "$@"
+    require_prod_lifecycle_allowed "$command"
     run_script ./scripts/install.sh "$@"
     ;;
   "update")
     shift
     require_module_args "$command" "$@"
+    require_prod_lifecycle_allowed "$command"
     run_script ./scripts/update.sh "$@"
     ;;
   "test")
     shift
     validate_test_args "$@"
+    require_prod_lifecycle_allowed "$command"
     run_script ./scripts/test.sh "$@"
     ;;
   "resetdb")

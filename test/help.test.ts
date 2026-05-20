@@ -69,6 +69,17 @@ describe('help', () => {
     expect(output).toContain('Daily command checks:');
   });
 
+  it('documents protected production lifecycle command guards', () => {
+    const output = renderHelp();
+
+    expect(output).toContain('Production command guards:');
+    expect(output).toContain('In WPMOO_ENV=prod, install/update/test require WPMOO_ALLOW_PROD_LIFECYCLE=1.');
+    expect(output).toContain('resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage/prod.');
+    expect(output).toContain('restore-snapshot --dry-run remains allowed for preview.');
+    expect(readme).toContain('In `WPMOO_ENV=prod`, `install`, `update`, and `test` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.');
+    expect(readme).toContain('`restore-snapshot --dry-run` remains allowed for preview.');
+  });
+
   it('documents source repo category option', () => {
     const output = renderHelp();
 

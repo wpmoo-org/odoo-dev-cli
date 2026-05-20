@@ -58,7 +58,10 @@ printf 'npx|%s\\n' "$*" >> "${callsPath}"
   );
   await chmod(join(root, 'bin', 'npx'), 0o755);
 
-  const env = { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH ?? ''}` };
+  const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH ?? ''}` };
+  delete env.WPMOO_ENV;
+  delete env.WPMOO_ALLOW_DESTRUCTIVE;
+  delete env.WPMOO_ALLOW_PROD_LIFECYCLE;
   return { callsPath, env, root };
 }
 
@@ -120,6 +123,72 @@ describe('generated environment moo delegation matrix', () => {
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(
       'restore-snapshot.sh|--dry-run snap1 devel\nresetdb.sh|devel\n',
     );
+  }, 15000);
+
+  it('blocks production module lifecycle commands unless explicitly allowed', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=prod\n');
+
+    for (const [command, args] of [
+      ['install', ['sale', 'devel']],
+      ['update', ['sale', 'devel']],
+      ['test', ['sale', '--db', 'devel', '--mode', 'update']],
+    ] as const) {
+      const result = await execa(join(root, 'moo'), [command, ...args], { cwd: root, env, reject: false });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        `Refusing production lifecycle command '${command}' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally.`,
+      );
+    }
+
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\n');
+    await execa(join(root, 'moo'), ['install', 'sale', 'devel'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['update', 'sale', 'devel'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['test', 'sale', '--db', 'devel', '--mode', 'update'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['snapshot', 'devel', 'before-update'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['lint'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['pot', 'sale', 'devel', 'i18n/sale.pot'], { cwd: root, env });
+
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=prod\nWPMOO_ALLOW_PROD_LIFECYCLE=1\n');
+    await execa(join(root, 'moo'), ['install', 'sale', 'devel'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['update', 'sale', 'devel'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['test', 'sale'], { cwd: root, env });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(
+      [
+        'install.sh|sale devel',
+        'update.sh|sale devel',
+        'test.sh|sale --db devel --mode update',
+        'snapshot.sh|devel before-update',
+        'lint.sh|',
+        'pot.sh|sale devel i18n/sale.pot',
+        'install.sh|sale devel',
+        'update.sh|sale devel',
+        'test.sh|sale',
+        '',
+      ].join('\n'),
+    );
+  }, 15000);
+
+  it('prefers process environment production lifecycle flags over .env values', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\n');
+
+    const blockedEnv = { ...env, WPMOO_ENV: 'prod' };
+    const blockedResult = await execa(join(root, 'moo'), ['install', 'sale'], {
+      cwd: root,
+      env: blockedEnv,
+      reject: false,
+    });
+    expect(blockedResult.exitCode).toBe(1);
+    expect(blockedResult.stderr).toContain(
+      "Refusing production lifecycle command 'install' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally.",
+    );
+
+    const allowedEnv = { ...env, WPMOO_ENV: 'prod', WPMOO_ALLOW_PROD_LIFECYCLE: '1' };
+    await execa(join(root, 'moo'), ['install', 'sale'], { cwd: root, env: allowedEnv });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('install.sh|sale\n');
   }, 15000);
 
   it('exits with usage error code 2 for invalid command usage', async () => {

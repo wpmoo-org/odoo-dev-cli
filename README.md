@@ -144,6 +144,10 @@ Every cockpit action maps to a direct command, so the same workflow can be used 
 ./moo restore-snapshot --dry-run before-update devel
 ```
 
+In `WPMOO_ENV=prod`, `install`, `update`, and `test` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.
+`resetdb` and real `restore-snapshot` require `WPMOO_ALLOW_DESTRUCTIVE=1` in `stage` and `prod`.
+`restore-snapshot --dry-run` remains allowed for preview.
+
 Module source actions also have direct commands. Default is `private`; pass `--source-type oca` or `--source-type external` for non-private source repositories:
 
 ```bash

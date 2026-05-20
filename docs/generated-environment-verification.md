@@ -53,6 +53,12 @@ scripts unless `.env` or the process environment explicitly sets
 `WPMOO_ALLOW_DESTRUCTIVE=1`. `restore-snapshot --dry-run` remains allowed for
 safe preview.
 
+When `WPMOO_ENV=prod`, WPMoo also refuses module lifecycle commands that mutate
+or exercise the Odoo database (`install`, `update`, and `test`) unless `.env` or
+the process environment explicitly sets `WPMOO_ALLOW_PROD_LIFECYCLE=1`.
+Staging keeps these commands available for release rehearsal while still
+enforcing the destructive database guard above.
+
 For PostgreSQL 18 environments (including `POSTGRES_IMAGE=postgres:18`), ensure db
 volume and tmpfs mount targets use `/var/lib/postgresql` directly:
 

@@ -165,6 +165,110 @@ describe('daily actions', () => {
     });
   });
 
+  it('blocks production module lifecycle commands without blocking stage or read-only maintenance', async () => {
+    const scripts = ['install.sh', 'update.sh', 'test.sh', 'snapshot.sh', 'restore-snapshot.sh', 'lint.sh', 'pot.sh'];
+    const stageTarget = await makeEnvironment({
+      scripts,
+      env: 'WPMOO_ENV=stage\n',
+    });
+    const prodTarget = await makeEnvironment({
+      scripts,
+      env: 'WPMOO_ENV=prod\n',
+    });
+    const allowedProdTarget = await makeEnvironment({
+      scripts,
+      env: 'WPMOO_ENV=prod\nWPMOO_ALLOW_PROD_LIFECYCLE=1\n',
+    });
+
+    await expect(dailyActionPlan('install', ['sale'], stageTarget)).resolves.toMatchObject({
+      scriptPath: join(stageTarget, 'scripts/install.sh'),
+      args: ['sale'],
+    });
+    await expect(dailyActionPlan('update', ['sale', 'devel'], stageTarget)).resolves.toMatchObject({
+      scriptPath: join(stageTarget, 'scripts/update.sh'),
+      args: ['sale', 'devel'],
+    });
+    await expect(
+      dailyActionPlan('test', ['sale', '--db', 'devel', '--mode', 'update'], stageTarget),
+    ).resolves.toMatchObject({
+      scriptPath: join(stageTarget, 'scripts/test.sh'),
+      args: ['sale', '--db', 'devel', '--mode', 'update'],
+    });
+
+    for (const command of ['install', 'update', 'test'] as const) {
+      await expect(dailyActionPlan(command, command === 'test' ? ['sale'] : ['sale', 'devel'], prodTarget)).rejects.toThrow(
+        `Refusing production lifecycle command '${command}' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally.`,
+      );
+    }
+
+    await expect(dailyActionPlan('snapshot', ['devel', 'before-update'], prodTarget)).resolves.toMatchObject({
+      scriptPath: join(prodTarget, 'scripts/snapshot.sh'),
+      args: ['devel', 'before-update'],
+    });
+    await expect(dailyActionPlan('restore-snapshot', ['--dry-run', 'before-update', 'devel'], prodTarget)).resolves.toMatchObject({
+      scriptPath: join(prodTarget, 'scripts/restore-snapshot.sh'),
+      args: ['--dry-run', 'before-update', 'devel'],
+    });
+    await expect(dailyActionPlan('lint', [], prodTarget)).resolves.toMatchObject({
+      scriptPath: join(prodTarget, 'scripts/lint.sh'),
+      args: [],
+    });
+    await expect(dailyActionPlan('pot', ['sale', 'devel', 'i18n/sale.pot'], prodTarget)).resolves.toMatchObject({
+      scriptPath: join(prodTarget, 'scripts/pot.sh'),
+      args: ['sale', 'devel', 'i18n/sale.pot'],
+    });
+
+    await expect(dailyActionPlan('install', ['sale'], allowedProdTarget)).resolves.toMatchObject({
+      scriptPath: join(allowedProdTarget, 'scripts/install.sh'),
+      args: ['sale'],
+    });
+    await expect(dailyActionPlan('update', ['sale', 'devel'], allowedProdTarget)).resolves.toMatchObject({
+      scriptPath: join(allowedProdTarget, 'scripts/update.sh'),
+      args: ['sale', 'devel'],
+    });
+    await expect(dailyActionPlan('test', ['sale'], allowedProdTarget)).resolves.toMatchObject({
+      scriptPath: join(allowedProdTarget, 'scripts/test.sh'),
+      args: ['sale'],
+    });
+  });
+
+  it('prefers process environment production lifecycle flags over .env values', async () => {
+    const originalEnv = {
+      WPMOO_ENV: process.env.WPMOO_ENV,
+      WPMOO_ALLOW_PROD_LIFECYCLE: process.env.WPMOO_ALLOW_PROD_LIFECYCLE,
+    };
+    const target = await makeEnvironment({
+      scripts: ['install.sh'],
+      env: 'WPMOO_ENV=stage\n',
+    });
+
+    try {
+      process.env.WPMOO_ENV = 'prod';
+      delete process.env.WPMOO_ALLOW_PROD_LIFECYCLE;
+      await expect(dailyActionPlan('install', ['sale'], target)).rejects.toThrow(
+        "Refusing production lifecycle command 'install' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally.",
+      );
+
+      process.env.WPMOO_ALLOW_PROD_LIFECYCLE = '1';
+      await expect(dailyActionPlan('install', ['sale'], target)).resolves.toMatchObject({
+        scriptPath: join(target, 'scripts/install.sh'),
+        args: ['sale'],
+      });
+    } finally {
+      if (originalEnv.WPMOO_ENV === undefined) {
+        delete process.env.WPMOO_ENV;
+      } else {
+        process.env.WPMOO_ENV = originalEnv.WPMOO_ENV;
+      }
+
+      if (originalEnv.WPMOO_ALLOW_PROD_LIFECYCLE === undefined) {
+        delete process.env.WPMOO_ALLOW_PROD_LIFECYCLE;
+      } else {
+        process.env.WPMOO_ALLOW_PROD_LIFECYCLE = originalEnv.WPMOO_ALLOW_PROD_LIFECYCLE;
+      }
+    }
+  });
+
   it('requires module arguments for module lifecycle commands', async () => {
     const target = await makeEnvironment({ scripts: ['install.sh', 'update.sh', 'test.sh'] });
 

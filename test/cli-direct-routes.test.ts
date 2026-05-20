@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   })),
   syncSources: vi.fn(async () => [] as unknown[]),
   runDoctor: vi.fn(async () => 'doctor report'),
+  runDailyAction: vi.fn(async () => undefined),
   renderBanner: vi.fn(() => 'mock banner'),
   commandOdooVersion: vi.fn(async () => '18.0-mocked'),
   installPromptCancelKeyTracker: vi.fn(),
@@ -99,6 +100,14 @@ vi.mock('../src/source-actions.js', () => ({
 vi.mock('../src/doctor.js', () => ({
   runDoctor: mocks.runDoctor,
 }));
+
+vi.mock('../src/daily-actions.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/daily-actions.js')>();
+  return {
+    ...actual,
+    runDailyAction: mocks.runDailyAction,
+  };
+});
 
 vi.mock('../src/templates.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/templates.js')>();
@@ -561,5 +570,38 @@ describe('cli direct command routes', () => {
     expect(mocks.safeResetEnvironment).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith('mock banner');
     expect(logSpy).toHaveBeenCalledWith('safe reset preview');
+  });
+
+  it('routes daily Odoo command matrix to runDailyAction', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const cwd = '/tmp/worker-a-daily-matrix';
+    const cases = [
+      { argv: ['install', 'sale', 'devel'], command: 'install', args: ['sale', 'devel'] },
+      { argv: ['update', 'sale', 'devel'], command: 'update', args: ['sale', 'devel'] },
+      {
+        argv: ['test', 'sale', '--db', 'devel', '--mode', 'update', '--tags', '/sale'],
+        command: 'test',
+        args: ['sale', '--db', 'devel', '--mode', 'update', '--tags', '/sale'],
+      },
+      { argv: ['snapshot', 'devel', 'before-update'], command: 'snapshot', args: ['devel', 'before-update'] },
+      {
+        argv: ['restore-snapshot', '--dry-run', 'before-update', 'devel'],
+        command: 'restore-snapshot',
+        args: ['--dry-run', 'before-update', 'devel'],
+      },
+      { argv: ['lint'], command: 'lint', args: [] },
+      { argv: ['pot', 'sale', 'devel', 'i18n/sale.pot'], command: 'pot', args: ['sale', 'devel', 'i18n/sale.pot'] },
+    ] as const;
+
+    for (const { argv } of cases) {
+      await runCli([...argv], cwd);
+    }
+
+    expect(mocks.runDailyAction).toHaveBeenCalledTimes(cases.length);
+    for (const [index, { command, args }] of cases.entries()) {
+      expect(mocks.runDailyAction).toHaveBeenNthCalledWith(index + 1, command, args, cwd);
+    }
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
   });
 });
