@@ -549,4 +549,64 @@ describe('doctor', () => {
       "PostgreSQL 18 compatibility issue in 'docker-compose_19.0.yml': mount target '/var/lib/postgresql/data' is invalid; recommend using '/var/lib/postgresql'",
     );
   });
+
+  it('adds opt-in PostgreSQL diagnostics from fixed read-only queries', async () => {
+    const calls: string[][] = [];
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner(calls);
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        calls.push([command, ...args]);
+        return {
+          stdout: [
+            'database_count|2',
+            'active_connections|3',
+            'total_database_size_bytes|10485760',
+            'slow_query_logging|500ms',
+            'pg_stat_statements|available',
+            'shared_buffers|128MB',
+          ].join('\n'),
+          stderr: '',
+        };
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual([]);
+    expect(report.checks).toContain(
+      'OK PostgreSQL diagnostics database_count=2 active_connections=3 total_database_size_bytes=10485760 slow_query_logging=500ms pg_stat_statements=available shared_buffers=128MB',
+    );
+    const postgresCall = calls.find(([command]) => command === 'bash');
+    expect(postgresCall?.[2]).toContain('pg_stat_activity');
+    expect(postgresCall?.[2]).toContain('pg_database_size');
+    expect(postgresCall?.[2]).not.toMatch(/\b(ALTER|CREATE|DELETE|DROP|INSERT|UPDATE)\b/u);
+  });
+
+  it('warns without failing when opt-in PostgreSQL diagnostics are unavailable', async () => {
+    const calls: string[][] = [];
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner(calls);
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        calls.push([command, ...args]);
+        throw new Error('database unavailable');
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual(['PostgreSQL diagnostics unavailable: database unavailable']);
+    expect(report.errors).toEqual([]);
+  });
 });

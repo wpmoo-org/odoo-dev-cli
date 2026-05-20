@@ -20,8 +20,8 @@ Usage:
   npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> [--source-type <category>]
   npx @wpmoo/toolkit remove-module --repo <source-repo> --module <module-name> [--source-type <category>]
   npx @wpmoo/toolkit reset [--dry-run]
-  npx @wpmoo/toolkit doctor [--fix]
-  npx @wpmoo/toolkit doctor --json
+  npx @wpmoo/toolkit doctor [--fix] [--postgres]
+  npx @wpmoo/toolkit doctor --json [--postgres]
   npx @wpmoo/toolkit start
   npx @wpmoo/toolkit stop
   npx @wpmoo/toolkit logs [service]
@@ -68,6 +68,7 @@ Options:
   --repo-visibility <value>    Visibility for created repos: private or public. Default: private.
   --init-empty-repos           Initialize empty source repos with the selected branch.
   --dry-run                    Print planned files and commands without writing.
+  --postgres                   Include read-only PostgreSQL health/performance diagnostics in doctor.
   --stage=false                Do not run git add .
   --no-update-check            Skip the startup npm update check.
   --version, -v                Show the package version.
@@ -102,6 +103,8 @@ Status and doctor:
   status: fast and offline. Reads local environment metadata and files only.
   doctor: deeper health check. May check Docker CLI access and GitHub workflows.
   doctor --fix: applies safe file-level repairs. Runs doctor again after fixes.
+  doctor --postgres: adds read-only PostgreSQL diagnostics such as database size,
+    active connections, slow-query readiness, extension visibility, and settings.
 
 Task recipes:
   Create environment:

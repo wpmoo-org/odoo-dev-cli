@@ -958,7 +958,7 @@ type DoctorCliOptions = DoctorCommandOptions & {
 function doctorOptionsFromArgs(argv: string[]): DoctorCliOptions {
   const { values } = parseArgs(argv);
   const keys = Object.keys(values);
-  const allowedKeys = new Set(['fix', 'json']);
+  const allowedKeys = new Set(['fix', 'json', 'postgres']);
   if (!keys.every((key) => allowedKeys.has(key))) {
     throw new Error('Usage: wpmoo doctor');
   }
@@ -968,6 +968,9 @@ function doctorOptionsFromArgs(argv: string[]): DoctorCliOptions {
   };
   if (Object.hasOwn(values, 'fix')) {
     options.fix = booleanOption(values, 'fix', false);
+  }
+  if (Object.hasOwn(values, 'postgres')) {
+    options.postgres = booleanOption(values, 'postgres', false);
   }
 
   return options;
@@ -2012,13 +2015,20 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     if (options.fix !== undefined) {
       doctorOptions.fix = options.fix;
     }
+    if (options.postgres !== undefined) {
+      doctorOptions.postgres = options.postgres;
+    }
     if (options.json) {
       printJson(await getDoctorReport(cwd, doctorOptions));
       return;
     }
 
     console.log(renderBanner());
-    console.log(options.fix === undefined ? await runDoctor(cwd) : await runDoctor(cwd, doctorOptions));
+    console.log(
+      options.fix === undefined && options.postgres === undefined
+        ? await runDoctor(cwd)
+        : await runDoctor(cwd, doctorOptions),
+    );
     return;
   }
 

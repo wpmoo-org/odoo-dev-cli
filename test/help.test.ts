@@ -42,6 +42,7 @@ describe('help', () => {
     expect(output).toContain('status: fast and offline.');
     expect(output).toContain('doctor: deeper health check.');
     expect(output).toContain('doctor --fix: applies safe file-level repairs.');
+    expect(output).toContain('doctor --postgres: adds read-only PostgreSQL diagnostics');
     expect(output).toContain('May check Docker CLI access and GitHub workflows.');
   });
 
@@ -122,6 +123,9 @@ describe('help', () => {
     expect(output).toContain('npx @wpmoo/toolkit source list --json');
     expect(output).toContain('npx @wpmoo/toolkit source sync --json');
     expect(output).toContain('npx @wpmoo/toolkit doctor --json');
+    expect(output).toContain('npx @wpmoo/toolkit doctor --json [--postgres]');
+    expect(output).toContain('--postgres');
+    expect(output).toContain('Include read-only PostgreSQL health/performance diagnostics in doctor.');
   });
 
   it('documents source-type defaults for module commands in README examples', () => {
@@ -162,6 +166,8 @@ describe('help', () => {
     expect(readmeText).toContain('npx @wpmoo/toolkit source list --json');
     expect(readmeText).toContain('npx @wpmoo/toolkit source sync --json');
     expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json');
+    expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json --postgres');
+    expect(readmeText).toContain('doctor --postgres');
     expect(readmeText).toContain('JSON output is optional; human-readable output remains the default.');
   });
 });

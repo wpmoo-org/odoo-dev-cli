@@ -27,6 +27,7 @@ export type DoctorCommandRunner = (
 
 export type DoctorCommandOptions = {
   fix?: boolean;
+  postgres?: boolean;
 };
 
 export type DoctorReport = {
@@ -88,6 +89,60 @@ function isMetadataError(message: string): boolean {
 }
 
 const incompatiblePostgres18MountTargets = ['/var/lib/postgresql/data', '/var/lib/postgresql/18/docker'];
+const postgresDiagnosticQuery = `
+WITH metrics(metric, value) AS (
+  SELECT 'database_count', count(*)::text
+    FROM pg_database
+    WHERE datistemplate = false
+  UNION ALL
+  SELECT 'active_connections', count(*)::text
+    FROM pg_stat_activity
+    WHERE datname IS NOT NULL
+  UNION ALL
+  SELECT 'total_database_size_bytes', COALESCE(sum(pg_database_size(datname)), 0)::text
+    FROM pg_database
+    WHERE datistemplate = false
+  UNION ALL
+  SELECT 'slow_query_logging', COALESCE(
+    (SELECT setting || unit FROM pg_settings WHERE name = 'log_min_duration_statement'),
+    'unavailable'
+  )
+  UNION ALL
+  SELECT 'pg_stat_statements',
+    CASE
+      WHEN EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements') THEN 'installed'
+      WHEN EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_stat_statements') THEN 'available'
+      ELSE 'unavailable'
+    END
+  UNION ALL
+  SELECT 'shared_buffers', COALESCE(
+    (SELECT setting FROM pg_settings WHERE name = 'shared_buffers'),
+    'unavailable'
+  )
+)
+SELECT metric || '|' || value
+FROM metrics
+ORDER BY CASE metric
+  WHEN 'database_count' THEN 1
+  WHEN 'active_connections' THEN 2
+  WHEN 'total_database_size_bytes' THEN 3
+  WHEN 'slow_query_logging' THEN 4
+  WHEN 'pg_stat_statements' THEN 5
+  WHEN 'shared_buffers' THEN 6
+  ELSE 99
+END;
+`.trim();
+
+const postgresDiagnosticKeys = [
+  'database_count',
+  'active_connections',
+  'total_database_size_bytes',
+  'slow_query_logging',
+  'pg_stat_statements',
+  'shared_buffers',
+] as const;
+
+type PostgresDiagnosticKey = (typeof postgresDiagnosticKeys)[number];
 
 function parsePostgresMajorFromValue(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -97,6 +152,49 @@ function parsePostgresMajorFromValue(value: string | undefined): string | undefi
   }
   const match = trimmed.match(/postgres:([0-9]{1,3})(?:[-._][A-Za-z0-9._-]+)?(?:@[\w:.-]+)?/i);
   return match?.[1];
+}
+
+function parsePostgresDiagnostics(output: string): Partial<Record<PostgresDiagnosticKey, string>> {
+  const diagnostics: Partial<Record<PostgresDiagnosticKey, string>> = {};
+  const allowedKeys = new Set<string>(postgresDiagnosticKeys);
+
+  for (const rawLine of output.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const separatorIndex = line.indexOf('|');
+    if (separatorIndex === -1) continue;
+
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+    if (allowedKeys.has(key) && value) {
+      diagnostics[key as PostgresDiagnosticKey] = value;
+    }
+  }
+
+  return diagnostics;
+}
+
+function renderPostgresDiagnostics(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): string | undefined {
+  const parts = postgresDiagnosticKeys.flatMap((key) => {
+    const value = diagnostics[key];
+    return value ? [`${key}=${value}`] : [];
+  });
+
+  return parts.length > 0 ? `OK PostgreSQL diagnostics ${parts.join(' ')}` : undefined;
+}
+
+async function readPostgresDiagnostics(
+  target: string,
+  runner: DoctorCommandRunner,
+): Promise<Partial<Record<PostgresDiagnosticKey, string>>> {
+  const queryLiteral = JSON.stringify(postgresDiagnosticQuery);
+  const command = [
+    `query=${queryLiteral}`,
+    '. ./scripts/lib.sh >/dev/null',
+    'compose exec -T db psql -X -q -t -A -U "${POSTGRES_USER:-odoo}" -d "${POSTGRES_DB:-postgres}" -c "$query"',
+  ].join(' && ');
+  const result = await runner('bash', ['-lc', command], { cwd: target });
+  return parsePostgresDiagnostics(result.stdout);
 }
 
 function stripInlineComment(line: string): string {
@@ -553,6 +651,19 @@ export async function getDoctorReport(
     }
     if (/^\d+$/.test(httpPort) && /^\d+$/.test(geventPort) && httpPort !== geventPort) {
       checks.push(`OK .env ports HTTP_PORT=${httpPort} GEVENT_PORT=${geventPort}`);
+    }
+  }
+
+  if (actualOptions.postgres) {
+    try {
+      const postgresDiagnostics = renderPostgresDiagnostics(await readPostgresDiagnostics(target, actualRunner));
+      if (postgresDiagnostics) {
+        checks.push(postgresDiagnostics);
+      } else {
+        warnings.push('PostgreSQL diagnostics unavailable: no diagnostic rows returned');
+      }
+    } catch (error) {
+      warnings.push(`PostgreSQL diagnostics unavailable: ${errorMessage(error)}`);
     }
   }
 
