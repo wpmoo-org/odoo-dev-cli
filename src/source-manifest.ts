@@ -137,6 +137,7 @@ function parseSourcesBlock(content: string): SourceManifest {
       url: '',
       addons: [],
     };
+    let hasAddonsField = false;
 
     index += 1;
     while (index < sourceLines.length) {
@@ -173,8 +174,15 @@ function parseSourcesBlock(content: string): SourceManifest {
         continue;
       }
 
-      const addonsLine = /^\s*addons:\s*$/.exec(noComment);
-      if (addonsLine) {
+      const emptyAddonsLine = /^\s*addons:\s*\[\s*\]\s*$/.exec(noComment);
+      if (emptyAddonsLine) {
+        hasAddonsField = true;
+        index += 1;
+        continue;
+      }
+
+      if (/^\s*addons:\s*$/.test(noComment)) {
+        hasAddonsField = true;
         const baseIndent = leadingSpaces(rawLine.line) + 2;
         index += 1;
         while (index < sourceLines.length) {
@@ -215,7 +223,7 @@ function parseSourcesBlock(content: string): SourceManifest {
       fail(`Invalid manifest path at line ${headerLine.lineNumber}: ${item.path}`);
     }
 
-    if (item.addons.length === 0) {
+    if (!hasAddonsField && item.addons.length === 0) {
       item.addons.push(item.path);
     }
     item.addons = [...new Set(item.addons.map((addon) => validateRepoPath(addon)))].sort();
@@ -249,7 +257,7 @@ export function renderSourceManifest(entries: SourceManifestEntry[]): string {
       path: validateRepoPath(entry.path),
       url: entry.url.trim(),
       branch: entry.branch?.trim(),
-      addons: addons.length ? addons : [validateRepoPath(entry.path)],
+      addons,
     };
   });
 
@@ -265,9 +273,13 @@ export function renderSourceManifest(entries: SourceManifestEntry[]): string {
         `    url: ${renderQuoted(entry.url)}`,
       ];
       lines.push(`    branch: ${renderQuoted(entry.branch ?? '')}`);
-      lines.push('    addons:');
-      for (const addon of entry.addons) {
-        lines.push(`      - ${renderQuoted(addon)}`);
+      if (entry.addons.length === 0) {
+        lines.push('    addons: []');
+      } else {
+        lines.push('    addons:');
+        for (const addon of entry.addons) {
+          lines.push(`      - ${renderQuoted(addon)}`);
+        }
       }
       return lines.join('\n');
     })
@@ -411,6 +423,6 @@ export function sourceReposFromManifest(entries: SourceManifestEntry[]): SourceR
     sourceType: entry.type,
     path: validateRepoPath(entry.path),
     url: entry.url,
-    addons: entry.addons.length ? [...new Set(entry.addons.map((addon) => validateRepoPath(addon)))] : [validateRepoPath(entry.path)],
+    addons: [...new Set(entry.addons.map((addon) => validateRepoPath(addon)))],
   }));
 }

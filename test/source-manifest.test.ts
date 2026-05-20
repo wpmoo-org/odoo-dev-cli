@@ -160,4 +160,59 @@ describe('source manifest', () => {
   it('renders an empty source manifest', () => {
     expect(renderSourceManifest([])).toBe('sources: []\n');
   });
+
+  it('preserves explicit empty addon lists', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-source-manifest-empty-addons-'));
+
+    await writeSourceManifest(target, [
+      {
+        type: 'private',
+        path: 'product',
+        url: 'https://github.com/example/product.git',
+        branch: '19.0',
+        addons: [],
+      },
+    ]);
+
+    await expect(readFile(join(target, sourceManifestPath), 'utf8')).resolves.toBe(
+      [
+        'sources:',
+        '  - type: "private"',
+        '    path: "product"',
+        '    url: "https://github.com/example/product.git"',
+        '    branch: "19.0"',
+        '    addons: []',
+        '',
+      ].join('\n'),
+    );
+    await expect(readSourceManifest(target)).resolves.toEqual({
+      sources: [
+        {
+          type: 'private',
+          path: 'product',
+          url: 'https://github.com/example/product.git',
+          branch: '19.0',
+          addons: [],
+        },
+      ],
+    });
+    expect(
+      sourceReposFromManifest([
+        {
+          type: 'private',
+          path: 'product',
+          url: 'https://github.com/example/product.git',
+          branch: '19.0',
+          addons: [],
+        },
+      ]),
+    ).toEqual([
+      {
+        sourceType: 'private',
+        path: 'product',
+        url: 'https://github.com/example/product.git',
+        addons: [],
+      },
+    ]);
+  });
 });

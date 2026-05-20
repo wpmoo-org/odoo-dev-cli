@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { markerPath } from '../src/environment.js';
 import {
   addModuleToSourceRepo,
   listModulesInEnvironment,
@@ -26,6 +27,50 @@ function recordingGit(): GitRunner & { calls: Array<{ cwd: string; args: string[
 }
 
 describe('module actions', () => {
+  async function writeSourceManifestFixture(target: string, addons = ['sale_coupon']): Promise<void> {
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/manifests'), { recursive: true });
+    await writeFile(
+      join(target, markerPath),
+      `${JSON.stringify(
+        {
+          tool: '@wpmoo/toolkit',
+          version: '0.9.8',
+          product: 'product',
+          odooVersion: '19.0',
+          devRepo: 'product_dev',
+          devRepoUrl: 'https://github.com/example/product_dev.git',
+          engine: 'compose',
+          sourceRepos: [
+            {
+              sourceType: 'oca',
+              path: 'sale-workflow',
+              url: 'https://github.com/OCA/sale-workflow.git',
+              addons,
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+    await writeFile(
+      join(target, 'odoo/custom/manifests/sources.yaml'),
+      [
+        'sources:',
+        '  - type: "oca"',
+        '    path: "sale-workflow"',
+        '    url: "https://github.com/OCA/sale-workflow.git"',
+        '    branch: "19.0"',
+        '    addons:',
+        ...addons.map((addon) => `      - "${addon}"`),
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+  }
+
   it('creates a minimal Odoo 16-19 compatible module skeleton and activates it', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-'));
     await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
@@ -63,7 +108,17 @@ class OdooSampleModuleBase(models.Model):
     const manifest = await readFile(join(modulePath, '__manifest__.py'), 'utf8');
     expect(manifest).toContain('"version": "18.0.1.0.0"');
     expect(manifest).toContain('"summary": "Odoo Sample Module Base module"');
+    expect(manifest).toContain('"views/odoo_sample_module_base_menus.xml"');
     expect(manifest).not.toContain('"summary": "TODO"');
+    await expect(readFile(join(modulePath, 'views/odoo_sample_module_base_menus.xml'), 'utf8')).resolves.toContain(
+      '<menuitem id="menu_odoo_sample_module_base_root"',
+    );
+    await expect(readFile(join(modulePath, 'views/odoo_sample_module_base_menus.xml'), 'utf8')).resolves.toContain(
+      'model="ir.actions.act_window"',
+    );
+    await expect(readFile(join(modulePath, 'views/odoo_sample_module_base_menus.xml'), 'utf8')).resolves.toContain(
+      '<field name="res_model">odoo.sample.module.base</field>',
+    );
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
       'private/odoo_sample_module:\n  - odoo_sample_module_base',
     );
@@ -515,6 +570,56 @@ class OdooSampleModuleBase(models.Model):
       args: ['add', '.'],
     });
     expect(git.calls).toContainEqual({ cwd: target, args: ['add', '.'] });
+  });
+
+  it('registers added modules in the source manifest and metadata source addons', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-source-manifest-add-'));
+    await writeSourceManifestFixture(target);
+    await mkdir(join(target, 'odoo/custom/src/oca/sale-workflow'), { recursive: true });
+
+    await addModuleToSourceRepo({
+      target,
+      repoPath: 'sale-workflow',
+      sourceType: 'oca',
+      moduleName: 'sale_order_line_no_discount',
+      odooVersion: '19.0',
+      stage: false,
+    });
+
+    await expect(readFile(join(target, 'odoo/custom/manifests/sources.yaml'), 'utf8')).resolves.toContain(
+      '      - "sale_order_line_no_discount"',
+    );
+    await expect(readFile(join(target, markerPath), 'utf8')).resolves.toContain('"sale_order_line_no_discount"');
+  });
+
+  it('unregisters modules from the source manifest and metadata without deleting files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-source-manifest-remove-'));
+    await writeSourceManifestFixture(target, ['sale_coupon', 'sale_order_line_no_discount']);
+    await mkdir(join(target, 'odoo/custom/src/oca/sale-workflow/sale_order_line_no_discount'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/oca/sale-workflow/sale_order_line_no_discount/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+
+    await removeModuleFromSourceRepo({
+      target,
+      repoPath: 'sale-workflow',
+      sourceType: 'oca',
+      moduleName: 'sale_order_line_no_discount',
+      deleteFiles: false,
+      stage: false,
+    });
+
+    await expect(
+      stat(join(target, 'odoo/custom/src/oca/sale-workflow/sale_order_line_no_discount')),
+    ).resolves.toBeTruthy();
+    await expect(readFile(join(target, 'odoo/custom/manifests/sources.yaml'), 'utf8')).resolves.not.toContain(
+      'sale_order_line_no_discount',
+    );
+    await expect(readFile(join(target, markerPath), 'utf8')).resolves.not.toContain(
+      'sale_order_line_no_discount',
+    );
   });
 
   it('does not touch addons.yaml for non-private source types', async () => {

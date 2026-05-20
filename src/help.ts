@@ -116,8 +116,8 @@ Task recipes:
     npx @wpmoo/toolkit source sync
   Add module:
     npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> --source-type private|oca|external
-    Creates a minimal skeleton: __init__.py, __manifest__.py, models/<module>.py, models/__init__.py, and security/ir.model.access.csv.
-    No XML view/menu files are generated yet; views/.gitkeep is a placeholder.
+    Creates a minimal skeleton: __init__.py, __manifest__.py, models/<module>.py, models/__init__.py, security/ir.model.access.csv, and views/<module>_menus.xml.
+    The menu XML adds a basic Odoo action and menu entry for the generated model.
     Module names must be lower snake_case; use letters, numbers, and underscores only.
   Remove module:
     npx @wpmoo/toolkit remove-module --repo <source-repo> --module <module-name> --source-type private|oca|external

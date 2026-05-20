@@ -5,12 +5,13 @@ import {
   addModuleToSourceRepoInAddonsYaml,
   removeModuleFromSourceRepoInAddonsYaml,
 } from './addons-yaml.js';
-import { readEnvironmentMetadata } from './environment.js';
+import { readEnvironmentMetadata, replaceSourceRepos } from './environment.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
 import { pathUnderBase, validateModuleName, validateRepoPath } from './path-validation.js';
 import { listModuleRepos, readAddonsYaml, writeAddonsYaml } from './repo-actions.js';
 import { listSources } from './source-actions.js';
-import type { SourceRepoType } from './types.js';
+import { readSourceManifest, writeSourceManifest } from './source-manifest.js';
+import type { SourceRepo, SourceRepoType } from './types.js';
 
 export type ListedModule = {
   moduleName: string;
@@ -92,6 +93,11 @@ function modelTechnicalName(moduleName: string): string {
   return moduleName.replace(/[_-]+/g, '.').toLowerCase();
 }
 
+function actionViewMode(odooVersion: string): string {
+  const majorVersion = Number.parseInt(odooVersion.split('.', 1)[0] ?? '', 10);
+  return Number.isFinite(majorVersion) && majorVersion < 18 ? 'tree,form' : 'list,form';
+}
+
 function modelContent(moduleName: string): string {
   const moduleTitle = titleizeModule(moduleName);
 
@@ -115,11 +121,29 @@ function manifestContent(moduleName: string, odooVersion: string): string {
     "depends": ["base"],
     "data": [
         "security/ir.model.access.csv",
+        "views/${moduleName}_menus.xml",
     ],
     "installable": True,
     "application": False,
     "license": "LGPL-3",
 }
+`;
+}
+
+function menuXmlContent(moduleName: string, odooVersion: string): string {
+  const moduleTitle = titleizeModule(moduleName);
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_${moduleName}" model="ir.actions.act_window">
+        <field name="name">${moduleTitle}</field>
+        <field name="res_model">${modelTechnicalName(moduleName)}</field>
+        <field name="view_mode">${actionViewMode(odooVersion)}</field>
+    </record>
+
+    <menuitem id="menu_${moduleName}_root" name="${moduleTitle}" sequence="10"/>
+    <menuitem id="menu_${moduleName}" name="${moduleTitle}" parent="menu_${moduleName}_root" action="action_${moduleName}" sequence="10"/>
+</odoo>
 `;
 }
 
@@ -146,6 +170,91 @@ async function usesAddonsYaml(target: string): Promise<boolean> {
   return metadata?.engine !== 'compose';
 }
 
+function updateAddonList(addons: string[], moduleName: string, mode: 'add' | 'remove'): string[] {
+  if (mode === 'add') {
+    return [...new Set([...addons, moduleName])];
+  }
+
+  return addons.filter((addon) => addon !== moduleName);
+}
+
+function addonListsEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((addon, index) => addon === right[index]);
+}
+
+async function updateSourceManifestModuleRegistration(
+  target: string,
+  sourceType: SourceRepoType,
+  repoPath: string,
+  moduleName: string,
+  mode: 'add' | 'remove',
+): Promise<void> {
+  const manifest = await readSourceManifest(target);
+  if (manifest.sources.length === 0) {
+    return;
+  }
+
+  let changed = false;
+  const sources = manifest.sources.map((entry) => {
+    if (entry.type !== sourceType || entry.path !== repoPath) {
+      return entry;
+    }
+
+    const addons = updateAddonList(entry.addons, moduleName, mode);
+    if (!addonListsEqual(entry.addons, addons)) {
+      changed = true;
+    }
+
+    return { ...entry, addons };
+  });
+
+  if (changed) {
+    await writeSourceManifest(target, sources);
+  }
+}
+
+async function updateMetadataModuleRegistration(
+  target: string,
+  sourceType: SourceRepoType,
+  repoPath: string,
+  moduleName: string,
+  mode: 'add' | 'remove',
+): Promise<void> {
+  const metadata = await readEnvironmentMetadata(target);
+  if (!metadata?.sourceRepos?.length) {
+    return;
+  }
+
+  let changed = false;
+  const sourceRepos: SourceRepo[] = metadata.sourceRepos.map((repo) => {
+    if (normalizeSourceType(repo.sourceType) !== sourceType || repo.path !== repoPath) {
+      return repo;
+    }
+
+    const addons = updateAddonList(repo.addons, moduleName, mode);
+    if (!addonListsEqual(repo.addons, addons)) {
+      changed = true;
+    }
+
+    return { ...repo, addons };
+  });
+
+  if (changed) {
+    await replaceSourceRepos(target, sourceRepos);
+  }
+}
+
+async function updateModuleRegistration(
+  target: string,
+  sourceType: SourceRepoType,
+  repoPath: string,
+  moduleName: string,
+  mode: 'add' | 'remove',
+): Promise<void> {
+  await updateSourceManifestModuleRegistration(target, sourceType, repoPath, moduleName, mode);
+  await updateMetadataModuleRegistration(target, sourceType, repoPath, moduleName, mode);
+}
+
 export async function addModuleToSourceRepo(
   options: AddModuleOptions,
   git: GitRunner = realGit,
@@ -166,6 +275,7 @@ export async function addModuleToSourceRepo(
     join(destination, 'security/ir.model.access.csv'),
     accessCsvContent(moduleName),
   );
+  await writeIfMissing(join(destination, `views/${moduleName}_menus.xml`), menuXmlContent(moduleName, options.odooVersion));
   await writeIfMissing(join(destination, 'views/.gitkeep'), '');
 
   if (sourceType === 'private' && (await usesAddonsYaml(options.target))) {
@@ -175,6 +285,7 @@ export async function addModuleToSourceRepo(
       addModuleToSourceRepoInAddonsYaml(addonsYaml, repoPath, moduleName),
     );
   }
+  await updateModuleRegistration(options.target, sourceType, repoPath, moduleName, 'add');
 
   if (options.stage) {
     await stageAll(git, sourceRepoPath(options.target, sourceType, repoPath));
@@ -271,6 +382,7 @@ export async function removeModuleFromSourceRepo(
       removeModuleFromSourceRepoInAddonsYaml(addonsYaml, repoPath, moduleName),
     );
   }
+  await updateModuleRegistration(options.target, sourceType, repoPath, moduleName, 'remove');
 
   if (options.deleteFiles) {
     await rm(modulePath(options.target, sourceType, repoPath, moduleName), { recursive: true, force: true });
