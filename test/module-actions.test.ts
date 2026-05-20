@@ -107,6 +107,22 @@ class OdooSampleModuleBase(models.Model):
         '',
       ].join('\n'),
     );
+    await expect(readFile(join(modulePath, 'tests/__init__.py'), 'utf8')).resolves.toBe(
+      'from . import test_odoo_sample_module_base\n',
+    );
+    await expect(readFile(join(modulePath, 'tests/test_odoo_sample_module_base.py'), 'utf8')).resolves.toBe(
+      `from odoo.tests import tagged
+from odoo.tests.common import TransactionCase
+
+
+@tagged("post_install", "-at_install")
+class TestOdooSampleModuleBase(TransactionCase):
+
+    def test_create_record(self):
+        record = self.env["odoo.sample.module.base"].create({"name": "Test Odoo Sample Module Base"})
+        self.assertEqual(record.name, "Test Odoo Sample Module Base")
+`,
+    );
     const manifest = await readFile(join(modulePath, '__manifest__.py'), 'utf8');
     expect(manifest).toContain('"version": "18.0.1.0.0"');
     expect(manifest).toContain('"summary": "Odoo Sample Module Base module"');
@@ -155,6 +171,25 @@ class OdooSampleModuleBase(models.Model):
     expect(viewsXml).toContain('<field name="name">odoo.sample.module.legacy.tree</field>');
     expect(viewsXml).toContain('<tree string="Odoo Sample Module Legacy">');
     expect(viewsXml).not.toContain('<list string=');
+  });
+
+  it('does not overwrite existing generated module test files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-test-idempotent-'));
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
+    await mkdir(join(modulePath, 'tests'), { recursive: true });
+    await writeFile(join(modulePath, 'tests/test_odoo_sample_module_base.py'), '# custom test\n', 'utf8');
+
+    await addModuleToSourceRepo({
+      target,
+      repoPath: 'odoo_sample_module',
+      moduleName: 'odoo_sample_module_base',
+      odooVersion: '18.0',
+      stage: false,
+    });
+
+    await expect(readFile(join(modulePath, 'tests/test_odoo_sample_module_base.py'), 'utf8')).resolves.toBe(
+      '# custom test\n',
+    );
   });
 
   it('lists modules in a selected source repo and removes activation without deleting files', async () => {

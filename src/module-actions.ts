@@ -199,6 +199,26 @@ function accessCsvContent(moduleName: string): string {
   ].join('\n');
 }
 
+function testInitContent(moduleName: string): string {
+  return `from . import test_${moduleName}\n`;
+}
+
+function testContent(moduleName: string): string {
+  const moduleTitle = titleizeModule(moduleName);
+
+  return `from odoo.tests import tagged
+from odoo.tests.common import TransactionCase
+
+
+@tagged("post_install", "-at_install")
+class Test${moduleClassName(moduleName)}(TransactionCase):
+
+    def test_create_record(self):
+        record = self.env["${modelTechnicalName(moduleName)}"].create({"name": "Test ${moduleTitle}"})
+        self.assertEqual(record.name, "Test ${moduleTitle}")
+`;
+}
+
 async function writeIfMissing(path: string, content: string): Promise<void> {
   try {
     await readFile(path, 'utf8');
@@ -307,12 +327,15 @@ export async function addModuleToSourceRepo(
   const destination = modulePath(options.target, sourceType, repoPath, moduleName);
   await mkdir(join(destination, 'models'), { recursive: true });
   await mkdir(join(destination, 'security'), { recursive: true });
+  await mkdir(join(destination, 'tests'), { recursive: true });
   await mkdir(join(destination, 'views'), { recursive: true });
 
   await writeIfMissing(join(destination, '__init__.py'), 'from . import models\n');
   await writeIfMissing(join(destination, '__manifest__.py'), manifestContent(moduleName, options.odooVersion));
   await writeIfMissing(join(destination, 'models/__init__.py'), `from . import ${moduleName}\n`);
   await writeIfMissing(join(destination, `models/${moduleName}.py`), modelContent(moduleName));
+  await writeIfMissing(join(destination, 'tests/__init__.py'), testInitContent(moduleName));
+  await writeIfMissing(join(destination, `tests/test_${moduleName}.py`), testContent(moduleName));
   await writeIfMissing(
     join(destination, 'security/ir.model.access.csv'),
     accessCsvContent(moduleName),
