@@ -90,12 +90,14 @@ describe('module actions', () => {
       'from . import odoo_sample_module_base\n',
     );
     await expect(readFile(join(modulePath, 'models/odoo_sample_module_base.py'), 'utf8')).resolves.toBe(
-      `from odoo import models
+      `from odoo import fields, models
 
 
 class OdooSampleModuleBase(models.Model):
     _name = "odoo.sample.module.base"
     _description = "Odoo Sample Module Base"
+
+    name = fields.Char(required=True, default="New")
 `,
     );
     await expect(readFile(join(modulePath, 'security/ir.model.access.csv'), 'utf8')).resolves.toBe(
@@ -105,11 +107,38 @@ class OdooSampleModuleBase(models.Model):
         '',
       ].join('\n'),
     );
+    await expect(readFile(join(modulePath, 'tests/__init__.py'), 'utf8')).resolves.toBe(
+      'from . import test_odoo_sample_module_base\n',
+    );
+    await expect(readFile(join(modulePath, 'tests/test_odoo_sample_module_base.py'), 'utf8')).resolves.toBe(
+      `from odoo.tests import tagged
+from odoo.tests.common import TransactionCase
+
+
+@tagged("post_install", "-at_install")
+class TestOdooSampleModuleBase(TransactionCase):
+
+    def test_create_record(self):
+        record = self.env["odoo.sample.module.base"].create({"name": "Test Odoo Sample Module Base"})
+        self.assertEqual(record.name, "Test Odoo Sample Module Base")
+`,
+    );
     const manifest = await readFile(join(modulePath, '__manifest__.py'), 'utf8');
     expect(manifest).toContain('"version": "18.0.1.0.0"');
     expect(manifest).toContain('"summary": "Odoo Sample Module Base module"');
+    expect(manifest).toContain('"views/odoo_sample_module_base_views.xml"');
     expect(manifest).toContain('"views/odoo_sample_module_base_menus.xml"');
+    expect(manifest.indexOf('"views/odoo_sample_module_base_views.xml"')).toBeLessThan(
+      manifest.indexOf('"views/odoo_sample_module_base_menus.xml"'),
+    );
     expect(manifest).not.toContain('"summary": "TODO"');
+    const viewsXml = await readFile(join(modulePath, 'views/odoo_sample_module_base_views.xml'), 'utf8');
+    expect(viewsXml).toContain('<record id="view_odoo_sample_module_base_list" model="ir.ui.view">');
+    expect(viewsXml).toContain('<field name="name">odoo.sample.module.base.list</field>');
+    expect(viewsXml).toContain('<list string="Odoo Sample Module Base">');
+    expect(viewsXml).toContain('<field name="name"/>');
+    expect(viewsXml).toContain('<record id="view_odoo_sample_module_base_form" model="ir.ui.view">');
+    expect(viewsXml).toContain('<form string="Odoo Sample Module Base">');
     await expect(readFile(join(modulePath, 'views/odoo_sample_module_base_menus.xml'), 'utf8')).resolves.toContain(
       '<menuitem id="menu_odoo_sample_module_base_root"',
     );
@@ -121,6 +150,45 @@ class OdooSampleModuleBase(models.Model):
     );
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
       'private/odoo_sample_module:\n  - odoo_sample_module_base',
+    );
+  });
+
+  it('uses tree views for generated modules targeting Odoo versions before 18', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-legacy-view-'));
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
+
+    await addModuleToSourceRepo({
+      target,
+      repoPath: 'odoo_sample_module',
+      moduleName: 'odoo_sample_module_legacy',
+      odooVersion: '17.0',
+      stage: false,
+    });
+
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_legacy');
+    const viewsXml = await readFile(join(modulePath, 'views/odoo_sample_module_legacy_views.xml'), 'utf8');
+    expect(viewsXml).toContain('<record id="view_odoo_sample_module_legacy_tree" model="ir.ui.view">');
+    expect(viewsXml).toContain('<field name="name">odoo.sample.module.legacy.tree</field>');
+    expect(viewsXml).toContain('<tree string="Odoo Sample Module Legacy">');
+    expect(viewsXml).not.toContain('<list string=');
+  });
+
+  it('does not overwrite existing generated module test files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-test-idempotent-'));
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
+    await mkdir(join(modulePath, 'tests'), { recursive: true });
+    await writeFile(join(modulePath, 'tests/test_odoo_sample_module_base.py'), '# custom test\n', 'utf8');
+
+    await addModuleToSourceRepo({
+      target,
+      repoPath: 'odoo_sample_module',
+      moduleName: 'odoo_sample_module_base',
+      odooVersion: '18.0',
+      stage: false,
+    });
+
+    await expect(readFile(join(modulePath, 'tests/test_odoo_sample_module_base.py'), 'utf8')).resolves.toBe(
+      '# custom test\n',
     );
   });
 

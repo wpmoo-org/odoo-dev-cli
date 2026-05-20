@@ -96,9 +96,11 @@ describe('help', () => {
     const output = renderHelp();
 
     expect(output).toContain(
-      'Creates a minimal skeleton: __init__.py, __manifest__.py, models/<module>.py, models/__init__.py, security/ir.model.access.csv, and views/<module>_menus.xml.',
+      'Creates a minimal skeleton: __init__.py, __manifest__.py, models/<module>.py, models/__init__.py, security/ir.model.access.csv, views/<module>_views.xml, views/<module>_menus.xml, and tests/test_<module>.py.',
     );
-    expect(output).toContain('The menu XML adds a basic Odoo action and menu entry for the generated model.');
+    expect(output).toContain(
+      'The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and menu entry; the test skeleton adds a post-install TransactionCase smoke test.',
+    );
     expect(output).toContain('Module names must be lower snake_case; use letters, numbers, and underscores only.');
     expect(output).toContain('Must be lower snake_case; use letters, numbers, and underscores only.');
     expect(readme).toContain('`add-module` creates a minimal Odoo module skeleton');
@@ -107,8 +109,12 @@ describe('help', () => {
     expect(readme).toContain('`models/<module>.py`');
     expect(readme).toContain('`models/__init__.py`');
     expect(readme).toContain('`security/ir.model.access.csv`');
+    expect(readme).toContain('`views/<module>_views.xml`');
     expect(readme).toContain('`views/<module>_menus.xml`');
-    expect(readme).toContain('The menu XML adds a basic Odoo action and menu entry for the generated model.');
+    expect(readme).toContain('`tests/test_<module>.py`');
+    expect(readme).toContain(
+      'The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and menu entry; the test skeleton adds a post-install TransactionCase smoke test.',
+    );
     expect(readme).toContain('Module names must be lower `snake_case`; use letters, numbers, and underscores only.');
   });
 
