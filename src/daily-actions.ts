@@ -156,8 +156,16 @@ function isDestructiveCommand(command: DailyActionCommand, args: string[]): bool
   return command === 'restore-snapshot' && args[0] !== '--dry-run';
 }
 
+function isProductionLifecycleCommand(command: DailyActionCommand): boolean {
+  return command === 'install' || command === 'update' || command === 'test';
+}
+
 function destructiveCommandError(command: DailyActionCommand, envName: string): string {
   return `Refusing destructive command '${command}' in WPMOO_ENV=${envName}. Set WPMOO_ALLOW_DESTRUCTIVE=1 to run it intentionally.`;
+}
+
+function productionLifecycleCommandError(command: DailyActionCommand): string {
+  return `Refusing production lifecycle command '${command}' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally.`;
 }
 
 async function assertDestructiveCommandAllowed(command: DailyActionCommand, args: string[], cwd: string): Promise<void> {
@@ -174,6 +182,24 @@ async function assertDestructiveCommandAllowed(command: DailyActionCommand, args
   const allowDestructive = process.env.WPMOO_ALLOW_DESTRUCTIVE?.trim() || env?.get('WPMOO_ALLOW_DESTRUCTIVE')?.trim();
   if (allowDestructive !== '1') {
     throw new Error(destructiveCommandError(command, envName));
+  }
+}
+
+async function assertProductionLifecycleCommandAllowed(command: DailyActionCommand, cwd: string): Promise<void> {
+  if (!isProductionLifecycleCommand(command)) {
+    return;
+  }
+
+  const env = await readEnvFile(cwd);
+  const envName = process.env.WPMOO_ENV?.trim() || selectedComposeEnvironment(env);
+  if (envName !== 'prod') {
+    return;
+  }
+
+  const allowProdLifecycle =
+    process.env.WPMOO_ALLOW_PROD_LIFECYCLE?.trim() || env?.get('WPMOO_ALLOW_PROD_LIFECYCLE')?.trim();
+  if (allowProdLifecycle !== '1') {
+    throw new Error(productionLifecycleCommandError(command));
   }
 }
 
@@ -203,6 +229,7 @@ export async function dailyActionPlan(
   await assertEnvironmentRoot(cwd);
   const scriptPath = await assertScriptExists(cwd, dailyActionScripts[command]);
   const args = scriptArgs(command, argv);
+  await assertProductionLifecycleCommandAllowed(command, cwd);
   await assertDestructiveCommandAllowed(command, args, cwd);
 
   return {
