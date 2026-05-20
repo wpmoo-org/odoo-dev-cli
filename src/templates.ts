@@ -585,6 +585,35 @@ validate_test_args() {
   done
 }
 
+env_file_value() {
+  local key="$1"
+  if [[ -f ".env" ]]; then
+    grep -E "^[[:space:]]*\${key}[[:space:]]*=" ".env" | tail -n 1 | sed -E "s/^[[:space:]]*\${key}[[:space:]]*=[[:space:]]*//; s/[[:space:]]*(#.*)?$//; s/^[\\"']//; s/[\\"']$//"
+  fi
+}
+
+selected_env() {
+  local value="\${WPMOO_ENV:-$(env_file_value WPMOO_ENV)}"
+  printf '%s\\n' "\${value:-dev}"
+}
+
+allow_destructive() {
+  local value="\${WPMOO_ALLOW_DESTRUCTIVE:-$(env_file_value WPMOO_ALLOW_DESTRUCTIVE)}"
+  [[ "$value" == "1" ]]
+}
+
+require_destructive_allowed() {
+  local command="$1"
+  local env_name
+  env_name="$(selected_env)"
+  if [[ "$env_name" == "stage" || "$env_name" == "prod" ]]; then
+    if ! allow_destructive; then
+      echo "Refusing destructive command '$command' in WPMOO_ENV=$env_name. Set WPMOO_ALLOW_DESTRUCTIVE=1 to run it intentionally." >&2
+      exit 1
+    fi
+  fi
+}
+
 run_script() {
   local script="$1"
   shift
@@ -645,6 +674,7 @@ case "$command" in
   "resetdb")
     shift
     positional_args "$command" 0 2 "$@"
+    require_destructive_allowed "$command"
     run_script ./scripts/resetdb.sh "$@"
     ;;
   "snapshot")
@@ -661,6 +691,9 @@ case "$command" in
     fi
     positional_args "$command" 1 2 "$@"
     restore_args+=("$@")
+    if [[ "\${restore_args[0]:-}" != "--dry-run" ]]; then
+      require_destructive_allowed "$command"
+    fi
     run_script ./scripts/restore-snapshot.sh "\${restore_args[@]}"
     ;;
   "lint")

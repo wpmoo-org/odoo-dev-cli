@@ -88,6 +88,40 @@ describe('generated environment moo delegation matrix', () => {
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor\n`);
   });
 
+  it('blocks destructive commands in stage and prod unless explicitly allowed', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\n');
+
+    const resetResult = await execa(join(root, 'moo'), ['resetdb', 'devel'], { cwd: root, env, reject: false });
+    const restoreResult = await execa(join(root, 'moo'), ['restore-snapshot', 'snap1', 'devel'], {
+      cwd: root,
+      env,
+      reject: false,
+    });
+    const dryRunResult = await execa(join(root, 'moo'), ['restore-snapshot', '--dry-run', 'snap1', 'devel'], {
+      cwd: root,
+      env,
+      reject: false,
+    });
+
+    expect(resetResult.exitCode).toBe(1);
+    expect(resetResult.stderr).toContain(
+      "Refusing destructive command 'resetdb' in WPMOO_ENV=stage. Set WPMOO_ALLOW_DESTRUCTIVE=1 to run it intentionally.",
+    );
+    expect(restoreResult.exitCode).toBe(1);
+    expect(restoreResult.stderr).toContain(
+      "Refusing destructive command 'restore-snapshot' in WPMOO_ENV=stage. Set WPMOO_ALLOW_DESTRUCTIVE=1 to run it intentionally.",
+    );
+    expect(dryRunResult.exitCode).toBe(0);
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('restore-snapshot.sh|--dry-run snap1 devel\n');
+
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=prod\nWPMOO_ALLOW_DESTRUCTIVE=1\n');
+    await execa(join(root, 'moo'), ['resetdb', 'devel'], { cwd: root, env });
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(
+      'restore-snapshot.sh|--dry-run snap1 devel\nresetdb.sh|devel\n',
+    );
+  }, 15000);
+
   it('exits with usage error code 2 for invalid command usage', async () => {
     const { env, root } = await createMooFixture();
 

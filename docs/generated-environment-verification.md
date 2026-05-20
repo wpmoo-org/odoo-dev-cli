@@ -46,9 +46,11 @@ Default local development uses `compose.yaml` plus `compose/dev.yaml`.
 `WPMOO_ENV=stage` or `WPMOO_ENV=prod` must only be used after production-grade
 secrets and volumes are configured.
 
-When `WPMOO_ENV=stage` or `WPMOO_ENV=prod`, generated compose scripts refuse
-destructive database actions such as `resetdb` and real `restore-snapshot`
-unless `.env` explicitly sets `WPMOO_ALLOW_DESTRUCTIVE=1`.
+When `WPMOO_ENV=stage` or `WPMOO_ENV=prod`, WPMoo refuses destructive database
+actions such as `resetdb` and real `restore-snapshot` before dispatching local
+scripts unless `.env` or the process environment explicitly sets
+`WPMOO_ALLOW_DESTRUCTIVE=1`. `restore-snapshot --dry-run` remains allowed for
+safe preview.
 
 For PostgreSQL 18 environments (including `POSTGRES_IMAGE=postgres:18`), ensure db
 volume and tmpfs mount targets use `/var/lib/postgresql` directly:
