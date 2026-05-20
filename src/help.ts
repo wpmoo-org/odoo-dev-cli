@@ -147,6 +147,7 @@ Machine-readable JSON output:
     npx @wpmoo/toolkit source list --json
     npx @wpmoo/toolkit source sync --json
     npx @wpmoo/toolkit doctor --json
+    doctor --json --postgres includes a structured postgres object for automation.
 
 Example:
   npx @wpmoo/toolkit create \\

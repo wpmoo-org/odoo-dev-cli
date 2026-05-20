@@ -30,6 +30,22 @@ export type DoctorCommandOptions = {
   postgres?: boolean;
 };
 
+export type DoctorPostgresDiagnostics = {
+  databaseCount?: number;
+  activeConnections?: number;
+  totalDatabaseSizeBytes?: number;
+  slowQueryLogging?: string;
+  pgStatStatements?: string;
+  sharedBuffers?: string;
+};
+
+export type DoctorPostgresReport = {
+  requested: true;
+  available: boolean;
+  diagnostics: DoctorPostgresDiagnostics;
+  warning?: string;
+};
+
 export type DoctorReport = {
   schemaVersion: 1;
   command: 'doctor';
@@ -39,6 +55,7 @@ export type DoctorReport = {
   warnings: string[];
   errors: string[];
   appliedFixes: string[];
+  postgres?: DoctorPostgresReport;
 };
 
 const realCommandRunner: DoctorCommandRunner = async (command, args, options) => {
@@ -181,6 +198,32 @@ function renderPostgresDiagnostics(diagnostics: Partial<Record<PostgresDiagnosti
   });
 
   return parts.length > 0 ? `OK PostgreSQL diagnostics ${parts.join(' ')}` : undefined;
+}
+
+function integerDiagnostic(value: string | undefined): number | undefined {
+  if (!value || !/^\d+$/u.test(value)) {
+    return undefined;
+  }
+
+  return Number.parseInt(value, 10);
+}
+
+function structuredPostgresDiagnostics(
+  diagnostics: Partial<Record<PostgresDiagnosticKey, string>>,
+): DoctorPostgresDiagnostics {
+  const structured: DoctorPostgresDiagnostics = {};
+  const databaseCount = integerDiagnostic(diagnostics.database_count);
+  const activeConnections = integerDiagnostic(diagnostics.active_connections);
+  const totalDatabaseSizeBytes = integerDiagnostic(diagnostics.total_database_size_bytes);
+
+  if (databaseCount !== undefined) structured.databaseCount = databaseCount;
+  if (activeConnections !== undefined) structured.activeConnections = activeConnections;
+  if (totalDatabaseSizeBytes !== undefined) structured.totalDatabaseSizeBytes = totalDatabaseSizeBytes;
+  if (diagnostics.slow_query_logging) structured.slowQueryLogging = diagnostics.slow_query_logging;
+  if (diagnostics.pg_stat_statements) structured.pgStatStatements = diagnostics.pg_stat_statements;
+  if (diagnostics.shared_buffers) structured.sharedBuffers = diagnostics.shared_buffers;
+
+  return structured;
 }
 
 async function readPostgresDiagnostics(
@@ -656,14 +699,34 @@ export async function getDoctorReport(
 
   if (actualOptions.postgres) {
     try {
-      const postgresDiagnostics = renderPostgresDiagnostics(await readPostgresDiagnostics(target, actualRunner));
-      if (postgresDiagnostics) {
-        checks.push(postgresDiagnostics);
+      const postgresDiagnostics = await readPostgresDiagnostics(target, actualRunner);
+      const renderedPostgresDiagnostics = renderPostgresDiagnostics(postgresDiagnostics);
+      if (renderedPostgresDiagnostics) {
+        checks.push(renderedPostgresDiagnostics);
+        report.postgres = {
+          requested: true,
+          available: true,
+          diagnostics: structuredPostgresDiagnostics(postgresDiagnostics),
+        };
       } else {
-        warnings.push('PostgreSQL diagnostics unavailable: no diagnostic rows returned');
+        const warning = 'no diagnostic rows returned';
+        warnings.push(`PostgreSQL diagnostics unavailable: ${warning}`);
+        report.postgres = {
+          requested: true,
+          available: false,
+          diagnostics: {},
+          warning,
+        };
       }
     } catch (error) {
-      warnings.push(`PostgreSQL diagnostics unavailable: ${errorMessage(error)}`);
+      const warning = errorMessage(error);
+      warnings.push(`PostgreSQL diagnostics unavailable: ${warning}`);
+      report.postgres = {
+        requested: true,
+        available: false,
+        diagnostics: {},
+        warning,
+      };
     }
   }
 

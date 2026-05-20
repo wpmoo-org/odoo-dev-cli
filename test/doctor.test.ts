@@ -582,6 +582,18 @@ describe('doctor', () => {
     expect(report.checks).toContain(
       'OK PostgreSQL diagnostics database_count=2 active_connections=3 total_database_size_bytes=10485760 slow_query_logging=500ms pg_stat_statements=available shared_buffers=128MB',
     );
+    expect(report.postgres).toEqual({
+      requested: true,
+      available: true,
+      diagnostics: {
+        databaseCount: 2,
+        activeConnections: 3,
+        totalDatabaseSizeBytes: 10485760,
+        slowQueryLogging: '500ms',
+        pgStatStatements: 'available',
+        sharedBuffers: '128MB',
+      },
+    });
     const postgresCall = calls.find(([command]) => command === 'bash');
     expect(postgresCall?.[2]).toContain('pg_stat_activity');
     expect(postgresCall?.[2]).toContain('pg_database_size');
@@ -607,6 +619,12 @@ describe('doctor', () => {
 
     expect(report.ok).toBe(true);
     expect(report.warnings).toEqual(['PostgreSQL diagnostics unavailable: database unavailable']);
+    expect(report.postgres).toEqual({
+      requested: true,
+      available: false,
+      diagnostics: {},
+      warning: 'database unavailable',
+    });
     expect(report.errors).toEqual([]);
   });
 });

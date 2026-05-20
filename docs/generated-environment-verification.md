@@ -72,6 +72,8 @@ database count, active connections, aggregate database size, slow-query logging
 readiness, `pg_stat_statements` availability, and `shared_buffers`. If the
 database is unavailable, doctor reports a warning instead of failing the whole
 environment check.
+JSON output preserves `checks` and `warnings` while adding a structured
+`postgres` object when `--postgres` is requested.
 
 ## Safe reset policy
 

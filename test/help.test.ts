@@ -124,8 +124,10 @@ describe('help', () => {
     expect(output).toContain('npx @wpmoo/toolkit source sync --json');
     expect(output).toContain('npx @wpmoo/toolkit doctor --json');
     expect(output).toContain('npx @wpmoo/toolkit doctor --json [--postgres]');
+    expect(output).toContain('doctor --json --postgres includes a structured postgres object for automation.');
     expect(output).toContain('--postgres');
     expect(output).toContain('Include read-only PostgreSQL health/performance diagnostics in doctor.');
+    expect(readme).toContain('`doctor --json --postgres` includes a structured `postgres` object for automation.');
   });
 
   it('documents source-type defaults for module commands in README examples', () => {
