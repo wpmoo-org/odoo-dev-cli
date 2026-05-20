@@ -563,6 +563,8 @@ describe('doctor', () => {
           stdout: [
             'database_count|2',
             'active_connections|3',
+            'connection_count|42',
+            'max_connections|100',
             'total_database_size_bytes|10485760',
             'slow_query_logging|500ms',
             'pg_stat_statements|available',
@@ -580,7 +582,7 @@ describe('doctor', () => {
     expect(report.ok).toBe(true);
     expect(report.warnings).toEqual([]);
     expect(report.checks).toContain(
-      'OK PostgreSQL diagnostics database_count=2 active_connections=3 total_database_size_bytes=10485760 slow_query_logging=500ms pg_stat_statements=available shared_buffers=128MB',
+      'OK PostgreSQL diagnostics database_count=2 active_connections=3 connection_count=42 max_connections=100 connection_utilization_pct=42 total_database_size_bytes=10485760 slow_query_logging=500ms pg_stat_statements=available shared_buffers=128MB',
     );
     expect(report.postgres).toEqual({
       requested: true,
@@ -588,6 +590,9 @@ describe('doctor', () => {
       diagnostics: {
         databaseCount: 2,
         activeConnections: 3,
+        connectionCount: 42,
+        maxConnections: 100,
+        connectionUtilizationPct: 42,
         totalDatabaseSizeBytes: 10485760,
         slowQueryLogging: '500ms',
         pgStatStatements: 'available',
@@ -597,8 +602,45 @@ describe('doctor', () => {
     const postgresCall = calls.find(([command]) => command === 'bash');
     expect(postgresCall?.[2]).toContain('pg_stat_activity');
     expect(postgresCall?.[2]).toMatch(/\bstate\s*=\s*'active'/u);
+    expect(postgresCall?.[2]).toContain('max_connections');
     expect(postgresCall?.[2]).toContain('pg_database_size');
     expect(postgresCall?.[2]).not.toMatch(/\b(ALTER|CREATE|DELETE|DROP|INSERT|UPDATE)\b/u);
+  });
+
+  it('warns when PostgreSQL connection utilization is high', async () => {
+    const calls: string[][] = [];
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner(calls);
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        calls.push([command, ...args]);
+        return {
+          stdout: [
+            'database_count|2',
+            'active_connections|4',
+            'connection_count|90',
+            'max_connections|100',
+            'total_database_size_bytes|10485760',
+            'slow_query_logging|500ms',
+            'pg_stat_statements|available',
+            'shared_buffers|128MB',
+          ].join('\n'),
+          stderr: '',
+        };
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual(['PostgreSQL connection utilization is high: 90% of max_connections used (90/100).']);
+    expect(report.postgres?.available).toBe(true);
+    expect(report.postgres?.diagnostics.connectionUtilizationPct).toBe(90);
+    expect(report.errors).toEqual([]);
   });
 
   it('warns without failing when opt-in PostgreSQL diagnostics are unavailable', async () => {
@@ -655,7 +697,7 @@ describe('doctor', () => {
     expect(report.ok).toBe(true);
     expect(report.checks).not.toContain(expect.stringContaining('OK PostgreSQL diagnostics'));
     expect(report.warnings).toEqual([
-      'PostgreSQL diagnostics unavailable: incomplete diagnostic rows: missing total_database_size_bytes, slow_query_logging, pg_stat_statements, shared_buffers',
+      'PostgreSQL diagnostics unavailable: incomplete diagnostic rows: missing connection_count, max_connections, total_database_size_bytes, slow_query_logging, pg_stat_statements, shared_buffers',
     ]);
     expect(report.postgres).toEqual({
       requested: true,
@@ -665,7 +707,7 @@ describe('doctor', () => {
         activeConnections: 3,
       },
       warning:
-        'incomplete diagnostic rows: missing total_database_size_bytes, slow_query_logging, pg_stat_statements, shared_buffers',
+        'incomplete diagnostic rows: missing connection_count, max_connections, total_database_size_bytes, slow_query_logging, pg_stat_statements, shared_buffers',
     });
     expect(report.errors).toEqual([]);
   });
@@ -683,6 +725,8 @@ describe('doctor', () => {
           stdout: [
             'database_count|two',
             'active_connections|3',
+            'connection_count|42',
+            'max_connections|many',
             'total_database_size_bytes|10485760',
             'slow_query_logging|500ms',
             'pg_stat_statements|available',
@@ -700,19 +744,20 @@ describe('doctor', () => {
     expect(report.ok).toBe(true);
     expect(report.checks).not.toContain(expect.stringContaining('OK PostgreSQL diagnostics'));
     expect(report.warnings).toEqual([
-      'PostgreSQL diagnostics unavailable: malformed diagnostic values: database_count',
+      'PostgreSQL diagnostics unavailable: malformed diagnostic values: database_count, max_connections',
     ]);
     expect(report.postgres).toEqual({
       requested: true,
       available: false,
       diagnostics: {
         activeConnections: 3,
+        connectionCount: 42,
         totalDatabaseSizeBytes: 10485760,
         slowQueryLogging: '500ms',
         pgStatStatements: 'available',
         sharedBuffers: '128MB',
       },
-      warning: 'malformed diagnostic values: database_count',
+      warning: 'malformed diagnostic values: database_count, max_connections',
     });
     expect(report.errors).toEqual([]);
   });

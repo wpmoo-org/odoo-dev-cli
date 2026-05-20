@@ -46,6 +46,7 @@ describe('help', () => {
     expect(output).toContain('Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics');
     expect(output).toContain('sessions currently running queries');
     expect(output).toContain("pg_stat_activity.state = 'active'");
+    expect(output).toContain('connection utilization against max_connections');
     expect(output).toContain('May check Docker CLI access and GitHub workflows.');
   });
 
@@ -148,6 +149,8 @@ describe('help', () => {
     expect(readme).toContain('Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics');
     expect(readme).toContain('sessions currently running queries');
     expect(readme).toContain("`pg_stat_activity.state = 'active'`");
+    expect(readme).toContain('connection utilization against');
+    expect(readme).toContain('`max_connections`');
     expect(output).toContain('--postgres');
     expect(output).toContain('Include read-only PostgreSQL health/performance diagnostics in doctor.');
     expect(readme).toContain('`doctor --json --postgres` includes a structured `postgres` object for automation.');

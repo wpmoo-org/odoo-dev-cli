@@ -110,7 +110,8 @@ Status and doctor:
   doctor --fix: applies safe file-level repairs. Runs doctor again after fixes.
   doctor --postgres: adds read-only PostgreSQL diagnostics such as database size,
     sessions currently running queries with pg_stat_activity.state = 'active',
-    slow-query readiness, extension visibility, and settings.
+    connection utilization against max_connections, slow-query readiness,
+    extension visibility, and settings.
     Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics.
 
 Task recipes:

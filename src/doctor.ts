@@ -33,6 +33,9 @@ export type DoctorCommandOptions = {
 export type DoctorPostgresDiagnostics = {
   databaseCount?: number;
   activeConnections?: number;
+  connectionCount?: number;
+  maxConnections?: number;
+  connectionUtilizationPct?: number;
   totalDatabaseSizeBytes?: number;
   slowQueryLogging?: string;
   pgStatStatements?: string;
@@ -117,6 +120,15 @@ WITH metrics(metric, value) AS (
     WHERE datname IS NOT NULL
       AND state = 'active'
   UNION ALL
+  SELECT 'connection_count', count(*)::text
+    FROM pg_stat_activity
+    WHERE datname IS NOT NULL
+  UNION ALL
+  SELECT 'max_connections', COALESCE(
+    (SELECT setting FROM pg_settings WHERE name = 'max_connections'),
+    'unavailable'
+  )
+  UNION ALL
   SELECT 'total_database_size_bytes', COALESCE(sum(pg_database_size(datname)), 0)::text
     FROM pg_database
     WHERE datistemplate = false
@@ -143,10 +155,12 @@ FROM metrics
 ORDER BY CASE metric
   WHEN 'database_count' THEN 1
   WHEN 'active_connections' THEN 2
-  WHEN 'total_database_size_bytes' THEN 3
-  WHEN 'slow_query_logging' THEN 4
-  WHEN 'pg_stat_statements' THEN 5
-  WHEN 'shared_buffers' THEN 6
+  WHEN 'connection_count' THEN 3
+  WHEN 'max_connections' THEN 4
+  WHEN 'total_database_size_bytes' THEN 5
+  WHEN 'slow_query_logging' THEN 6
+  WHEN 'pg_stat_statements' THEN 7
+  WHEN 'shared_buffers' THEN 8
   ELSE 99
 END;
 `.trim();
@@ -154,6 +168,8 @@ END;
 const postgresDiagnosticKeys = [
   'database_count',
   'active_connections',
+  'connection_count',
+  'max_connections',
   'total_database_size_bytes',
   'slow_query_logging',
   'pg_stat_statements',
@@ -193,9 +209,14 @@ function parsePostgresDiagnostics(output: string): Partial<Record<PostgresDiagno
 }
 
 function renderPostgresDiagnostics(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): string | undefined {
+  const connectionUtilizationPct = postgresConnectionUtilizationPct(diagnostics);
   const parts = postgresDiagnosticKeys.flatMap((key) => {
     const value = diagnostics[key];
-    return value ? [`${key}=${value}`] : [];
+    const rendered = value ? [`${key}=${value}`] : [];
+    if (key === 'max_connections' && connectionUtilizationPct !== undefined) {
+      rendered.push(`connection_utilization_pct=${connectionUtilizationPct}`);
+    }
+    return rendered;
   });
 
   return parts.length > 0 ? `OK PostgreSQL diagnostics ${parts.join(' ')}` : undefined;
@@ -228,9 +249,37 @@ function malformedPostgresDiagnosticKeys(
   const numericKeys: PostgresDiagnosticKey[] = [
     'database_count',
     'active_connections',
+    'connection_count',
+    'max_connections',
     'total_database_size_bytes',
   ];
   return numericKeys.filter((key) => diagnostics[key] !== undefined && integerDiagnostic(diagnostics[key]) === undefined);
+}
+
+function postgresConnectionUtilizationPct(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): number | undefined {
+  const connectionCount = integerDiagnostic(diagnostics.connection_count);
+  const maxConnections = integerDiagnostic(diagnostics.max_connections);
+  if (connectionCount === undefined || maxConnections === undefined || maxConnections <= 0) {
+    return undefined;
+  }
+
+  return Math.round((connectionCount / maxConnections) * 100);
+}
+
+function postgresConnectionUtilizationWarning(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): string | undefined {
+  const connectionCount = integerDiagnostic(diagnostics.connection_count);
+  const maxConnections = integerDiagnostic(diagnostics.max_connections);
+  const utilizationPct = postgresConnectionUtilizationPct(diagnostics);
+  if (
+    connectionCount === undefined ||
+    maxConnections === undefined ||
+    utilizationPct === undefined ||
+    utilizationPct < 80
+  ) {
+    return undefined;
+  }
+
+  return `PostgreSQL connection utilization is high: ${utilizationPct}% of max_connections used (${connectionCount}/${maxConnections}).`;
 }
 
 function structuredPostgresDiagnostics(
@@ -239,10 +288,16 @@ function structuredPostgresDiagnostics(
   const structured: DoctorPostgresDiagnostics = {};
   const databaseCount = integerDiagnostic(diagnostics.database_count);
   const activeConnections = integerDiagnostic(diagnostics.active_connections);
+  const connectionCount = integerDiagnostic(diagnostics.connection_count);
+  const maxConnections = integerDiagnostic(diagnostics.max_connections);
+  const connectionUtilizationPct = postgresConnectionUtilizationPct(diagnostics);
   const totalDatabaseSizeBytes = integerDiagnostic(diagnostics.total_database_size_bytes);
 
   if (databaseCount !== undefined) structured.databaseCount = databaseCount;
   if (activeConnections !== undefined) structured.activeConnections = activeConnections;
+  if (connectionCount !== undefined) structured.connectionCount = connectionCount;
+  if (maxConnections !== undefined) structured.maxConnections = maxConnections;
+  if (connectionUtilizationPct !== undefined) structured.connectionUtilizationPct = connectionUtilizationPct;
   if (totalDatabaseSizeBytes !== undefined) structured.totalDatabaseSizeBytes = totalDatabaseSizeBytes;
   if (diagnostics.slow_query_logging) structured.slowQueryLogging = diagnostics.slow_query_logging;
   if (diagnostics.pg_stat_statements) structured.pgStatStatements = diagnostics.pg_stat_statements;
@@ -737,6 +792,10 @@ export async function getDoctorReport(
           available: true,
           diagnostics: structuredPostgresDiagnostics(postgresDiagnostics),
         };
+        const connectionUtilizationWarning = postgresConnectionUtilizationWarning(postgresDiagnostics);
+        if (connectionUtilizationWarning) {
+          warnings.push(connectionUtilizationWarning);
+        }
       } else {
         const warning =
           malformedKeys.length > 0

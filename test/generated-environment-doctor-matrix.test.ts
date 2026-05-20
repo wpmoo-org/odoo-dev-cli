@@ -250,10 +250,10 @@ describe('generated environment doctor matrix', () => {
         sharedBuffers: '128MB',
       },
       warning:
-        'incomplete diagnostic rows: missing active_connections, total_database_size_bytes, slow_query_logging, pg_stat_statements',
+        'incomplete diagnostic rows: missing active_connections, connection_count, max_connections, total_database_size_bytes, slow_query_logging, pg_stat_statements',
     });
     expect(report.warnings).toEqual([
-      'PostgreSQL diagnostics unavailable: incomplete diagnostic rows: missing active_connections, total_database_size_bytes, slow_query_logging, pg_stat_statements',
+      'PostgreSQL diagnostics unavailable: incomplete diagnostic rows: missing active_connections, connection_count, max_connections, total_database_size_bytes, slow_query_logging, pg_stat_statements',
     ]);
     expect(report.errors).toEqual([]);
   });
