@@ -1,10 +1,12 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
+import { markerPath } from '../src/environment.js';
+import { environmentStatusJson, getEnvironmentStatus } from '../src/status.js';
 import { renderDoctorScript, renderMooDelegationScript, renderStatusScript } from '../src/templates.js';
 import { packageName, packageVersion } from '../src/version.js';
 
@@ -71,6 +73,28 @@ printf 'npx|%s\\n' "$*" >> "${callsPath}"
   delete env.WPMOO_ALLOW_DESTRUCTIVE;
   delete env.WPMOO_ALLOW_PROD_LIFECYCLE;
   return { callsPath, env, root };
+}
+
+async function writeGeneratedStatusFixture(root: string) {
+  await mkdir(join(root, '.wpmoo'), { recursive: true });
+  await mkdir(join(root, 'odoo/custom/src/private/sale_tools'), { recursive: true });
+  await writeFile(join(root, 'README.md'), '# Generated fixture\n', 'utf8');
+  await writeFile(join(root, 'AGENTS.md'), '# Agent notes\n', 'utf8');
+  await writeFile(join(root, 'docker-compose_19.0.yml'), 'services:\n  odoo:\n    image: odoo:19\n', 'utf8');
+  await writeFile(
+    join(root, markerPath),
+    JSON.stringify(
+      {
+        odooVersion: '19.0',
+        sourceRepos: [{ path: 'sale_tools', sourceType: 'private' }],
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+  await writeFile(join(root, 'scripts/status.sh'), renderStatusScript(), 'utf8');
+  await chmod(join(root, 'scripts/status.sh'), 0o755);
 }
 
 describe('generated environment moo delegation matrix', () => {
@@ -181,6 +205,34 @@ exit 1
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor --help\n`);
   });
 
+  it('delegates doctor JSON PostgreSQL checks to the package fallback command', async () => {
+    const { callsPath, env, root } = await createMooFixture({ includeDoctorScript: true });
+    await writeFile(
+      join(root, 'bin', 'npx'),
+      `#!/usr/bin/env bash
+set -euo pipefail
+printf 'npx|%s\\n' "$*" >> "${callsPath}"
+if [[ "$*" == "--yes ${expectedFallbackPackageSpec} doctor --json --postgres" ]]; then
+  echo '{"schemaVersion":1,"command":"doctor","ok":true,"checks":[],"warnings":[],"errors":[],"appliedFixes":[],"postgres":{"requested":true}}'
+  exit 0
+fi
+exit 1
+`,
+      'utf8',
+    );
+    await chmod(join(root, 'bin', 'npx'), 0o755);
+
+    const result = await execa(join(root, 'moo'), ['doctor', '--json', '--postgres'], { cwd: root, env });
+
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      command: 'doctor',
+      postgres: { requested: true },
+    });
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(
+      `npx|--yes ${expectedFallbackPackageSpec} doctor --json --postgres\n`,
+    );
+  });
+
   it('reports local environment status text output without docker', async () => {
     const { callsPath, env, root } = await createMooFixture();
     await writeFile(join(root, 'scripts/status.sh'), renderStatusScript(), 'utf8');
@@ -215,6 +267,85 @@ exit 1
     await expect(readFile(callsPath, 'utf8')).resolves.not.toContain('docker-compose');
     await expect(readFile(callsPath, 'utf8')).resolves.not.toContain('docker ');
     await expect(readFile(callsPath, 'utf8')).resolves.not.toContain('npx');
+  });
+
+  it('keeps generated status JSON aligned with the TypeScript status contract', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    await writeGeneratedStatusFixture(root);
+    await writeFile(callsPath, '', 'utf8');
+
+    const result = await execa(join(root, 'moo'), ['status', '--json'], { cwd: root, env });
+    const generated = JSON.parse(result.stdout) as ReturnType<typeof environmentStatusJson>;
+    const direct = environmentStatusJson(await getEnvironmentStatus(await realpath(root)));
+
+    expect(generated).toMatchObject({
+      schemaVersion: direct.schemaVersion,
+      command: direct.command,
+      ok: direct.ok,
+      status: {
+        kind: direct.status.kind,
+        target: direct.status.target,
+        metadataPath: direct.status.metadataPath,
+      },
+    });
+    expect(generated.status).toMatchObject(
+      direct.status.kind === 'environment'
+        ? {
+            odooVersion: direct.status.odooVersion,
+            sourceRepoCount: direct.status.sourceRepoCount,
+            sourceRepoPaths: direct.status.sourceRepoPaths,
+            invalidSourceRepoPaths: direct.status.invalidSourceRepoPaths,
+            moduleCandidateCount: direct.status.moduleCandidateCount,
+            moduleQuality: direct.status.moduleQuality,
+            composeFiles: direct.status.composeFiles,
+            composeErrors: direct.status.composeErrors,
+            missingCoreFiles: direct.status.missingCoreFiles,
+          }
+        : {},
+    );
+    expect(generated.status.recommendedNextAction).toBe('Run ./moo doctor for deep checks or ./moo start.');
+    expect(direct.status.recommendedNextAction).toBe('Run npx @wpmoo/toolkit doctor for deep checks or ./moo start.');
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
+  });
+
+  it('parses generated status JSON boolean options like the direct CLI', async () => {
+    const { env, root } = await createMooFixture();
+    await writeGeneratedStatusFixture(root);
+
+    const jsonTrue = await execa(join(root, 'moo'), ['status', '--json=true'], { cwd: root, env });
+    expect(JSON.parse(jsonTrue.stdout)).toMatchObject({ command: 'status', schemaVersion: 1 });
+
+    const jsonFalse = await execa(join(root, 'moo'), ['status', '--json=false'], { cwd: root, env });
+    expect(jsonFalse.stdout).toContain('Status:');
+    expect(() => JSON.parse(jsonFalse.stdout)).toThrow();
+  });
+
+  it('preserves argument boundaries when delegating shell-sensitive values', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    const restoreScript = join(root, 'scripts/restore-snapshot.sh');
+    await writeFile(
+      restoreScript,
+      `#!/usr/bin/env bash
+set -euo pipefail
+printf 'argc=%s\\n' "$#" >> "${callsPath}"
+for arg in "$@"; do
+  printf '<%s>\\n' "$arg" >> "${callsPath}"
+done
+`,
+      'utf8',
+    );
+    await chmod(restoreScript, 0o755);
+    await writeFile(callsPath, '', 'utf8');
+
+    await execa(
+      join(root, 'moo'),
+      ['restore-snapshot', '--dry-run', 'snapshot with spaces', 'db-name=devel/test'],
+      { cwd: root, env },
+    );
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(
+      ['argc=3', '<--dry-run>', '<snapshot with spaces>', '<db-name=devel/test>', ''].join('\n'),
+    );
   });
 
   it('prints generated command help without falling back to npx', async () => {
