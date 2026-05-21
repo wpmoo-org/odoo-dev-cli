@@ -236,6 +236,8 @@ In WPMOO_ENV=prod, module lifecycle commands such as install, update, and test
 require WPMOO_ALLOW_PROD_LIFECYCLE=1. Destructive database commands such as
 resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage
 and prod. restore-snapshot --dry-run remains available for preview.
+For short-lived local approvals, add JSONL entries to \`.wpmoo/approvals.jsonl\`;
+generated \`.gitignore\` keeps that ledger out of Git.
 
 If copied from the standalone resource, additional compose notes are in
 \`docs/compose.md\`.
@@ -460,6 +462,7 @@ __pycache__/
 .env.*
 !.env.example
 *.local
+.wpmoo/approvals.jsonl
 
 # Local generated files
 *.code-workspace
@@ -620,9 +623,51 @@ selected_env() {
   printf '%s\\n' "\${value:-dev}"
 }
 
+approval_active() {
+  local scope="$1"
+  local command="$2"
+  local env_name="$3"
+  [[ -f .wpmoo/approvals.jsonl ]] || return 1
+
+  node --input-type=module - "$scope" "$command" "$env_name" <<'NODE'
+import { readFileSync } from 'node:fs';
+
+const [scope, command, envName] = process.argv.slice(2);
+
+try {
+  const content = readFileSync('.wpmoo/approvals.jsonl', 'utf8');
+  for (const rawLine of content.split(/\\r?\\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+
+    if (!entry || typeof entry !== 'object') continue;
+    if (entry.scope !== scope || entry.environment !== envName) continue;
+    if (typeof entry.command === 'string' && entry.command !== command) continue;
+
+    const expiresAt = Date.parse(entry.expiresAt);
+    if (Number.isFinite(expiresAt) && expiresAt > Date.now()) {
+      process.exit(0);
+    }
+  }
+} catch {
+}
+
+process.exit(1);
+NODE
+}
+
 allow_destructive() {
+  local command="$1"
+  local env_name="\${2:-$(selected_env)}"
   local value="\${WPMOO_ALLOW_DESTRUCTIVE:-$(env_file_value WPMOO_ALLOW_DESTRUCTIVE)}"
-  [[ "$value" == "1" ]]
+  [[ "$value" == "1" ]] || approval_active "destructive" "$command" "$env_name"
 }
 
 require_destructive_allowed() {
@@ -630,7 +675,7 @@ require_destructive_allowed() {
   local env_name
   env_name="$(selected_env)"
   if [[ "$env_name" == "stage" || "$env_name" == "prod" ]]; then
-    if ! allow_destructive; then
+    if ! allow_destructive "$command" "$env_name"; then
       echo "Refusing destructive command '$command' in WPMOO_ENV=$env_name. Set WPMOO_ALLOW_DESTRUCTIVE=1 to run it intentionally." >&2
       exit 1
     fi
@@ -638,23 +683,31 @@ require_destructive_allowed() {
 }
 
 allow_prod_lifecycle() {
+  local command="$1"
+  local env_name="\${2:-$(selected_env)}"
   local value="\${WPMOO_ALLOW_PROD_LIFECYCLE:-$(env_file_value WPMOO_ALLOW_PROD_LIFECYCLE)}"
-  [[ "$value" == "1" ]]
+  [[ "$value" == "1" ]] || approval_active "prod-lifecycle" "$command" "$env_name"
 }
 
 allow_stage_lifecycle() {
+  local command="$1"
+  local env_name="\${2:-$(selected_env)}"
   local value="\${WPMOO_ALLOW_STAGE_LIFECYCLE:-$(env_file_value WPMOO_ALLOW_STAGE_LIFECYCLE)}"
-  [[ "$value" == "1" ]]
+  [[ "$value" == "1" ]] || approval_active "stage-lifecycle" "$command" "$env_name"
 }
 
 allow_no_recent_snapshot() {
+  local command="$1"
+  local env_name="\${2:-$(selected_env)}"
   local value="\${WPMOO_ALLOW_NO_RECENT_SNAPSHOT:-$(env_file_value WPMOO_ALLOW_NO_RECENT_SNAPSHOT)}"
-  [[ "$value" == "1" ]]
+  [[ "$value" == "1" ]] || approval_active "no-recent-snapshot" "$command" "$env_name"
 }
 
 allow_migrations() {
+  local command="$1"
+  local env_name="\${2:-$(selected_env)}"
   local value="\${WPMOO_ALLOW_MIGRATIONS:-$(env_file_value WPMOO_ALLOW_MIGRATIONS)}"
-  [[ "$value" == "1" ]]
+  [[ "$value" == "1" ]] || approval_active "migration-risk" "$command" "$env_name"
 }
 
 has_recent_snapshot() {
@@ -673,7 +726,7 @@ require_recent_snapshot_or_override() {
   local env_name
   env_name="$(selected_env)"
   if [[ "$env_name" == "stage" || "$env_name" == "prod" ]]; then
-    if ! allow_no_recent_snapshot && ! has_recent_snapshot; then
+    if ! allow_no_recent_snapshot "$command" "$env_name" && ! has_recent_snapshot; then
       echo "Refusing destructive command '$command' in WPMOO_ENV=$env_name without a recent database snapshot. Create a snapshot first or set WPMOO_ALLOW_NO_RECENT_SNAPSHOT=1 to run it intentionally." >&2
       exit 1
     fi
@@ -696,7 +749,7 @@ require_migrations_allowed() {
   local env_name
   env_name="$(selected_env)"
   if [[ "$env_name" == "stage" || "$env_name" == "prod" ]]; then
-    if ! allow_migrations && has_migration_risk; then
+    if ! allow_migrations "$command" "$env_name" && has_migration_risk; then
       echo "Refusing migration-risk command '$command' in WPMOO_ENV=$env_name. Review detected migration scripts or set WPMOO_ALLOW_MIGRATIONS=1 to run it intentionally." >&2
       exit 1
     fi
@@ -708,7 +761,7 @@ require_stage_lifecycle_allowed() {
   local env_name
   env_name="$(selected_env)"
   if [[ "$env_name" == "stage" ]]; then
-    if ! allow_stage_lifecycle; then
+    if ! allow_stage_lifecycle "$command" "$env_name"; then
       echo "Refusing stage lifecycle command '$command' in WPMOO_ENV=stage. Set WPMOO_ALLOW_STAGE_LIFECYCLE=1 to run it intentionally." >&2
       exit 1
     fi
@@ -720,7 +773,7 @@ require_prod_lifecycle_allowed() {
   local env_name
   env_name="$(selected_env)"
   if [[ "$env_name" == "prod" ]]; then
-    if ! allow_prod_lifecycle; then
+    if ! allow_prod_lifecycle "$command" "$env_name"; then
       echo "Refusing production lifecycle command '$command' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally." >&2
       exit 1
     fi

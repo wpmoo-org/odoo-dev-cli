@@ -91,6 +91,7 @@ Lifecycle command guards:
   In WPMOO_ENV=prod, install/update/test require WPMOO_ALLOW_PROD_LIFECYCLE=1.
   resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage/prod.
   restore-snapshot --dry-run remains allowed for preview.
+  Time-bounded local approvals may also be recorded in .wpmoo/approvals.jsonl.
 
 Cockpit:
   Run npx @wpmoo/toolkit inside a generated environment to open the cockpit.

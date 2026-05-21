@@ -154,6 +154,7 @@ In `WPMOO_ENV=stage`, `install` and `update` require `WPMOO_ALLOW_STAGE_LIFECYCL
 In `WPMOO_ENV=prod`, `install`, `update`, and `test` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.
 `resetdb` and real `restore-snapshot` require `WPMOO_ALLOW_DESTRUCTIVE=1` in `stage` and `prod`.
 `restore-snapshot --dry-run` remains allowed for preview.
+For short-lived local approvals, add JSONL entries to `.wpmoo/approvals.jsonl`; generated `.gitignore` keeps that ledger out of Git.
 
 Module source actions also have direct commands. Default is `private`; pass `--source-type oca` or `--source-type external` for non-private source repositories:
 

@@ -59,6 +59,11 @@ the process environment explicitly sets `WPMOO_ALLOW_PROD_LIFECYCLE=1`.
 Staging keeps these commands available for release rehearsal while still
 enforcing the destructive database guard above.
 
+Generated environments also honor time-bounded local approvals from
+`.wpmoo/approvals.jsonl`. Generated `.gitignore` ignores this ledger and
+can approve the same scopes as the environment flags for a specific stage/prod
+command until `expiresAt`.
+
 For PostgreSQL 18 environments (including `POSTGRES_IMAGE=postgres:18`), ensure db
 volume and tmpfs mount targets use `/var/lib/postgresql` directly:
 

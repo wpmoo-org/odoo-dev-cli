@@ -74,8 +74,8 @@ Ready:
   preview/read-only paths.
 - Migration-risk lifecycle commands can require `WPMOO_ALLOW_MIGRATIONS=1`.
 - Environment-variable approvals remain supported through 1.x.
-- Timestamped approval files may be added as an additive safety layer, not as a
-  replacement for env flags in 1.x.
+- `.wpmoo/approvals.jsonl` adds time-bounded local approvals as an additive
+  safety layer, not as a replacement for env flags in 1.x.
 
 ## Release Artifact Policy
 
@@ -117,7 +117,7 @@ Final policy decisions:
 - Pre-1.0 generated environments are supported through safe reset and
   doctor-guided generated-file migration checks that preserve source code and
   local runtime data.
-- Environment-variable approvals remain supported through 1.x; timestamped
-  approval files may be added only as an additive safety layer.
+- Environment-variable approvals remain supported through 1.x;
+  `.wpmoo/approvals.jsonl` is additive and local-only.
 - Generated-environment acceptance smoke is mandatory for a `1.0.0` release
   candidate.

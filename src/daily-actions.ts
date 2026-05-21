@@ -2,11 +2,13 @@ import { spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { readActiveApprovals, type ActiveApproval, type ApprovalScope } from './approval-ledger.js';
 import { appendAuditLog } from './audit-log.js';
 import { readEnvFile, selectedComposeEnvironment } from './compose-layout.js';
 import { defaultDatabaseSnapshotMaxAgeMs, findDatabaseSnapshots, normalizeDatabaseName } from './databases.js';
 import {
   evaluateDailyActionPolicy,
+  parseEnvironmentKind,
   type EnvironmentKind,
   type PolicyDeny,
 } from './environment-policy.js';
@@ -64,6 +66,7 @@ export type DailyActionSafetyPreview = DailyActionPlan & {
     snapshotPaths: string[];
   };
   migrations?: MigrationRiskResult;
+  approvals: ActiveApproval[];
   approvedFlags: string[];
 };
 
@@ -254,7 +257,7 @@ function flagEnabled(env: Map<string, string> | undefined, key: string): boolean
   return envValue(env, key) === '1';
 }
 
-function approvedFlags(env: Map<string, string> | undefined): string[] {
+function envApprovedFlags(env: Map<string, string> | undefined): string[] {
   return [
     'WPMOO_ALLOW_DESTRUCTIVE',
     'WPMOO_ALLOW_STAGE_LIFECYCLE',
@@ -262,6 +265,14 @@ function approvedFlags(env: Map<string, string> | undefined): string[] {
     'WPMOO_ALLOW_NO_RECENT_SNAPSHOT',
     'WPMOO_ALLOW_MIGRATIONS',
   ].filter((key) => flagEnabled(env, key));
+}
+
+function hasApproval(approvals: readonly ActiveApproval[], scope: ApprovalScope): boolean {
+  return approvals.some((approval) => approval.scope === scope);
+}
+
+function approvalFlagLabels(approvals: readonly ActiveApproval[]): string[] {
+  return [...new Set(approvals.map((approval) => approval.label))];
 }
 
 function requiresMigrationApproval(command: DailyActionCommand): boolean {
@@ -302,11 +313,15 @@ export async function dailyActionSafetyPreview(
   const args = scriptArgs(command, argv);
   const env = await readEnvFile(cwd);
   const envName = envValue(env, 'WPMOO_ENV') || selectedComposeEnvironment(env);
+  const environment = parseEnvironmentKind(envName);
+  const approvals = await readActiveApprovals(cwd, { command, environment });
   const policy = evaluateDailyActionPolicy(command, args, {
     envName,
-    allowDestructive: envValue(env, 'WPMOO_ALLOW_DESTRUCTIVE'),
-    allowStageLifecycle: envValue(env, 'WPMOO_ALLOW_STAGE_LIFECYCLE'),
-    allowProdLifecycle: envValue(env, 'WPMOO_ALLOW_PROD_LIFECYCLE'),
+    allowDestructive: envValue(env, 'WPMOO_ALLOW_DESTRUCTIVE') || (hasApproval(approvals, 'destructive') ? '1' : undefined),
+    allowStageLifecycle:
+      envValue(env, 'WPMOO_ALLOW_STAGE_LIFECYCLE') || (hasApproval(approvals, 'stage-lifecycle') ? '1' : undefined),
+    allowProdLifecycle:
+      envValue(env, 'WPMOO_ALLOW_PROD_LIFECYCLE') || (hasApproval(approvals, 'prod-lifecycle') ? '1' : undefined),
   });
   const warnings: DailyActionSafetyWarning[] = [];
   const snapshotRequired = policy.isDestructive && (policy.env === 'stage' || policy.env === 'prod');
@@ -315,7 +330,8 @@ export async function dailyActionSafetyPreview(
     snapshotRequired &&
     snapshot &&
     (snapshot.newestSnapshotAgeMs === null || snapshot.newestSnapshotAgeMs > defaultDatabaseSnapshotMaxAgeMs) &&
-    !flagEnabled(env, 'WPMOO_ALLOW_NO_RECENT_SNAPSHOT');
+    !flagEnabled(env, 'WPMOO_ALLOW_NO_RECENT_SNAPSHOT') &&
+    !hasApproval(approvals, 'no-recent-snapshot');
 
   if (noRecentSnapshot) {
     warnings.push({
@@ -330,7 +346,7 @@ export async function dailyActionSafetyPreview(
     requiresMigrationApproval(command) && (policy.env === 'stage' || policy.env === 'prod')
       ? await scanMigrationRisks(cwd)
       : undefined;
-  if (migrations?.risk && !flagEnabled(env, 'WPMOO_ALLOW_MIGRATIONS')) {
+  if (migrations?.risk && !flagEnabled(env, 'WPMOO_ALLOW_MIGRATIONS') && !hasApproval(approvals, 'migration-risk')) {
     warnings.push({
       kind: 'migration-risk',
       requiredFlag: 'WPMOO_ALLOW_MIGRATIONS',
@@ -361,7 +377,8 @@ export async function dailyActionSafetyPreview(
         }
       : undefined,
     migrations,
-    approvedFlags: approvedFlags(env),
+    approvals,
+    approvedFlags: [...envApprovedFlags(env), ...approvalFlagLabels(approvals)],
   };
 }
 
