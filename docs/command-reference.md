@@ -88,6 +88,24 @@ Current JSON contract notes:
 
 Process environment values take precedence over `.env` values for safety flags.
 
+## Approval Ledger
+
+For time-bounded local approvals, add JSONL entries to `.wpmoo/approvals.jsonl`.
+Generated `.gitignore` ignores this file, and it should not be committed.
+Existing `WPMOO_ALLOW_*` flags remain supported; ledger entries are an additive
+way to make short-lived intent explicit.
+
+Each line is one JSON object:
+
+```json
+{"scope":"stage-lifecycle","environment":"stage","command":"install","expiresAt":"2026-05-21T12:30:00.000Z","reason":"release rehearsal"}
+```
+
+Supported `scope` values are `stage-lifecycle`, `prod-lifecycle`,
+`destructive`, `no-recent-snapshot`, and `migration-risk`. `environment` must be
+`stage` or `prod`. `command` is optional; omit it only for a deliberately broad
+approval. Expired, malformed, or mismatched entries are ignored.
+
 ## Exit Behavior
 
 - Successful commands exit `0`.

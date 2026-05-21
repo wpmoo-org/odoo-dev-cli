@@ -60,7 +60,8 @@ describe('help', () => {
     expect(readiness).not.toContain('Remaining decision');
     expect(readinessText).toContain('Generated environments created by pre-1.0 releases are supported through safe reset and doctor-guided generated-file migration checks.');
     expect(readiness).toContain('Environment-variable approvals remain supported through 1.x.');
-    expect(readinessText).toContain('Timestamped approval files may be added as an additive safety layer, not as a replacement for env flags in 1.x.');
+    expect(readinessText).toContain('`.wpmoo/approvals.jsonl` adds time-bounded local approvals as an additive safety layer, not as a replacement for env flags in 1.x.');
+    expect(readinessText).toContain('`.wpmoo/approvals.jsonl` is additive and local-only.');
     expect(readinessText).toContain('Generated-environment acceptance smoke is mandatory for a 1.0.0 release candidate.');
     expect(handoffText).toContain('For a 1.0.0 tag, run generated-environment acceptance smoke with WPMOO_SMOKE_ENVIRONMENT=1.');
     expect(readmeText).toContain('For `1.0.0`, generated-environment acceptance smoke is required before the release is considered final.');
@@ -118,9 +119,11 @@ describe('help', () => {
     expect(output).toContain('In WPMOO_ENV=prod, install/update/test require WPMOO_ALLOW_PROD_LIFECYCLE=1.');
     expect(output).toContain('resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage/prod.');
     expect(output).toContain('restore-snapshot --dry-run remains allowed for preview.');
+    expect(output).toContain('Time-bounded local approvals may also be recorded in .wpmoo/approvals.jsonl.');
     expect(readme).toContain('In `WPMOO_ENV=stage`, `install` and `update` require `WPMOO_ALLOW_STAGE_LIFECYCLE=1`.');
     expect(readme).toContain('In `WPMOO_ENV=prod`, `install`, `update`, and `test` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.');
     expect(readme).toContain('`restore-snapshot --dry-run` remains allowed for preview.');
+    expect(readme).toContain('For short-lived local approvals, add JSONL entries to `.wpmoo/approvals.jsonl`');
   });
 
   it('documents source repo category option', () => {

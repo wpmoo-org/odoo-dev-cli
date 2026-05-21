@@ -384,6 +384,33 @@ exit 1
     await expect(readFile(callsPath, 'utf8')).resolves.toBe('install.sh|sale_extension devel\n');
   }, 15000);
 
+  it('accepts generated stage/prod commands with time-bounded approval ledger entries', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    await mkdir(join(root, '.wpmoo'), { recursive: true });
+    await writeFile(
+      join(root, '.env'),
+      'WPMOO_ENV=stage\n',
+      'utf8',
+    );
+    await writeFile(
+      join(root, '.wpmoo/approvals.jsonl'),
+      [
+        JSON.stringify({ scope: 'stage-lifecycle', environment: 'stage', command: 'install', expiresAt: '2999-01-01T00:00:00.000Z' }),
+        JSON.stringify({ scope: 'destructive', environment: 'stage', command: 'resetdb', expiresAt: '2999-01-01T00:00:00.000Z' }),
+        JSON.stringify({ scope: 'no-recent-snapshot', environment: 'stage', command: 'resetdb', expiresAt: '2999-01-01T00:00:00.000Z' }),
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    await execa(join(root, 'moo'), ['install', 'sale', 'devel'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['resetdb', 'devel'], { cwd: root, env });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(
+      'install.sh|sale devel\nresetdb.sh|devel\n',
+    );
+  }, 15000);
+
   it('prefers process environment production lifecycle flags over .env values', async () => {
     const { callsPath, env, root } = await createMooFixture();
     await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\n');

@@ -333,6 +333,89 @@ describe('daily actions', () => {
     });
   });
 
+  it('accepts time-bounded approval ledger entries for stage lifecycle commands', async () => {
+    const target = await makeEnvironment({
+      scripts: ['install.sh'],
+      env: 'WPMOO_ENV=stage\n',
+    });
+    await writeFile(
+      join(target, '.wpmoo', 'approvals.jsonl'),
+      `${JSON.stringify({
+        scope: 'stage-lifecycle',
+        environment: 'stage',
+        command: 'install',
+        expiresAt: '2999-01-01T00:00:00.000Z',
+        reason: 'planned stage install',
+      })}\n`,
+      'utf8',
+    );
+
+    await expect(dailyActionSafetyPreview('install', ['sale'], target)).resolves.toMatchObject({
+      allowed: true,
+      approvedFlags: ['approval:stage-lifecycle'],
+      approvals: [
+        {
+          scope: 'stage-lifecycle',
+          environment: 'stage',
+          command: 'install',
+          reason: 'planned stage install',
+        },
+      ],
+    });
+    await expect(dailyActionPlan('install', ['sale'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/install.sh'),
+      args: ['sale'],
+    });
+  });
+
+  it('accepts ledger approvals for destructive and migration-risk stage commands', async () => {
+    const resetTarget = await makeEnvironment({
+      scripts: ['resetdb.sh'],
+      env: 'WPMOO_ENV=stage\n',
+    });
+    await writeFile(
+      join(resetTarget, '.wpmoo', 'approvals.jsonl'),
+      [
+        JSON.stringify({ scope: 'destructive', environment: 'stage', command: 'resetdb', expiresAt: '2999-01-01T00:00:00.000Z' }),
+        JSON.stringify({ scope: 'no-recent-snapshot', environment: 'stage', command: 'resetdb', expiresAt: '2999-01-01T00:00:00.000Z' }),
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    await expect(dailyActionPlan('resetdb', ['devel'], resetTarget)).resolves.toMatchObject({
+      scriptPath: join(resetTarget, 'scripts/resetdb.sh'),
+      args: ['devel'],
+    });
+
+    const migrationTarget = await makeEnvironment({
+      scripts: ['install.sh'],
+      env: 'WPMOO_ENV=stage\n',
+    });
+    await mkdir(join(migrationTarget, 'odoo/custom/src/private/acme/sale_extension/migrations/19.0.1.0'), {
+      recursive: true,
+    });
+    await writeFile(
+      join(migrationTarget, 'odoo/custom/src/private/acme/sale_extension/migrations/19.0.1.0/pre-migration.py'),
+      '# migration',
+      'utf8',
+    );
+    await writeFile(
+      join(migrationTarget, '.wpmoo', 'approvals.jsonl'),
+      [
+        JSON.stringify({ scope: 'stage-lifecycle', environment: 'stage', command: 'install', expiresAt: '2999-01-01T00:00:00.000Z' }),
+        JSON.stringify({ scope: 'migration-risk', environment: 'stage', command: 'install', expiresAt: '2999-01-01T00:00:00.000Z' }),
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    await expect(dailyActionPlan('install', ['sale_extension'], migrationTarget)).resolves.toMatchObject({
+      scriptPath: join(migrationTarget, 'scripts/install.sh'),
+      args: ['sale_extension'],
+    });
+  });
+
   it('writes an audit log for production-sensitive daily action attempts', async () => {
     const target = await makeEnvironment({
       scripts: ['install.sh'],
@@ -353,6 +436,37 @@ describe('daily actions', () => {
       args: ['sale'],
     });
     expect(typeof entry.timestamp).toBe('string');
+  });
+
+  it('includes approval ledger entries in production audit logs', async () => {
+    const target = await makeEnvironment({
+      scripts: ['install.sh'],
+      env: 'WPMOO_ENV=prod\n',
+    });
+    await writeFile(
+      join(target, '.wpmoo', 'approvals.jsonl'),
+      `${JSON.stringify({
+        scope: 'prod-lifecycle',
+        environment: 'prod',
+        command: 'install',
+        expiresAt: '2999-01-01T00:00:00.000Z',
+      })}\n`,
+      'utf8',
+    );
+
+    await expect(dailyActionPlan('install', ['sale'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/install.sh'),
+      args: ['sale'],
+    });
+
+    const log = await readFile(join(target, '.wpmoo', 'audit.log'), 'utf8');
+    const entry = JSON.parse(log.trim()) as Record<string, unknown>;
+    expect(entry).toMatchObject({
+      command: 'install',
+      environment: 'prod',
+      approvedFlags: ['approval:prod-lifecycle'],
+      args: ['sale'],
+    });
   });
 
   it('prefers process environment production lifecycle flags over .env values', async () => {

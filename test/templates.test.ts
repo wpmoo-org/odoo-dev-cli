@@ -456,6 +456,7 @@ describe('template rendering', () => {
     expect(gitignore).toContain('backups/');
     expect(gitignore).toContain('postgresql/');
     expect(gitignore).toContain('odoo/custom/auto/');
+    expect(gitignore).toContain('.wpmoo/approvals.jsonl');
     expect(gitignore).toContain('*.dump');
   });
 });
