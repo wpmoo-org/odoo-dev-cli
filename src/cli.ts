@@ -19,6 +19,15 @@ import { selectModuleAction, type ModuleActionId } from './cockpit/module-action
 import { selectModuleFromBrowser } from './cockpit/module-browser.js';
 import { selectCockpitTopLevelMenu } from './cockpit/menu.js';
 import { confirmCockpitCommandRisk } from './cockpit/safety.js';
+import { doctorOptionsFromArgs } from './cli-routes/doctor.js';
+import { booleanOption, jsonOption, optionalSourceTypeValue, printJson, stringOption } from './cli-routes/options.js';
+import { resetCommandOptionsFromArgs } from './cli-routes/reset.js';
+import {
+  addRepoOptionsFromArgs,
+  removeRepoOptionsFromArgs,
+  renderedSourceRepoPath,
+  runSourceCommand,
+} from './cli-routes/source.js';
 import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
 import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
@@ -50,11 +59,6 @@ import {
 } from './service-runtime-status.js';
 import {
   listSources,
-  renderSourceList,
-  sourceListJson,
-  sourceSyncJson,
-  syncSources,
-  type SourceSyncOptions,
 } from './source-actions.js';
 import {
   backupTargetPath,
@@ -164,48 +168,6 @@ async function selectDefaultGitHubOwner(
   }
 }
 
-function stringOption(values: Record<string, string | boolean>, key: string): string | undefined {
-  const value = values[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-function optionalSourceTypeValue(values: Record<string, string | boolean>): SourceRepoType | undefined {
-  const value = stringOption(values, 'sourceType');
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === 'private' || value === 'oca' || value === 'external') {
-    return value;
-  }
-
-  throw new Error(`Invalid value for --source-type: ${value}`);
-}
-
-function sourceTypeValue(values: Record<string, string | boolean>): SourceRepoType {
-  return optionalSourceTypeValue(values) ?? 'private';
-}
-
-function booleanOption(values: Record<string, string | boolean>, key: string, fallback: boolean): boolean {
-  const value = values[key];
-  if (value === undefined) return fallback;
-  if (typeof value === 'boolean') return value;
-
-  const normalized = value.toLowerCase().trim();
-  if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
-  if (['false', '0', 'no', 'n'].includes(normalized)) return false;
-
-  throw new Error(`Invalid boolean value for --${key}: ${value}`);
-}
-
-function jsonOption(values: Record<string, string | boolean>): boolean {
-  return booleanOption(values, 'json', false);
-}
-
-function printJson(value: unknown): void {
-  console.log(JSON.stringify(value));
-}
-
 function supportsAnsi(): boolean {
   return Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
 }
@@ -234,13 +196,6 @@ function dim(value: string): string {
 function shellQuote(value: string): string {
   if (/^[A-Za-z0-9_./:-]+$/.test(value)) return value;
   return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function renderedSourceRepoPath(target: string, sourceType: SourceRepoType, repoPath?: string): string {
-  if (repoPath) {
-    return `${target}/odoo/custom/src/${sourceType}/${repoPath}`;
-  }
-  return `${target}/odoo/custom/src/${sourceType}`;
 }
 
 type SourceRepoChoice = {
@@ -712,25 +667,6 @@ async function optionsFromPrompts(showIntro = true, cancelAction: PromptCancelAc
   };
 }
 
-async function addRepoOptionsFromArgs(argv: string[]): Promise<AddModuleRepoOptions | undefined> {
-  const { values } = parseArgs(argv);
-  const repoUrl = stringOption(values, 'repoUrl') ?? stringOption(values, 'sourceRepoUrl');
-  if (!repoUrl) {
-    return undefined;
-  }
-
-  const target = resolve(stringOption(values, 'target') ?? process.cwd());
-  return {
-    target,
-    repoUrl: normalizeRepositoryUrl(repoUrl),
-    repoPath: stringOption(values, 'repo') ?? stringOption(values, 'sourcePath'),
-    sourceType: sourceTypeValue(values),
-    odooVersion: await commandOdooVersion(target, stringOption(values, 'odooVersion')),
-    initEmptyRepos: booleanOption(values, 'initEmptyRepos', false),
-    stage: booleanOption(values, 'stage', true),
-  };
-}
-
 async function addRepoOptionsFromPrompts(
   showIntro = true,
   cancelAction: PromptCancelAction = 'exit',
@@ -923,143 +859,6 @@ async function addModuleOptionsFromPrompts(
     odooVersion: await commandOdooVersion(target),
     stage: true,
   };
-}
-
-function removeRepoOptionsFromArgs(argv: string[]): RemoveModuleRepoOptions | undefined {
-  const { values } = parseArgs(argv);
-  const repoPath = stringOption(values, 'repo') ?? stringOption(values, 'sourcePath');
-  if (!repoPath) {
-    return undefined;
-  }
-
-  return {
-    target: resolve(stringOption(values, 'target') ?? process.cwd()),
-    repoPath,
-    sourceType: optionalSourceTypeValue(values),
-    stage: booleanOption(values, 'stage', true),
-  };
-}
-
-type ResetCommandOptions = SafeResetOptions & {
-  dryRun: boolean;
-};
-
-function resetCommandOptionsFromArgs(argv: string[]): ResetCommandOptions {
-  const { values } = parseArgs(argv);
-
-  return {
-    target: resolve(stringOption(values, 'target') ?? process.cwd()),
-    stage: booleanOption(values, 'stage', true),
-    dryRun: booleanOption(values, 'dryRun', false),
-  };
-}
-
-type DoctorCliOptions = DoctorCommandOptions & {
-  json: boolean;
-};
-
-function doctorOptionsFromArgs(argv: string[]): DoctorCliOptions {
-  const { values } = parseArgs(argv);
-  const keys = Object.keys(values);
-  const allowedKeys = new Set(['fix', 'json', 'postgres']);
-  if (!keys.every((key) => allowedKeys.has(key))) {
-    throw new Error('Usage: wpmoo doctor');
-  }
-
-  const options: DoctorCliOptions = {
-    json: jsonOption(values),
-  };
-  if (Object.hasOwn(values, 'fix')) {
-    options.fix = booleanOption(values, 'fix', false);
-  }
-  if (Object.hasOwn(values, 'postgres')) {
-    options.postgres = booleanOption(values, 'postgres', false);
-  }
-
-  return options;
-}
-
-function sourceUsage(): string {
-  return 'Usage: wpmoo source <list|sync|add|remove> [options]';
-}
-
-type SourceSyncCliOptions = SourceSyncOptions & {
-  json: boolean;
-};
-
-function sourceSyncOptionsFromArgs(argv: string[]): SourceSyncCliOptions {
-  const { values } = parseArgs(argv);
-
-  return {
-    target: resolve(stringOption(values, 'target') ?? process.cwd()),
-    stage: booleanOption(values, 'stage', true),
-    json: jsonOption(values),
-  };
-}
-
-function sourceListOptionsFromArgs(argv: string[]): { target: string; json: boolean } {
-  const { values } = parseArgs(argv);
-  return {
-    target: resolve(stringOption(values, 'target') ?? process.cwd()),
-    json: jsonOption(values),
-  };
-}
-
-async function runSourceCommand(argv: string[]): Promise<void> {
-  const [subcommand, ...subcommandArgv] = argv;
-  if (!subcommand) {
-    throw new Error(sourceUsage());
-  }
-
-  if (subcommand === 'list') {
-    const options = sourceListOptionsFromArgs(subcommandArgv);
-    const sources = await listSources(options.target);
-    if (options.json) {
-      printJson(sourceListJson(sources));
-      return;
-    }
-
-    console.log(renderBanner());
-    console.log(renderSourceList(sources));
-    return;
-  }
-
-  if (subcommand === 'sync') {
-    const options = sourceSyncOptionsFromArgs(subcommandArgv);
-    const sources = await syncSources({ target: options.target, stage: options.stage });
-    if (options.json) {
-      printJson(sourceSyncJson(sources, options.target));
-      return;
-    }
-
-    console.log(renderBanner());
-    outroPrompt(`Synced source manifest in ${options.target}.`);
-    return;
-  }
-
-  if (subcommand === 'add') {
-    const options = await addRepoOptionsFromArgs(subcommandArgv);
-    if (!options) {
-      throw new Error('Usage: wpmoo source add --repo-url <url> [--source-type private|oca|external]');
-    }
-    console.log(renderBanner());
-    await addModuleRepo(options);
-    outroPrompt(`Added source repo under ${renderedSourceRepoPath(options.target, options.sourceType ?? 'private', options.repoPath)}.`);
-    return;
-  }
-
-  if (subcommand === 'remove') {
-    const options = removeRepoOptionsFromArgs(subcommandArgv);
-    if (!options) {
-      throw new Error('Usage: wpmoo source remove --repo <name> [--source-type private|oca|external]');
-    }
-    console.log(renderBanner());
-    await removeModuleRepo(options);
-    outroPrompt(`Removed source repo ${options.repoPath} from ${options.target}.`);
-    return;
-  }
-
-  throw new Error(sourceUsage());
 }
 
 async function confirmSafeResetFromMenu(options: SafeResetOptions): Promise<void> {
