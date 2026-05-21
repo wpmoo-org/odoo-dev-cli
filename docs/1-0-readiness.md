@@ -11,13 +11,11 @@ Ready:
 - Generated environments use local `./moo` for daily commands.
 - Direct commands cover create, status, doctor, source, repository, module,
   service, database, snapshot, restore, lint, and POT workflows.
-- Deprecated package aliases remain compatibility paths:
+- Compatibility aliases remain available through the 1.x line:
   `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev`.
-
-Remaining decision:
-
-- Whether the optional unscoped `npx wpmoo` short alias should be promoted,
-  kept best-effort, or removed from public examples before `1.0.0`.
+- The optional unscoped `npx wpmoo` short alias remains best-effort and
+  warning-only. User-facing examples may mention it as optional, but
+  documentation, scripts, and automation should use `npx @wpmoo/toolkit`.
 
 ## Stable JSON Contracts
 
@@ -29,11 +27,10 @@ Ready:
 - `doctor --json --postgres` exposes a versioned `postgres` payload with
   `contractVersion` and diagnostics `schemaVersion`.
 - PostgreSQL diagnostics treat unavailable optional metrics as optional fields.
-
-Remaining decision:
-
-- Document a compatibility policy for future JSON schema changes, including
-  whether minor additive fields are allowed without a major release.
+- Post-1.0 JSON contracts allow additive optional fields in minor and patch
+  releases.
+- Automation should ignore unknown JSON fields.
+- Breaking JSON changes require a major release or a schemaVersion bump.
 
 ## Deprecated Alias Policy
 
@@ -44,11 +41,9 @@ Ready:
   releases.
 - The optional `wpmoo` short alias is warning-only and does not determine
   release validity.
-
-Remaining decision:
-
-- Set an explicit deprecation horizon for compatibility aliases after `1.0.0`,
-  or commit to maintaining them indefinitely.
+- Compatibility aliases remain available through the 1.x line.
+- Removing a compatibility alias requires a future major release and prior
+  notice.
 
 ## Generated File Compatibility
 
@@ -61,11 +56,10 @@ Ready:
 - PostgreSQL 18 mount compatibility is documented and doctor can apply safe
   mount-target fixes.
 - Generated `./moo` delegates daily commands and keeps local guard behavior.
-
-Remaining decision:
-
-- Define a generated-file migration policy for environments created by older
-  pre-1.0 releases.
+- Generated environments created by pre-1.0 releases are supported through safe
+  reset and doctor-guided generated-file migration checks.
+- Generated-file migration support must preserve product source repositories,
+  `.env` files, database dumps, and Docker volumes.
 
 ## Stage And Production Policy
 
@@ -79,11 +73,9 @@ Ready:
 - `restore-snapshot --dry-run`, `doctor`, and `doctor --postgres` remain safe
   preview/read-only paths.
 - Migration-risk lifecycle commands can require `WPMOO_ALLOW_MIGRATIONS=1`.
-
-Remaining decision:
-
-- Decide whether stage/prod approvals should gain a timestamped confirmation
-  file or continue to rely on environment variables only.
+- Environment-variable approvals remain supported through 1.x.
+- Timestamped approval files may be added as an additive safety layer, not as a
+  replacement for env flags in 1.x.
 
 ## Release Artifact Policy
 
@@ -97,11 +89,8 @@ Ready:
   the current version already exists.
 - `npm run smoke:published -- "$VERSION"` is the preferred published package
   smoke check.
-
-Remaining decision:
-
-- Decide whether release smoke should include a generated-environment acceptance
-  run by default for `1.0.0` tags.
+- Generated-environment acceptance smoke is mandatory for a 1.0.0 release
+  candidate.
 
 ## Current Audit
 
@@ -119,11 +108,16 @@ Completed checks:
   markers in `README.md`, `docs`, or `src`.
 - Local markdown link review passed across `README.md` and `docs/*.md`.
 
-Final gap list:
+Final policy decisions:
 
-- Define JSON compatibility rules for post-1.0 additive fields.
-- Decide the long-term compatibility alias policy.
-- Decide generated-environment migration support for older pre-1.0 outputs.
-- Decide whether stage/prod approvals need timestamped confirmation files.
-- Decide whether generated-environment published smoke should be mandatory for
-  `1.0.0` tags.
+- JSON compatibility permits additive optional fields in minor and patch
+  releases; breaking changes require a major release or schemaVersion bump.
+- Compatibility aliases remain available through the 1.x line; removal requires
+  a future major release and prior notice.
+- Pre-1.0 generated environments are supported through safe reset and
+  doctor-guided generated-file migration checks that preserve source code and
+  local runtime data.
+- Environment-variable approvals remain supported through 1.x; timestamped
+  approval files may be added only as an additive safety layer.
+- Generated-environment acceptance smoke is mandatory for a `1.0.0` release
+  candidate.

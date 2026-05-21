@@ -76,8 +76,9 @@ Options:
 
 Package aliases:
   npx @wpmoo/toolkit is the official package path.
-  npx wpmoo is the short alias.
-  npx @wpmoo/odoo and npx @wpmoo/odoo-dev remain deprecated compatibility aliases.
+  npx wpmoo is an optional best-effort short alias; use @wpmoo/toolkit for automation.
+  npx @wpmoo/odoo and npx @wpmoo/odoo-dev remain deprecated compatibility aliases through 1.x.
+  Removing a compatibility alias requires a future major release and prior notice.
 
 Daily actions:
   Daily actions must be run from a generated environment root containing .wpmoo/odoo.json.
@@ -159,6 +160,11 @@ Machine-readable JSON output:
     npx @wpmoo/toolkit doctor --json
     doctor --json --postgres includes a structured postgres object for automation.
     Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics.
+
+JSON compatibility policy:
+  Automation should ignore unknown fields.
+  Minor and patch releases may add optional fields.
+  Removing, renaming, or changing the meaning of a documented field requires a major release or schemaVersion bump.
 
 Example:
   npx @wpmoo/toolkit create \\
