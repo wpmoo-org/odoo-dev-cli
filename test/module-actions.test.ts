@@ -647,6 +647,36 @@ class TestOdooSampleModuleBase(TransactionCase):
     ]);
   });
 
+  it('lists modules from pre-category source folders registered as private during migration', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-list-legacy-source-'));
+    await mkdir(join(target, 'odoo/custom/manifests'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/manifests/sources.yaml'),
+      [
+        'sources:',
+        '  - type: "private"',
+        '    path: "legacy_repo"',
+        '    url: "https://github.com/example-org/legacy_repo.git"',
+        '    addons:',
+        '      - "moo_test"',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await mkdir(join(target, 'odoo/custom/src/legacy_repo/moo_test'), { recursive: true });
+    await writeFile(join(target, 'odoo/custom/src/legacy_repo/moo_test/__manifest__.py'), '{}\n', 'utf8');
+
+    await expect(listModulesInEnvironment(target)).resolves.toEqual([
+      {
+        moduleName: 'moo_test',
+        repoPath: 'legacy_repo',
+        sourceType: 'private',
+        repoUrl: 'https://github.com/example-org/legacy_repo.git',
+        repoSlug: 'example-org/legacy_repo',
+      },
+    ]);
+  });
+
   it('falls back to legacy private repos when source configuration is empty', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-list-fallback-'));
     await writeFile(

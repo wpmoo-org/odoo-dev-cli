@@ -1,4 +1,4 @@
-import { access, readFile, writeFile } from 'node:fs/promises';
+import { access, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { execa } from 'execa';
@@ -77,6 +77,39 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function legacyGeneratedEnvironmentErrors(target: string): Promise<string[]> {
+  const sourceRoot = join(target, 'odoo/custom/src');
+  const hasGeneratedSourceFiles =
+    (await exists(join(sourceRoot, 'addons.yaml'))) ||
+    (await exists(join(sourceRoot, 'repos.yaml')));
+  if (!hasGeneratedSourceFiles) {
+    return [];
+  }
+
+  let legacySourceDirs: string[];
+  try {
+    const entries = await readdir(sourceRoot, { withFileTypes: true });
+    legacySourceDirs = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => !['private', 'oca', 'external'].includes(name))
+      .filter((name) => /^[A-Za-z0-9._-]+$/.test(name))
+      .sort();
+  } catch {
+    return [];
+  }
+
+  if (legacySourceDirs.length === 0) {
+    return [];
+  }
+
+  return [
+    `Legacy WPMoo environment is missing ${markerPath}; run ./moo reset --dry-run to preview generated metadata migration.`,
+    ...legacySourceDirs.map((path) => `Legacy source layout detected: odoo/custom/src/${path} will be registered as private/${path}.`),
+    'Run ./moo reset after reviewing the preview to write current metadata and generated files.',
+  ];
 }
 
 function errorMessage(error: unknown): string {
@@ -448,7 +481,13 @@ export async function getDoctorReport(
   try {
     metadata = await readMetadata(target);
   } catch (error) {
-    errors.push(errorMessage(error));
+    const message = errorMessage(error);
+    if (message === `Missing metadata file: ${markerPath}`) {
+      const legacyErrors = await legacyGeneratedEnvironmentErrors(target);
+      errors.push(...(legacyErrors.length > 0 ? legacyErrors : [message]));
+    } else {
+      errors.push(message);
+    }
     return report;
   }
 
@@ -534,10 +573,21 @@ export async function getDoctorReport(
     return report;
   }
   for (const repo of sourceRepos) {
-    const relativePath = sourceRepoPath(normalizeSourceType(repo.sourceType), repo.path);
-    if (!(await exists(join(target, relativePath))) && repo.path) {
-      errors.push(`Missing source repo path: ${relativePath}`);
+    const sourceType = normalizeSourceType(repo.sourceType);
+    const relativePath = sourceRepoPath(sourceType, repo.path);
+    if ((await exists(join(target, relativePath))) || !repo.path) {
+      continue;
     }
+
+    const legacyPrivatePath = sourceType === 'private' ? `odoo/custom/src/${repo.path}` : undefined;
+    if (legacyPrivatePath && (await exists(join(target, legacyPrivatePath)))) {
+      warnings.push(
+        `Legacy private source path in use: ${legacyPrivatePath}; move it to ${relativePath} when ready.`,
+      );
+      continue;
+    }
+
+    errors.push(`Missing source repo path: ${relativePath}`);
   }
   checks.push(`OK source repos ${sourceRepos.length} checked`);
 

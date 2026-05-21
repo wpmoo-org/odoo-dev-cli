@@ -501,6 +501,68 @@ describe('safe reset', () => {
     });
   });
 
+  it('migrates pre-category source layouts into metadata during safe reset', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-legacy-layout-'));
+    const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-legacy-fixtures-')));
+    const legacyUrl = 'https://github.com/example-org/legacy_repo.git';
+    const legacyRepo = join(target, 'odoo/custom/src/legacy_repo');
+    const cloneCalls: string[][] = [];
+    const git = fakeCloneGit({ [fixtures.compose]: fixtures.compose }, cloneCalls);
+
+    await mkdir(legacyRepo, { recursive: true });
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/toolkit',
+          version: '0.7.0',
+          product: 'legacy_repo',
+          odooVersion: '19.0',
+          devRepo: 'legacy_repo_dev',
+          devRepoUrl: 'https://github.com/example-org/legacy_repo_dev.git',
+          sourceRepos: [],
+          composeTemplateUrl: fixtures.compose,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    await writeFile(join(legacyRepo, 'keep.py'), 'print("legacy keep")\n', 'utf8');
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/legacy_repo"]',
+        '  path = odoo/custom/src/legacy_repo',
+        `  url = ${legacyUrl}`,
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(target, 'odoo/custom/src/addons.yaml'),
+      'legacy_repo:\n  - moo_test\n',
+      'utf8',
+    );
+
+    await safeResetEnvironment({ target, stage: false }, git);
+
+    await expect(readFile(join(legacyRepo, 'keep.py'), 'utf8')).resolves.toBe('print("legacy keep")\n');
+    const metadata = JSON.parse(await readFile(join(target, '.wpmoo/odoo.json'), 'utf8')) as {
+      sourceRepos: Array<{ path: string; sourceType: string; url: string; addons: string[] }>;
+    };
+    expect(metadata.sourceRepos).toContainEqual({
+      path: 'legacy_repo',
+      sourceType: 'private',
+      url: legacyUrl,
+      addons: ['moo_test'],
+    });
+    await expect(readFile(join(target, 'odoo/custom/manifests/sources.yaml'), 'utf8')).resolves.toContain(
+      'path: "legacy_repo"',
+    );
+  });
+
   it('falls back to default product/addon names when metadata and addons entries are invalid', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-fallback-root-'));
     const target = join(root, '_dev');

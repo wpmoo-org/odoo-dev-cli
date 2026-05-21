@@ -158,6 +158,44 @@ describe('doctor', () => {
     );
   });
 
+  it('explains migration steps for legacy generated environments without metadata', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-doctor-legacy-metadata-'));
+    await writeFile(join(target, 'docker-compose_19.0.yml'), 'services:\n  odoo:\n    image: odoo\n');
+    await mkdir(join(target, 'odoo/custom/src/legacy_repo'), { recursive: true });
+    await writeFile(join(target, 'odoo/custom/src/repos.yaml'), 'odoo:\n');
+    await writeFile(join(target, 'odoo/custom/src/addons.yaml'), 'legacy_repo:\n  - moo_test\n');
+
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      'Legacy WPMoo environment is missing .wpmoo/odoo.json; run ./moo reset --dry-run to preview generated metadata migration.',
+    );
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      'Legacy source layout detected: odoo/custom/src/legacy_repo will be registered as private/legacy_repo.',
+    );
+  });
+
+  it('accepts legacy source folders registered as private after migration', async () => {
+    const target = await makeEnvironment({
+      metadata: {
+        ...baseMetadata,
+        sourceRepos: [
+          {
+            url: 'https://github.com/example-org/legacy_repo.git',
+            path: 'legacy_repo',
+            sourceType: 'private',
+            addons: ['moo_test'],
+          },
+        ],
+      },
+      sourcePaths: [],
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    await mkdir(join(target, 'odoo/custom/src/legacy_repo'), { recursive: true });
+
+    await expect(runDoctor(target, passingDockerRunner())).resolves.toContain(
+      'WARN Legacy private source path in use: odoo/custom/src/legacy_repo; move it to odoo/custom/src/private/legacy_repo when ready.',
+    );
+  });
+
   it('rejects non-object metadata and invalid source repo entries', async () => {
     const nonObjectMetadata = await makeEnvironment({ metadata: [] });
     await expect(runDoctor(nonObjectMetadata, passingDockerRunner())).rejects.toThrow(

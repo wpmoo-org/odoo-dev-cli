@@ -114,6 +114,13 @@ odoo/custom/manifests/
 Run `npx @wpmoo/toolkit reset --dry-run` before writing changes when you need to
 review the generated file refresh plan.
 
+Pre-1.0 environments that still use `odoo/custom/src/<repo>` source folders are
+treated as legacy private sources. `doctor` reports the migration path when
+metadata is missing, and safe reset can register those folders in
+`.wpmoo/odoo.json` plus `odoo/custom/manifests/sources.yaml` without deleting the
+existing source folder. Module listing also reads the legacy folder while users
+move it to `odoo/custom/src/private/<repo>` at their own pace.
+
 ## Snapshot policy
 
 Use restore preview before a destructive restore:
