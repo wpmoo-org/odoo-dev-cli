@@ -410,6 +410,96 @@ describe('cli menu environment routes', () => {
     );
   });
 
+  it('renders startup banner with DB ready service state', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    mocks.getServiceRuntimeStatus.mockResolvedValueOnce({ kind: 'db-ready' });
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce('exit');
+    mocks.getEnvironmentStatus.mockResolvedValueOnce({
+      kind: 'environment',
+      target: '/tmp/environment',
+      metadataPath: '/tmp/environment/.wpmoo/odoo.json',
+      recommendedNextAction: 'Run ./moo.',
+      odooVersion: '19.0',
+      sourceRepoCount: 0,
+      sourceRepoPaths: [],
+      invalidSourceRepoPaths: [],
+      moduleCandidateCount: 0,
+      composeFiles: ['compose.yaml'],
+      composeErrors: [],
+      missingCoreFiles: [],
+    });
+
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.renderBanner).toHaveBeenCalledWith(
+      ['Environment: Odoo 19.0 · 0 repos · 0 modules', 'Status: ● DB ready', 'Last: Ready'],
+      { version: `v${packageVersion()}` },
+    );
+  });
+
+  it('renders startup banner with Odoo not ready service state', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    mocks.getServiceRuntimeStatus.mockResolvedValueOnce({ kind: 'odoo-not-ready' });
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce('exit');
+    mocks.getEnvironmentStatus.mockResolvedValueOnce({
+      kind: 'environment',
+      target: '/tmp/environment',
+      metadataPath: '/tmp/environment/.wpmoo/odoo.json',
+      recommendedNextAction: 'Run ./moo.',
+      odooVersion: '19.0',
+      sourceRepoCount: 0,
+      sourceRepoPaths: [],
+      invalidSourceRepoPaths: [],
+      moduleCandidateCount: 0,
+      composeFiles: ['compose.yaml'],
+      composeErrors: [],
+      missingCoreFiles: [],
+    });
+
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.renderBanner).toHaveBeenCalledWith(
+      ['Environment: Odoo 19.0 · 0 repos · 0 modules', 'Status: ● Odoo not ready', 'Last: Ready'],
+      { version: `v${packageVersion()}` },
+    );
+  });
+
+  it('renders startup banner with fully ready service state', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    mocks.getServiceRuntimeStatus.mockResolvedValueOnce({ kind: 'fully-ready' });
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce('exit');
+    mocks.getEnvironmentStatus.mockResolvedValueOnce({
+      kind: 'environment',
+      target: '/tmp/environment',
+      metadataPath: '/tmp/environment/.wpmoo/odoo.json',
+      recommendedNextAction: 'Run ./moo.',
+      odooVersion: '19.0',
+      sourceRepoCount: 0,
+      sourceRepoPaths: [],
+      invalidSourceRepoPaths: [],
+      moduleCandidateCount: 0,
+      composeFiles: ['compose.yaml'],
+      composeErrors: [],
+      missingCoreFiles: [],
+    });
+
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.renderBanner).toHaveBeenCalledWith(
+      ['Environment: Odoo 19.0 · 0 repos · 0 modules', 'Status: ● Fully ready', 'Last: Ready'],
+      { version: `v${packageVersion()}` },
+    );
+  });
+
   it('includes compose issues in startup banner header so menu status reflects environment drift', async () => {
     const prompts = await import('../src/prompts/index.js');
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');

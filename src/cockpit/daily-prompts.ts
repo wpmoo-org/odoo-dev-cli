@@ -154,6 +154,23 @@ async function optionalTextArg(
   );
 }
 
+async function optionalTextArgOrUndefined(
+  deps: Required<DailyActionPromptDeps>,
+  message: string,
+  placeholder: string,
+): Promise<string | undefined> {
+  const value = await deps.text({
+    message: menuPromptMessage(message, 'back'),
+    placeholder,
+  });
+  deps.handleCancel(value, 'back');
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+}
+
 async function databaseArg(
   cwd: string,
   deps: Required<DailyActionPromptDeps>,
@@ -240,7 +257,9 @@ export async function collectDailyActionArgs(
     return [];
   }
   if (command === 'logs') {
-    return [await optionalTextArg(deps, 'Service', 'odoo')];
+    const service = await optionalTextArg(deps, 'Service', 'odoo');
+    const tail = await optionalTextArgOrUndefined(deps, 'Tail line count (optional)', '100');
+    return tail ? [service, tail] : [service];
   }
   if (command === 'psql') {
     return [await databaseArg(cwd, deps, 'Database', 'postgres', { includeMaintenance: true })];

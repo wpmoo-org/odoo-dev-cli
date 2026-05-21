@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
-import { renderMooDelegationScript, renderStatusScript } from '../src/templates.js';
+import { renderDoctorScript, renderMooDelegationScript, renderStatusScript } from '../src/templates.js';
 import { packageName, packageVersion } from '../src/version.js';
 
 const expectedFallbackPackageSpec = `${packageName()}@${packageVersion()}`;
@@ -28,7 +28,7 @@ const dailyScripts = [
   'status.sh',
 ];
 
-async function createMooFixture() {
+async function createMooFixture(options: { includeDoctorScript?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'wpmoo-generated-moo-'));
   await mkdir(join(root, 'scripts'), { recursive: true });
   await mkdir(join(root, 'bin'), { recursive: true });
@@ -36,6 +36,7 @@ async function createMooFixture() {
   await chmod(join(root, 'moo'), 0o755);
 
   const callsPath = join(root, 'calls.log');
+  await writeFile(callsPath, '', 'utf8');
   for (const scriptName of dailyScripts) {
     const scriptPath = join(root, 'scripts', scriptName);
     await writeFile(
@@ -47,6 +48,12 @@ printf '%s|%s\\n' "$(basename "$0")" "$*" >> "${callsPath}"
       'utf8',
     );
     await chmod(scriptPath, 0o755);
+  }
+
+  if (options.includeDoctorScript) {
+    const doctorScriptPath = join(root, 'scripts', 'doctor.sh');
+    await writeFile(doctorScriptPath, renderDoctorScript(), 'utf8');
+    await chmod(doctorScriptPath, 0o755);
   }
 
   await writeFile(
@@ -73,6 +80,7 @@ describe('generated environment moo delegation matrix', () => {
     await execa(join(root, 'moo'), ['start'], { cwd: root, env });
     await execa(join(root, 'moo'), ['logs'], { cwd: root, env });
     await execa(join(root, 'moo'), ['logs', 'db'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['logs', 'odoo', '200'], { cwd: root, env });
     await execa(join(root, 'moo'), ['test', 'sale', '--db', 'devel', '--mode', 'update', '--tags', '/sale'], {
       cwd: root,
       env,
@@ -80,7 +88,15 @@ describe('generated environment moo delegation matrix', () => {
     await execa(join(root, 'moo'), ['restore-snapshot', 'snap1', 'devel'], { cwd: root, env });
 
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(
-      ['up.sh|', 'logs.sh|odoo', 'logs.sh|db', 'test.sh|sale --db devel --mode update --tags /sale', 'restore-snapshot.sh|snap1 devel', ''].join('\n'),
+      [
+        'up.sh|',
+        'logs.sh|odoo',
+        'logs.sh|db',
+        'logs.sh|odoo 200',
+        'test.sh|sale --db devel --mode update --tags /sale',
+        'restore-snapshot.sh|snap1 devel',
+        '',
+      ].join('\n'),
     );
   }, 15000);
 
@@ -90,6 +106,51 @@ describe('generated environment moo delegation matrix', () => {
     await execa(join(root, 'moo'), ['doctor'], { cwd: root, env });
 
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor\n`);
+  });
+
+  it('prefers local doctor script when available', async () => {
+    const { callsPath, env, root } = await createMooFixture({ includeDoctorScript: true });
+
+    const result = await execa(join(root, 'moo'), ['doctor'], { cwd: root, env });
+
+    expect(result.stdout).toContain('WPMoo doctor');
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
+  });
+
+  it('falls back to package command for doctor when local script is not available offline-safe checks', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    await writeFile(
+      join(root, 'bin', 'docker'),
+      `#!/usr/bin/env bash
+printf 'docker %s\\n' "$*" >> "${callsPath}"
+exit 1
+`,
+      'utf8',
+    );
+    await chmod(join(root, 'bin', 'docker'), 0o755);
+
+    await execa(join(root, 'moo'), ['doctor', '--help'], { cwd: root, env });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor --help\n`);
+  });
+
+  it('runs local doctor checks without Docker', async () => {
+    const { callsPath, env, root } = await createMooFixture({ includeDoctorScript: true });
+    await writeFile(
+      join(root, 'bin', 'docker'),
+      `#!/usr/bin/env bash
+printf 'docker %s\\n' "$*" >> "${callsPath}"
+exit 1
+`,
+      'utf8',
+    );
+
+    await chmod(join(root, 'bin', 'docker'), 0o755);
+
+    const result = await execa(join(root, 'moo'), ['doctor'], { cwd: root, env });
+
+    expect(result.stdout).toContain('Doctor checks passed.');
+    await expect(readFile(callsPath, 'utf8')).resolves.not.toContain('docker ');
   });
 
   it('runs status locally when the generated status script exists', async () => {
@@ -169,7 +230,7 @@ exit 1
     expect(result.stdout).toContain('source, add-repo, remove-repo, add-module, remove-module, reset, doctor');
     expect(result.stdout).toContain('Local diagnostics:');
     expect(result.stdout).toContain('status [--json]');
-    await expect(readFile(callsPath, 'utf8')).rejects.toThrow();
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
   });
 
   it('rejects unsupported generated commands with a local help hint', async () => {
@@ -180,7 +241,7 @@ exit 1
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain('Unknown ./moo command: not-a-command');
     expect(result.stderr).toContain('Run ./moo --help to see supported commands.');
-    await expect(readFile(callsPath, 'utf8')).rejects.toThrow();
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
   });
 
   it('blocks destructive commands in stage and prod unless explicitly allowed', async () => {
@@ -299,9 +360,16 @@ exit 1
     const { env, root } = await createMooFixture();
 
     const result = await execa(join(root, 'moo'), ['start', 'extra'], { cwd: root, env, reject: false });
+    const invalidLogsTail = await execa(join(root, 'moo'), ['logs', 'odoo', 'abc'], {
+      cwd: root,
+      env,
+      reject: false,
+    });
 
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain('Usage: ./moo start');
+    expect(invalidLogsTail.exitCode).toBe(2);
+    expect(invalidLogsTail.stderr).toContain('Invalid logs tail count: expected a positive integer.');
   });
 
   it('exits with code 1 when a required daily action script is missing', async () => {

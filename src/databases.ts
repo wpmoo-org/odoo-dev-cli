@@ -11,6 +11,37 @@ export type DatabaseListResult =
 export type DatabaseListResponse = string[] | DatabaseListResult;
 
 const maintenanceDatabases = new Set(['postgres']);
+const databaseNamePattern = /^[A-Za-z0-9_.-]+$/u;
+
+export function isValidDatabaseName(value: string): boolean {
+  const normalized = value.trim();
+  return (
+    normalized.length > 0 &&
+    !normalized.startsWith('-') &&
+    databaseNamePattern.test(normalized) &&
+    !/\s/u.test(value)
+  );
+}
+
+export function normalizeDatabaseName(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error('Invalid database name: value is required.');
+  }
+  if (/\s/u.test(value)) {
+    throw new Error('Invalid database name: whitespace is not allowed.');
+  }
+  if (normalized.startsWith('-')) {
+    throw new Error('Invalid database name: leading hyphens are not allowed.');
+  }
+  if (!databaseNamePattern.test(normalized)) {
+    throw new Error(
+      'Invalid database name: use letters, digits, underscores, dots, or hyphens without shell metacharacters or path characters.',
+    );
+  }
+  return normalized;
+}
+
 const listDatabasesQuery = [
   'SELECT datname',
   'FROM pg_database',

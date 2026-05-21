@@ -3,6 +3,7 @@ import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { readEnvFile, selectedComposeEnvironment } from './compose-layout.js';
+import { normalizeDatabaseName } from './databases.js';
 import { markerPath } from './environment.js';
 
 export const dailyActionCommands = [
@@ -64,7 +65,7 @@ export function isDailyActionCommand(command: string): command is DailyActionCom
 function usage(command: DailyActionCommand): string {
   if (command === 'start') return 'Usage: wpmoo start';
   if (command === 'stop') return 'Usage: wpmoo stop';
-  if (command === 'logs') return 'Usage: wpmoo logs [service]';
+  if (command === 'logs') return 'Usage: wpmoo logs [service] [tail-lines]';
   if (command === 'restart') return 'Usage: wpmoo restart';
   if (command === 'shell') return 'Usage: wpmoo shell';
   if (command === 'psql') return 'Usage: wpmoo psql [db]';
@@ -91,7 +92,7 @@ function optionalSingleArg(command: DailyActionCommand, argv: string[], fallback
 function moduleArgs(command: 'install' | 'update', argv: string[]): string[] {
   const [modules, db, ...rest] = argv;
   if (!modules || modules.startsWith('-') || rest.length > 0) throw new Error(usage(command));
-  return db ? [modules, db] : [modules];
+  return db ? [modules, normalizeDatabaseName(db)] : [modules];
 }
 
 function positionalArgs(command: DailyActionCommand, argv: string[], min: number, max: number): string[] {
@@ -100,6 +101,36 @@ function positionalArgs(command: DailyActionCommand, argv: string[], min: number
   }
 
   return argv;
+}
+
+function logsArgs(argv: string[]): string[] {
+  if (argv.length > 2 || argv.some((arg) => arg.startsWith('-'))) {
+    throw new Error(usage('logs'));
+  }
+
+  const [service = 'odoo', tail] = argv;
+  if (tail === undefined) {
+    return [service];
+  }
+  if (!/^[1-9][0-9]*$/u.test(tail)) {
+    throw new Error('Invalid logs tail count: expected a positive integer.');
+  }
+  return [service, tail];
+}
+
+function validateDatabaseArg(args: string[], index: number): string[] {
+  if (args[index] === undefined) {
+    return args;
+  }
+  const nextArgs = [...args];
+  nextArgs[index] = normalizeDatabaseName(nextArgs[index]);
+  return nextArgs;
+}
+
+function rejectLeadingHyphenDatabaseArg(args: readonly string[]): void {
+  if (args[0]?.startsWith('-')) {
+    normalizeDatabaseName(args[0]);
+  }
 }
 
 function restoreSnapshotArgs(argv: string[]): string[] {
@@ -113,7 +144,8 @@ function restoreSnapshotArgs(argv: string[]): string[] {
     throw new Error(usage('restore-snapshot'));
   }
 
-  return dryRun ? ['--dry-run', ...args] : args;
+  const validatedArgs = args.length === 2 ? validateDatabaseArg(args, 1) : args;
+  return dryRun ? ['--dry-run', ...validatedArgs] : validatedArgs;
 }
 
 function testArgs(argv: string[]): string[] {
@@ -129,6 +161,9 @@ function testArgs(argv: string[]): string[] {
     if (option === '--mode' && value !== 'auto' && value !== 'init' && value !== 'update') {
       throw new Error('Invalid value for --mode: expected auto, init, or update');
     }
+    if (option === '--db') {
+      normalizeDatabaseName(value);
+    }
     index += 1;
   }
 
@@ -138,17 +173,23 @@ function testArgs(argv: string[]): string[] {
 function scriptArgs(command: DailyActionCommand, argv: string[]): string[] {
   if (command === 'start') return ensureNoArgs(command, argv);
   if (command === 'stop') return ensureNoArgs(command, argv);
-  if (command === 'logs') return optionalSingleArg(command, argv, 'odoo');
+  if (command === 'logs') return logsArgs(argv);
   if (command === 'restart') return ensureNoArgs(command, argv);
   if (command === 'shell') return ensureNoArgs(command, argv);
-  if (command === 'psql') return optionalSingleArg(command, argv, 'postgres');
+  if (command === 'psql') return optionalSingleArg(command, argv, 'postgres').map(normalizeDatabaseName);
   if (command === 'install' || command === 'update') return moduleArgs(command, argv);
   if (command === 'test') return testArgs(argv);
-  if (command === 'resetdb') return positionalArgs(command, argv, 0, 2);
-  if (command === 'snapshot') return positionalArgs(command, argv, 0, 2);
+  if (command === 'resetdb') {
+    rejectLeadingHyphenDatabaseArg(argv);
+    return validateDatabaseArg(positionalArgs(command, argv, 0, 2), 0);
+  }
+  if (command === 'snapshot') {
+    rejectLeadingHyphenDatabaseArg(argv);
+    return validateDatabaseArg(positionalArgs(command, argv, 0, 2), 0);
+  }
   if (command === 'restore-snapshot') return restoreSnapshotArgs(argv);
   if (command === 'lint') return ensureNoArgs(command, argv);
-  return positionalArgs(command, argv, 1, 3);
+  return validateDatabaseArg(positionalArgs(command, argv, 1, 3), 1);
 }
 
 function isDestructiveCommand(command: DailyActionCommand, args: string[]): boolean {
@@ -289,6 +330,13 @@ function renderDailyActionOutputLine(line: string): string {
 
   if (line === "Running as user 'root' is a security risk.") {
     return `${ANSI_DIM_INFO}${line}${ANSI_RESET}`;
+  }
+
+  if (line.includes('psycopg2.OperationalError')) {
+    return [
+      line,
+      `${ANSI_DIM_INFO}NOTE: PostgreSQL connection failed. Check ./moo status, database service readiness, and credentials before retrying.${ANSI_RESET}`,
+    ].join('\n');
   }
 
   return line;

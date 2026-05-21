@@ -76,6 +76,22 @@ describe('cockpit daily action prompts', () => {
     await expect(collectDailyActionArgs('logs', target, promptDeps({ text: [''] }))).resolves.toEqual(['odoo']);
   });
 
+  it('collects optional logs tail count after the service prompt', async () => {
+    const target = await makeEnvironment();
+
+    await expect(
+      collectDailyActionArgs('logs', target, promptDeps({ text: ['web', '120'] })),
+    ).resolves.toEqual(['web', '120']);
+  });
+
+  it('omits logs tail count when left blank', async () => {
+    const target = await makeEnvironment();
+
+    await expect(
+      collectDailyActionArgs('logs', target, promptDeps({ text: ['web', ''] })),
+    ).resolves.toEqual(['web']);
+  });
+
   it('uses postgres as the default psql database', async () => {
     const target = await makeEnvironment();
 

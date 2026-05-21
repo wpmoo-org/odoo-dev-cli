@@ -106,7 +106,7 @@ describe('template rendering', () => {
     expect(readme).toContain('### Export Translations');
     expect(readme).toContain('### Recover / Reset');
     expect(readme).toContain('`./moo status` runs local offline metadata checks');
-    expect(readme).toContain('`./moo doctor` remains the package fallback command');
+    expect(readme).toContain('`./moo doctor` runs local checks first and uses the package fallback only for');
     expect(readme).toContain('routes day-to-day service and module workflows to local scripts');
     expect(readme).toContain('compose.yaml');
     expect(readme).toContain('compose/dev.yaml');
@@ -177,6 +177,8 @@ describe('template rendering', () => {
     expect(script).toContain('./scripts/pot.sh');
     expect(script).toContain('"status")');
     expect(script).toContain('./scripts/status.sh');
+    expect(script).toContain('"doctor")');
+    expect(script).toContain('./scripts/doctor.sh');
     expect(script).toContain('run_package_command "$command" "$@"');
     expect(script).toContain('Usage: ./moo <command> [args]');
     expect(script).toContain('"--help"|"-h"|"help")');
@@ -185,7 +187,7 @@ describe('template rendering', () => {
     expect(script).toContain(`exec npx --yes ${expectedFallbackPackageSpec} "$@"`);
   });
 
-  it('dispatches daily commands locally and falls back to npx for management commands', async () => {
+  it('dispatches daily commands locally and routes doctor/status fallback paths correctly', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-moo-dispatch-'));
     await mkdir(join(target, 'scripts'), { recursive: true });
     await mkdir(join(target, 'bin'), { recursive: true });
@@ -212,14 +214,20 @@ describe('template rendering', () => {
       'utf8',
     );
     await writeFile(
+      join(target, 'scripts/doctor.sh'),
+      '#!/usr/bin/env bash\nprintf "doctor:%s\\n" "$*" >> "$PWD/calls.log"\n',
+      'utf8',
+    );
+    await writeFile(
       join(target, 'bin/npx'),
       '#!/usr/bin/env bash\nprintf "npx:%s\\n" "$*" >> "$PWD/calls.log"\n',
       'utf8',
-    );
+      );
     await chmod(join(target, 'scripts/up.sh'), 0o755);
     await chmod(join(target, 'scripts/restart.sh'), 0o755);
     await chmod(join(target, 'scripts/restore-snapshot.sh'), 0o755);
     await chmod(join(target, 'scripts/pot.sh'), 0o755);
+    await chmod(join(target, 'scripts/doctor.sh'), 0o755);
     await chmod(join(target, 'bin/npx'), 0o755);
 
     const env = { ...process.env, PATH: `${join(target, 'bin')}:${process.env.PATH ?? ''}` };
@@ -229,6 +237,7 @@ describe('template rendering', () => {
     await execa(join(target, 'moo'), ['pot', 'sale,stock', 'devel', 'i18n/sale.pot'], { env });
     await execa(join(target, 'moo'), ['status', '--json'], { env });
     await execa(join(target, 'moo'), ['doctor'], { env });
+    await execa(join(target, 'moo'), ['doctor', '--help'], { env });
     await execa(join(target, 'moo'), ['add-module'], { env });
 
     await expect(readFile(join(target, 'calls.log'), 'utf8')).resolves.toBe(
@@ -238,7 +247,8 @@ describe('template rendering', () => {
         'restore-snapshot:--dry-run before-update devel',
         'pot:sale,stock devel i18n/sale.pot',
         `npx:--yes ${expectedFallbackPackageSpec} status --json`,
-        `npx:--yes ${expectedFallbackPackageSpec} doctor`,
+        'doctor:',
+        `npx:--yes ${expectedFallbackPackageSpec} doctor --help`,
         `npx:--yes ${expectedFallbackPackageSpec} add-module`,
         '',
       ].join('\n'),
@@ -288,7 +298,7 @@ describe('template rendering', () => {
     expect(agents).toContain('./moo restore-snapshot [--dry-run] <snapshot-name> [db]');
     expect(agents).toContain('./moo pot <module[,module]> [db] [output]');
     expect(agents).toContain('`./moo status` runs local offline metadata checks');
-    expect(agents).toContain('`./moo doctor` remains a package fallback command');
+    expect(agents).toContain('`./moo doctor` runs local checks first and uses package fallback for advanced usage, routed via');
     expect(agents).toContain('delegate to local `./scripts/*.sh`');
   });
 

@@ -113,6 +113,8 @@ describe('generated environment scaffold output matrix', () => {
 
     const statusScriptStat = await stat(join(target, 'scripts', 'status.sh'));
     expect(statusScriptStat.mode & 0o111).toBeTruthy();
+    const doctorScriptStat = await stat(join(target, 'scripts', 'doctor.sh'));
+    expect(doctorScriptStat.mode & 0o111).toBeTruthy();
 
     expect((await stat(join(target, 'moo'))).mode & 0o100).toBeTruthy();
 

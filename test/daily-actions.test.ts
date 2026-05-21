@@ -62,6 +62,19 @@ describe('daily actions', () => {
     });
   });
 
+  it('supports optional logs tail counts while preserving the default service', async () => {
+    const target = await makeEnvironment({ scripts: ['logs.sh'] });
+
+    await expect(dailyActionPlan('logs', ['odoo', '200'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/logs.sh'),
+      args: ['odoo', '200'],
+    });
+    await expect(dailyActionPlan('logs', ['db', '50'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/logs.sh'),
+      args: ['db', '50'],
+    });
+  });
+
   it('maps core and module commands to fixed compose scripts', async () => {
     const target = await makeEnvironment({
       scripts: ['up.sh', 'down.sh', 'restart.sh', 'shell.sh', 'install.sh', 'update.sh', 'test.sh'],
@@ -313,7 +326,46 @@ describe('daily actions', () => {
     );
 
     await expect(dailyActionPlan('start', ['--verbose'], target)).rejects.toThrow('Usage: wpmoo start');
-    await expect(dailyActionPlan('logs', ['web', 'db'], target)).rejects.toThrow('Usage: wpmoo logs [service]');
+    await expect(dailyActionPlan('logs', ['web', 'db', 'extra'], target)).rejects.toThrow(
+      'Usage: wpmoo logs [service] [tail-lines]',
+    );
+    await expect(dailyActionPlan('logs', ['odoo', '0'], target)).rejects.toThrow(
+      'Invalid logs tail count: expected a positive integer.',
+    );
+    await expect(dailyActionPlan('logs', ['odoo', 'abc'], target)).rejects.toThrow(
+      'Invalid logs tail count: expected a positive integer.',
+    );
+  });
+
+  it('rejects unsafe database names before building daily action script plans', async () => {
+    const target = await makeEnvironment({
+      scripts: ['psql.sh', 'resetdb.sh', 'snapshot.sh', 'restore-snapshot.sh', 'install.sh', 'update.sh', 'test.sh', 'pot.sh'],
+    });
+
+    await expect(dailyActionPlan('psql', ['prod;drop'], target)).rejects.toThrow(
+      'Invalid database name: use letters, digits, underscores, dots, or hyphens without shell metacharacters or path characters.',
+    );
+    await expect(dailyActionPlan('resetdb', ['-prod'], target)).rejects.toThrow(
+      'Invalid database name: leading hyphens are not allowed.',
+    );
+    await expect(dailyActionPlan('snapshot', ['prod db'], target)).rejects.toThrow(
+      'Invalid database name: whitespace is not allowed.',
+    );
+    await expect(dailyActionPlan('restore-snapshot', ['before-update', '../prod'], target)).rejects.toThrow(
+      'Invalid database name: use letters, digits, underscores, dots, or hyphens without shell metacharacters or path characters.',
+    );
+    await expect(dailyActionPlan('install', ['sale', 'prod#1'], target)).rejects.toThrow(
+      'Invalid database name: use letters, digits, underscores, dots, or hyphens without shell metacharacters or path characters.',
+    );
+    await expect(dailyActionPlan('update', ['sale', 'prod$1'], target)).rejects.toThrow(
+      'Invalid database name: use letters, digits, underscores, dots, or hyphens without shell metacharacters or path characters.',
+    );
+    await expect(dailyActionPlan('test', ['sale', '--db', 'prod db'], target)).rejects.toThrow(
+      'Invalid database name: whitespace is not allowed.',
+    );
+    await expect(dailyActionPlan('pot', ['sale', 'prod;drop'], target)).rejects.toThrow(
+      'Invalid database name: use letters, digits, underscores, dots, or hyphens without shell metacharacters or path characters.',
+    );
   });
 
   it('requires daily actions to run from an environment root', async () => {
@@ -356,6 +408,9 @@ describe('daily actions', () => {
     await runDailyAction('logs', ['web'], target, async (plan) => {
       calls.push(plan);
     });
+    await runDailyAction('logs', ['web', '100'], target, async (plan) => {
+      calls.push(plan);
+    });
     await runDailyAction(
       'test',
       ['module_a', '--db', 'custom', '--mode', 'update', '--tags', 'tag'],
@@ -376,6 +431,11 @@ describe('daily actions', () => {
       },
       {
         cwd: target,
+        scriptPath: join(target, 'scripts/logs.sh'),
+        args: ['web', '100'],
+      },
+      {
+        cwd: target,
         scriptPath: join(target, 'scripts/test.sh'),
         args: ['module_a', '--db', 'custom', '--mode', 'update', '--tags', 'tag'],
       },
@@ -393,6 +453,7 @@ describe('daily actions', () => {
         [
           '[+] Creating 1/1',
           "WARNING: Skipping /usr/lib/python3.12/dist-packages/charset_normalizer-3.3.2.dist-info due to invalid metadata entry 'name'",
+          'psycopg2.OperationalError: could not connect to server',
           "Running as user 'root' is a security risk.",
           'Done',
           '',
@@ -402,6 +463,8 @@ describe('daily actions', () => {
       [
         '[+] Creating 1/1',
         "\u001B[33mWARNING:\u001B[39m\u001B[2m\u001B[38;2;120;157;181m Skipping /usr/lib/python3.12/dist-packages/charset_normalizer-3.3.2.dist-info due to invalid metadata entry 'name'\u001B[0m",
+        'psycopg2.OperationalError: could not connect to server',
+        '\u001B[2m\u001B[38;2;120;157;181mNOTE: PostgreSQL connection failed. Check ./moo status, database service readiness, and credentials before retrying.\u001B[0m',
         "\u001B[2m\u001B[38;2;120;157;181mRunning as user 'root' is a security risk.\u001B[0m",
         'Done',
         '',

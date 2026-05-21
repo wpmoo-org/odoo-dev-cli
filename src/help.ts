@@ -24,7 +24,7 @@ Usage:
   npx @wpmoo/toolkit doctor --json [--postgres]
   npx @wpmoo/toolkit start
   npx @wpmoo/toolkit stop
-  npx @wpmoo/toolkit logs [service]
+  npx @wpmoo/toolkit logs [service] [tail-lines]
   npx @wpmoo/toolkit restart
   npx @wpmoo/toolkit shell
   npx @wpmoo/toolkit psql [db]
@@ -148,7 +148,7 @@ Task recipes:
     npx @wpmoo/toolkit status
     npx @wpmoo/toolkit doctor
     npx @wpmoo/toolkit doctor --fix
-    npx @wpmoo/toolkit logs [service]
+    npx @wpmoo/toolkit logs [service] [tail-lines]
     npx @wpmoo/toolkit restart
 
 Machine-readable JSON output:

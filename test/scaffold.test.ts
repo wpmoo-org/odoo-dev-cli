@@ -153,6 +153,7 @@ describe('scaffold', () => {
     expect(result.plannedFiles).toContain('.gitignore');
     expect(result.plannedFiles).toContain('moo');
     expect(result.plannedFiles).toContain('scripts/status.sh');
+    expect(result.plannedFiles).toContain('scripts/doctor.sh');
     expect(result.plannedFiles).toContain('odoo/custom/src/oca/README.md');
     expect(result.plannedFiles).toContain('odoo/custom/src/external/README.md');
     expect(result.plannedFiles).toContain('odoo/custom/patches/README.md');

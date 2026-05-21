@@ -409,7 +409,19 @@ async function selectCockpitCommandFromMenu(
   moduleCount?: number,
   sourceRepoCount?: number,
 ): Promise<CockpitCommand | 'exit'> {
-  const selection = await selectCockpitTopLevelMenu({ serviceStatus, moduleCount, sourceRepoCount });
+  const legacyServiceStatus: ServiceRuntimeStatus =
+    serviceStatus.kind === 'services-running' ||
+    serviceStatus.kind === 'db-ready' ||
+    serviceStatus.kind === 'odoo-not-ready' ||
+    serviceStatus.kind === 'fully-ready'
+      ? { kind: 'running' }
+      : serviceStatus;
+
+  const selection = await selectCockpitTopLevelMenu({
+    serviceStatus: legacyServiceStatus,
+    moduleCount,
+    sourceRepoCount,
+  });
 
   if (selection.kind === 'exit') {
     return 'exit';

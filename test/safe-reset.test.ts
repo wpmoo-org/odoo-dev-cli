@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -48,44 +49,100 @@ function fakeCloneGit(fixtures: Record<string, string>, cloneCalls: string[][]):
 }
 
 describe('safe reset', () => {
-  it('explains what safe reset will and will not touch', () => {
-    expect(renderSafeResetPreview('/tmp/odoo_sample_module_dev', true)).toBe(
-      [
-        'Safe reset will refresh generated WPMoo environment files.',
-        '',
-        'Target:',
-        '/tmp/odoo_sample_module_dev',
-        '',
-        'Will update:',
-        '- .wpmoo/odoo.json',
-        '- moo',
-        '- .gitignore',
-        '- .env.example',
-        '- README.md',
-        '- AGENTS.md',
-        '- docs/appstore-release.md',
-        '- External compose template assets',
-        '- External agent skill assets when configured',
-        '',
-        'Will not touch:',
-        '- source repo folders under odoo/custom/src/private',
-        '- module source code',
-        '- Git history, remotes, or branches',
-        '- .env, data, and backups',
-        '- custom source layout directories (oca, external, patches, manifests)',
-        '- Legacy compose template files may remain until manually removed: docs/assets/, test/, .github/',
-        '',
-        'Preview-only output; files are not changed until reset is executed.',
-        '',
-        'Generated changes will be staged with git add .',
-      ].join('\n'),
-    );
+  it('explains what safe reset will change and not touch', () => {
+    const preview = renderSafeResetPreview('/tmp/odoo_sample_module_dev', true);
+    expect(preview).toContain('Safe reset preview (dry-run): generated WPMoo files and source repo protections are listed.');
+    expect(preview).toContain('Generated files that would change:');
+    expect(preview).toContain('- README.md');
+    expect(preview).toContain('Source repositories that will remain untouched:');
+    expect(preview).toContain('- (none detected)');
+    expect(preview).toContain('- .env.example');
+    expect(preview).toContain('Preview-only output; files are not changed until reset is executed.');
+    expect(preview).toContain('Generated changes will be staged with git add .');
+    expect(preview).not.toContain('Warning:');
   });
 
   it('shows non-staging preview copy when stage=false', () => {
     expect(renderSafeResetPreview('/tmp/odoo_sample_module_dev', false)).toContain(
       'Generated changes will not be staged.',
     );
+  });
+
+  it('reports which generated files would change and which source repos are untouched', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-preview-'));
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/addons.yaml'),
+      'private/main:\n  - sample_module\n  - sample_module_extra\n',
+      'utf8',
+    );
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/toolkit',
+          version: '0.8.0',
+          product: 'target_product',
+          odooVersion: '19.0',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          sourceRepos: [
+            {
+              sourceType: 'private',
+              path: 'main',
+              url: 'https://github.com/example-org/main.git',
+              addons: ['sample_module'],
+            },
+            {
+              sourceType: 'external',
+              path: 'library',
+              url: 'https://github.com/example-org/library.git',
+              addons: ['library_addon'],
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    await writeFile(join(target, 'README.md'), 'stale-readme\n', 'utf8');
+
+    const preview = renderSafeResetPreview(target, true);
+    expect(preview).toContain('Generated files that would change:');
+    expect(preview).toContain('- README.md');
+    expect(preview).toContain('Source repositories that will remain untouched:');
+    expect(preview).toContain('- external/library');
+    expect(preview).toContain('- private/main');
+    expect(preview).toContain('Generated changes will be staged with git add .');
+  });
+
+  it('warns when generated files are dirty and would be overwritten', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-dirty-'));
+    execSync(`git -C ${target} init -q`);
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/toolkit',
+          version: '0.8.0',
+          product: 'odoo_sample_module',
+          odooVersion: '19.0',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    await writeFile(join(target, '.env.example'), 'STALE_ENV=true\n', 'utf8');
+
+    const preview = renderSafeResetPreview(target, false);
+    expect(preview).toContain('Warning: the following generated files are dirty and may be overwritten by safe reset:');
+    expect(preview).toContain('- .env.example');
   });
 
   it('refreshes generated overlay files without deleting module code', async () => {

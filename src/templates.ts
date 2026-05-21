@@ -250,8 +250,8 @@ exposes them through \`/mnt/wpmoo-addons\`.
 \`./moo\` routes day-to-day service and module workflows to local scripts in
 \`./scripts/\` (for example \`start\`, \`logs\`, \`update\`, \`test\`, \`snapshot\`).
 \`./moo status\` runs local offline metadata checks without needing network access.
-\`./moo doctor\` remains the package fallback command and runs via
-\`npx --yes ${fallbackPackageSpec()} doctor\`.
+\`./moo doctor\` runs local checks first and uses the package fallback only for
+advanced usage (for example \`--help\`) via \`npx --yes ${fallbackPackageSpec()} doctor\`.
 
 ### Start And Inspect Services
 
@@ -495,7 +495,7 @@ usage() {
   case "$1" in
     "start") echo "Usage: ./moo start" ;;
     "stop") echo "Usage: ./moo stop" ;;
-    "logs") echo "Usage: ./moo logs [service]" ;;
+    "logs") echo "Usage: ./moo logs [service] [tail-lines]" ;;
     "restart") echo "Usage: ./moo restart" ;;
     "shell") echo "Usage: ./moo shell" ;;
     "psql") echo "Usage: ./moo psql [db]" ;;
@@ -703,7 +703,14 @@ case "$command" in
     fi
     run_package_command "$command" "$@"
     ;;
-  "create"|"add-repo"|"remove-repo"|"add-module"|"remove-module"|"source"|"reset"|"doctor")
+  "doctor")
+    shift
+    if [[ "$#" -eq 0 && -x ./scripts/doctor.sh ]]; then
+      run_script ./scripts/doctor.sh
+    fi
+    run_package_command "$command" "$@"
+    ;;
+  "create"|"add-repo"|"remove-repo"|"add-module"|"remove-module"|"source"|"reset")
     run_package_command "$@"
     ;;
   "start")
@@ -718,7 +725,17 @@ case "$command" in
     ;;
   "logs")
     shift
-    service="$(optional_single_arg "$command" "odoo" "$@")"
+    if [[ "$#" -gt 2 || "\${1:-}" == -* || "\${2:-}" == -* ]]; then
+      fail_usage "$command"
+    fi
+    service="\${1:-odoo}"
+    if [[ "$#" -eq 2 ]]; then
+      if [[ ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Invalid logs tail count: expected a positive integer." >&2
+        exit 2
+      fi
+      run_script ./scripts/logs.sh "$service" "$2"
+    fi
     run_script ./scripts/logs.sh "$service"
     ;;
   "restart")
@@ -797,6 +814,92 @@ case "$command" in
     exit 2
     ;;
 esac
+`;
+}
+
+export function renderDoctorScript(): string {
+  return `#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")" && pwd)"
+root_dir="$(cd -- "$script_dir/.." && pwd)"
+cd "$root_dir"
+
+echo "WPMoo doctor"
+
+issues=()
+warnings=()
+
+required_files=(
+  "moo"
+)
+
+required_scripts=(
+  "up.sh"
+  "down.sh"
+  "logs.sh"
+  "restart.sh"
+  "shell.sh"
+  "psql.sh"
+  "install.sh"
+  "update.sh"
+  "test.sh"
+  "resetdb.sh"
+  "snapshot.sh"
+  "restore-snapshot.sh"
+  "lint.sh"
+  "pot.sh"
+  "status.sh"
+)
+
+for file in "\${required_files[@]}"; do
+  if [[ ! -f "$file" ]]; then
+    issues+=("missing required file: $file")
+  fi
+done
+
+for script in "\${required_scripts[@]}"; do
+  script_path="scripts/$script"
+  if [[ ! -f "$script_path" ]]; then
+    issues+=("missing required script: $script_path")
+    continue
+  fi
+  if [[ ! -x "$script_path" ]]; then
+    issues+=("not executable: $script_path")
+  fi
+done
+
+if [[ ! -d scripts ]]; then
+  issues+=("missing scripts directory")
+fi
+
+if [[ ! -d odoo/custom/src ]]; then
+  warnings+=("odoo/custom/src is missing; add source repositories before running module workflows.")
+fi
+
+if [[ ! -f .wpmoo/odoo.json ]]; then
+  warnings+=("missing .wpmoo/odoo.json; run ./moo reset to initialize environment metadata.")
+fi
+
+if (( \${#issues[@]} > 0 )); then
+  echo "Doctor checks found issues."
+  for issue in "\${issues[@]}"; do
+    echo " - $issue"
+  done
+  if (( \${#warnings[@]} > 0 )); then
+    for warning in "\${warnings[@]}"; do
+      echo " - warning: $warning"
+    done
+  fi
+  exit 1
+fi
+
+echo "Doctor checks passed."
+if (( \${#warnings[@]} > 0 )); then
+  for warning in "\${warnings[@]}"; do
+    echo " - warning: $warning"
+  done
+fi
 `;
 }
 
@@ -1413,7 +1516,7 @@ Useful maintenance commands:
 Daily script delegation vs package fallback:
 - \`./moo start\`, \`logs\`, \`install\`, \`update\`, \`test\`, \`snapshot\`, and related runtime tasks delegate to local \`./scripts/*.sh\`.
 - \`./moo status\` runs local offline metadata checks through \`./scripts/status.sh\`.
-- \`./moo doctor\` remains a package fallback command routed to \`npx --yes ${fallbackPackageSpec()} doctor\`.
+- \`./moo doctor\` runs local checks first and uses package fallback for advanced usage, routed via \`npx --yes ${fallbackPackageSpec()} doctor\`.
 
 Only report completion after the relevant update/test/lint command exits cleanly.
 `;
