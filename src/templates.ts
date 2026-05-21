@@ -642,6 +642,23 @@ allow_prod_lifecycle() {
   [[ "$value" == "1" ]]
 }
 
+allow_stage_lifecycle() {
+  local value="\${WPMOO_ALLOW_STAGE_LIFECYCLE:-$(env_file_value WPMOO_ALLOW_STAGE_LIFECYCLE)}"
+  [[ "$value" == "1" ]]
+}
+
+require_stage_lifecycle_allowed() {
+  local command="$1"
+  local env_name
+  env_name="$(selected_env)"
+  if [[ "$env_name" == "stage" ]]; then
+    if ! allow_stage_lifecycle; then
+      echo "Refusing stage lifecycle command '$command' in WPMOO_ENV=stage. Set WPMOO_ALLOW_STAGE_LIFECYCLE=1 to run it intentionally." >&2
+      exit 1
+    fi
+  fi
+}
+
 require_prod_lifecycle_allowed() {
   local command="$1"
   local env_name
@@ -722,12 +739,14 @@ case "$command" in
   "install")
     shift
     require_module_args "$command" "$@"
+    require_stage_lifecycle_allowed "$command"
     require_prod_lifecycle_allowed "$command"
     run_script ./scripts/install.sh "$@"
     ;;
   "update")
     shift
     require_module_args "$command" "$@"
+    require_stage_lifecycle_allowed "$command"
     require_prod_lifecycle_allowed "$command"
     run_script ./scripts/update.sh "$@"
     ;;

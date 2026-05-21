@@ -190,12 +190,24 @@ describe('generated environment moo delegation matrix', () => {
     }
 
     await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\n');
-    await execa(join(root, 'moo'), ['install', 'sale', 'devel'], { cwd: root, env });
-    await execa(join(root, 'moo'), ['update', 'sale', 'devel'], { cwd: root, env });
+    for (const [command, args] of [
+      ['install', ['sale', 'devel']],
+      ['update', ['sale', 'devel']],
+    ] as const) {
+      const result = await execa(join(root, 'moo'), [command, ...args], { cwd: root, env, reject: false });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        `Refusing stage lifecycle command '${command}' in WPMOO_ENV=stage. Set WPMOO_ALLOW_STAGE_LIFECYCLE=1 to run it intentionally.`,
+      );
+    }
     await execa(join(root, 'moo'), ['test', 'sale', '--db', 'devel', '--mode', 'update'], { cwd: root, env });
     await execa(join(root, 'moo'), ['snapshot', 'devel', 'before-update'], { cwd: root, env });
     await execa(join(root, 'moo'), ['lint'], { cwd: root, env });
     await execa(join(root, 'moo'), ['pot', 'sale', 'devel', 'i18n/sale.pot'], { cwd: root, env });
+
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\nWPMOO_ALLOW_STAGE_LIFECYCLE=1\n');
+    await execa(join(root, 'moo'), ['install', 'sale', 'devel'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['update', 'sale', 'devel'], { cwd: root, env });
 
     await writeFile(join(root, '.env'), 'WPMOO_ENV=prod\nWPMOO_ALLOW_PROD_LIFECYCLE=1\n');
     await execa(join(root, 'moo'), ['install', 'sale', 'devel'], { cwd: root, env });
@@ -204,12 +216,12 @@ describe('generated environment moo delegation matrix', () => {
 
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(
       [
-        'install.sh|sale devel',
-        'update.sh|sale devel',
         'test.sh|sale --db devel --mode update',
         'snapshot.sh|devel before-update',
         'lint.sh|',
         'pot.sh|sale devel i18n/sale.pot',
+        'install.sh|sale devel',
+        'update.sh|sale devel',
         'install.sh|sale devel',
         'update.sh|sale devel',
         'test.sh|sale',

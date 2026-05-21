@@ -165,11 +165,15 @@ describe('daily actions', () => {
     });
   });
 
-  it('blocks production module lifecycle commands without blocking stage or read-only maintenance', async () => {
+  it('blocks stage/prod module lifecycle changes without blocking stage tests or read-only maintenance', async () => {
     const scripts = ['install.sh', 'update.sh', 'test.sh', 'snapshot.sh', 'restore-snapshot.sh', 'lint.sh', 'pot.sh'];
     const stageTarget = await makeEnvironment({
       scripts,
       env: 'WPMOO_ENV=stage\n',
+    });
+    const allowedStageTarget = await makeEnvironment({
+      scripts,
+      env: 'WPMOO_ENV=stage\nWPMOO_ALLOW_STAGE_LIFECYCLE=1\n',
     });
     const prodTarget = await makeEnvironment({
       scripts,
@@ -180,19 +184,25 @@ describe('daily actions', () => {
       env: 'WPMOO_ENV=prod\nWPMOO_ALLOW_PROD_LIFECYCLE=1\n',
     });
 
-    await expect(dailyActionPlan('install', ['sale'], stageTarget)).resolves.toMatchObject({
-      scriptPath: join(stageTarget, 'scripts/install.sh'),
-      args: ['sale'],
-    });
-    await expect(dailyActionPlan('update', ['sale', 'devel'], stageTarget)).resolves.toMatchObject({
-      scriptPath: join(stageTarget, 'scripts/update.sh'),
-      args: ['sale', 'devel'],
-    });
+    await expect(dailyActionPlan('install', ['sale'], stageTarget)).rejects.toThrow(
+      "Refusing stage lifecycle command 'install' in WPMOO_ENV=stage. Set WPMOO_ALLOW_STAGE_LIFECYCLE=1 to run it intentionally.",
+    );
+    await expect(dailyActionPlan('update', ['sale', 'devel'], stageTarget)).rejects.toThrow(
+      "Refusing stage lifecycle command 'update' in WPMOO_ENV=stage. Set WPMOO_ALLOW_STAGE_LIFECYCLE=1 to run it intentionally.",
+    );
     await expect(
       dailyActionPlan('test', ['sale', '--db', 'devel', '--mode', 'update'], stageTarget),
     ).resolves.toMatchObject({
       scriptPath: join(stageTarget, 'scripts/test.sh'),
       args: ['sale', '--db', 'devel', '--mode', 'update'],
+    });
+    await expect(dailyActionPlan('install', ['sale'], allowedStageTarget)).resolves.toMatchObject({
+      scriptPath: join(allowedStageTarget, 'scripts/install.sh'),
+      args: ['sale'],
+    });
+    await expect(dailyActionPlan('update', ['sale', 'devel'], allowedStageTarget)).resolves.toMatchObject({
+      scriptPath: join(allowedStageTarget, 'scripts/update.sh'),
+      args: ['sale', 'devel'],
     });
 
     for (const command of ['install', 'update', 'test'] as const) {

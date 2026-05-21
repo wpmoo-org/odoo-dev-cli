@@ -160,8 +160,16 @@ function isProductionLifecycleCommand(command: DailyActionCommand): boolean {
   return command === 'install' || command === 'update' || command === 'test';
 }
 
+function isStageLifecycleCommand(command: DailyActionCommand): boolean {
+  return command === 'install' || command === 'update';
+}
+
 function destructiveCommandError(command: DailyActionCommand, envName: string): string {
   return `Refusing destructive command '${command}' in WPMOO_ENV=${envName}. Set WPMOO_ALLOW_DESTRUCTIVE=1 to run it intentionally.`;
+}
+
+function stageLifecycleCommandError(command: DailyActionCommand): string {
+  return `Refusing stage lifecycle command '${command}' in WPMOO_ENV=stage. Set WPMOO_ALLOW_STAGE_LIFECYCLE=1 to run it intentionally.`;
 }
 
 function productionLifecycleCommandError(command: DailyActionCommand): string {
@@ -203,6 +211,24 @@ async function assertProductionLifecycleCommandAllowed(command: DailyActionComma
   }
 }
 
+async function assertStageLifecycleCommandAllowed(command: DailyActionCommand, cwd: string): Promise<void> {
+  if (!isStageLifecycleCommand(command)) {
+    return;
+  }
+
+  const env = await readEnvFile(cwd);
+  const envName = process.env.WPMOO_ENV?.trim() || selectedComposeEnvironment(env);
+  if (envName !== 'stage') {
+    return;
+  }
+
+  const allowStageLifecycle =
+    process.env.WPMOO_ALLOW_STAGE_LIFECYCLE?.trim() || env?.get('WPMOO_ALLOW_STAGE_LIFECYCLE')?.trim();
+  if (allowStageLifecycle !== '1') {
+    throw new Error(stageLifecycleCommandError(command));
+  }
+}
+
 async function assertEnvironmentRoot(cwd: string): Promise<void> {
   try {
     await access(join(cwd, markerPath));
@@ -229,6 +255,7 @@ export async function dailyActionPlan(
   await assertEnvironmentRoot(cwd);
   const scriptPath = await assertScriptExists(cwd, dailyActionScripts[command]);
   const args = scriptArgs(command, argv);
+  await assertStageLifecycleCommandAllowed(command, cwd);
   await assertProductionLifecycleCommandAllowed(command, cwd);
   await assertDestructiveCommandAllowed(command, args, cwd);
 
