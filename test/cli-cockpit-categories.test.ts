@@ -64,6 +64,7 @@ type DisabledReasonCase = {
   description: string;
   serviceStatus?: ServiceRuntimeStatus;
   moduleCount?: number;
+  sourceRepoCount?: number;
   disabled: readonly Omit<MenuChoiceExpectation, 'category'>[];
   defaultChoice: string;
   expectAddModuleEnabled?: boolean;
@@ -303,6 +304,7 @@ describe('cockpit top-level menu', () => {
     },
     {
       description: 'No modules found.',
+      sourceRepoCount: 1,
       moduleCount: 0,
       disabled: [
         { id: 'list-modules', disabled: 'No modules found.' },
@@ -316,12 +318,19 @@ describe('cockpit top-level menu', () => {
       defaultChoice: 'start',
       expectAddModuleEnabled: true,
     },
+    {
+      description: 'No source repos found.',
+      sourceRepoCount: 0,
+      disabled: [{ id: 'add-module', disabled: 'No source repos found.' }],
+      defaultChoice: 'start',
+    },
   ];
 
   it.each(disabledReasonCases)('sets disabled reasons for "$description" context', async ({
     description,
     serviceStatus,
     moduleCount,
+    sourceRepoCount,
     disabled,
     defaultChoice,
     expectAddModuleEnabled,
@@ -351,6 +360,7 @@ describe('cockpit top-level menu', () => {
       select: prompt,
       serviceStatus,
       moduleCount,
+      sourceRepoCount,
     })).resolves.toEqual({
       kind: 'command',
       command: defaultCommand,

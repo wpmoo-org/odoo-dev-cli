@@ -50,6 +50,7 @@ type CockpitMenuDeps = {
   handleCancel?: (value: unknown, action: 'exit' | 'back') => void;
   serviceStatus?: ServiceRuntimeStatus;
   moduleCount?: number;
+  sourceRepoCount?: number;
   navigationWarning?: string | (() => string | undefined);
 };
 
@@ -107,12 +108,21 @@ function moduleDisabledReason(command: CockpitCommand, moduleCount?: number): st
   return moduleCount === 0 && moduleDependentCommandIds.has(command.id) ? 'No modules found.' : undefined;
 }
 
+function sourceRepoDisabledReason(command: CockpitCommand, sourceRepoCount?: number): string | undefined {
+  return sourceRepoCount === 0 && command.id === 'add-module' ? 'No source repos found.' : undefined;
+}
+
 function disabledReason(
   command: CockpitCommand,
   serviceStatus?: ServiceRuntimeStatus,
   moduleCount?: number,
+  sourceRepoCount?: number,
 ): string | undefined {
-  return serviceDisabledReason(command, serviceStatus) ?? moduleDisabledReason(command, moduleCount);
+  return (
+    serviceDisabledReason(command, serviceStatus) ??
+    moduleDisabledReason(command, moduleCount) ??
+    sourceRepoDisabledReason(command, sourceRepoCount)
+  );
 }
 
 function disabledError(): string {
@@ -132,6 +142,7 @@ function categoryChoices(
   index: number,
   serviceStatus?: ServiceRuntimeStatus,
   moduleCount?: number,
+  sourceRepoCount?: number,
 ): readonly (CockpitMenuChoice | PromptSeparator)[] {
   const choices: (CockpitMenuChoice | PromptSeparator)[] = [
     promptSeparator(categoryHeading(category)),
@@ -142,7 +153,7 @@ function categoryChoices(
           value: command,
           name: commandName(command),
           short: command.label,
-          disabled: commandDisabledValue(disabledReason(command, serviceStatus, moduleCount)),
+          disabled: commandDisabledValue(disabledReason(command, serviceStatus, moduleCount, sourceRepoCount)),
         };
       }),
   ];
@@ -188,8 +199,11 @@ function isCockpitCommand(value: unknown): value is CockpitCommand {
 function topLevelChoices(
   serviceStatus?: ServiceRuntimeStatus,
   moduleCount?: number,
+  sourceRepoCount?: number,
 ): readonly (CockpitMenuChoice | PromptSeparator)[] {
-  return topLevelCategoryOrder.flatMap((category, index) => categoryChoices(category, index, serviceStatus, moduleCount));
+  return topLevelCategoryOrder.flatMap((category, index) =>
+    categoryChoices(category, index, serviceStatus, moduleCount, sourceRepoCount),
+  );
 }
 
 function defaultCommand(serviceStatus?: ServiceRuntimeStatus): CockpitCommand {
@@ -204,7 +218,7 @@ function defaultCommand(serviceStatus?: ServiceRuntimeStatus): CockpitCommand {
 
 export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): Promise<CockpitTopLevelMenuSelection> {
   const deps = menuDeps(options);
-  const choices = topLevelChoices(options.serviceStatus, options.moduleCount);
+  const choices = topLevelChoices(options.serviceStatus, options.moduleCount, options.sourceRepoCount);
   const cancelAction: 'back' = 'back';
 
   const selected = await deps.select({
