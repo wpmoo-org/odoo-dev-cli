@@ -607,6 +607,47 @@ describe('doctor', () => {
     expect(postgresCall?.[2]).not.toMatch(/\b(ALTER|CREATE|DELETE|DROP|INSERT|UPDATE)\b/u);
   });
 
+  it('warns when PostgreSQL slow-query logging is disabled', async () => {
+    const calls: string[][] = [];
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner(calls);
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        calls.push([command, ...args]);
+        return {
+          stdout: [
+            'database_count|2',
+            'active_connections|3',
+            'connection_count|42',
+            'max_connections|100',
+            'total_database_size_bytes|10485760',
+            'slow_query_logging|-1ms',
+            'pg_stat_statements|available',
+            'shared_buffers|128MB',
+          ].join('\n'),
+          stderr: '',
+        };
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual([
+      'PostgreSQL slow-query logging is disabled (log_min_duration_statement=-1ms). Enable it before performance triage.',
+    ]);
+    expect(report.checks).toContain(
+      'OK PostgreSQL diagnostics database_count=2 active_connections=3 connection_count=42 max_connections=100 connection_utilization_pct=42 total_database_size_bytes=10485760 slow_query_logging=-1ms pg_stat_statements=available shared_buffers=128MB',
+    );
+    expect(report.postgres?.available).toBe(true);
+    expect(report.postgres?.diagnostics.slowQueryLogging).toBe('-1ms');
+    expect(report.errors).toEqual([]);
+  });
+
   it('warns when PostgreSQL connection utilization is high', async () => {
     const calls: string[][] = [];
     const target = await makeEnvironment({
@@ -640,6 +681,46 @@ describe('doctor', () => {
     expect(report.warnings).toEqual(['PostgreSQL connection utilization is high: 90% of max_connections used (90/100).']);
     expect(report.postgres?.available).toBe(true);
     expect(report.postgres?.diagnostics.connectionUtilizationPct).toBe(90);
+    expect(report.errors).toEqual([]);
+  });
+
+  it('keeps warning order stable when PostgreSQL connection utilization is high and slow-query logging is disabled', async () => {
+    const calls: string[][] = [];
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner(calls);
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        calls.push([command, ...args]);
+        return {
+          stdout: [
+            'database_count|2',
+            'active_connections|4',
+            'connection_count|90',
+            'max_connections|100',
+            'total_database_size_bytes|10485760',
+            'slow_query_logging|-1',
+            'pg_stat_statements|available',
+            'shared_buffers|128MB',
+          ].join('\n'),
+          stderr: '',
+        };
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual([
+      'PostgreSQL connection utilization is high: 90% of max_connections used (90/100).',
+      'PostgreSQL slow-query logging is disabled (log_min_duration_statement=-1). Enable it before performance triage.',
+    ]);
+    expect(report.postgres?.available).toBe(true);
+    expect(report.postgres?.diagnostics.connectionUtilizationPct).toBe(90);
+    expect(report.postgres?.diagnostics.slowQueryLogging).toBe('-1');
     expect(report.errors).toEqual([]);
   });
 

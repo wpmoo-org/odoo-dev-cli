@@ -282,6 +282,15 @@ function postgresConnectionUtilizationWarning(diagnostics: Partial<Record<Postgr
   return `PostgreSQL connection utilization is high: ${utilizationPct}% of max_connections used (${connectionCount}/${maxConnections}).`;
 }
 
+function postgresSlowQueryLoggingWarning(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): string | undefined {
+  const slowQueryLogging = diagnostics.slow_query_logging?.trim();
+  if (!slowQueryLogging || !/^-1\s*(?:ms)?$/iu.test(slowQueryLogging)) {
+    return undefined;
+  }
+
+  return `PostgreSQL slow-query logging is disabled (log_min_duration_statement=${slowQueryLogging}). Enable it before performance triage.`;
+}
+
 function structuredPostgresDiagnostics(
   diagnostics: Partial<Record<PostgresDiagnosticKey, string>>,
 ): DoctorPostgresDiagnostics {
@@ -795,6 +804,10 @@ export async function getDoctorReport(
         const connectionUtilizationWarning = postgresConnectionUtilizationWarning(postgresDiagnostics);
         if (connectionUtilizationWarning) {
           warnings.push(connectionUtilizationWarning);
+        }
+        const slowQueryLoggingWarning = postgresSlowQueryLoggingWarning(postgresDiagnostics);
+        if (slowQueryLoggingWarning) {
+          warnings.push(slowQueryLoggingWarning);
         }
       } else {
         const warning =
