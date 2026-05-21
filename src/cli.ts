@@ -30,11 +30,13 @@ import { renderHelp } from './help.js';
 import { runLocalCockpit } from './local-cockpit.js';
 import {
   addModuleToSourceRepo,
+  listModulesInEnvironment,
   removeModuleFromSourceRepo,
   type AddModuleOptions,
   type ListedModule,
   type RemoveModuleOptions,
 } from './module-actions.js';
+import { resolveModuleTarget, type ModuleTargetResolution } from './module-target-resolver.js';
 import { supportedOdooVersions } from './odoo-versions.js';
 import { renderRepositorySetupNote } from './prompt-copy.js';
 import { promptRepositoryUrl } from './prompt-repositories.js';
@@ -1451,6 +1453,61 @@ function dailyActionSelectedLabel(command: DailyActionCommand, argv: readonly st
   return undefined;
 }
 
+function dailyActionModuleArgIndex(command: DailyActionCommand): number | undefined {
+  return ['install', 'update', 'test', 'pot'].includes(command) ? 0 : undefined;
+}
+
+function moduleTargetLabel(module: ListedModule): string {
+  return `${module.moduleName} (${module.sourceType}/${module.repoPath})`;
+}
+
+function moduleTargetResolutionError(resolution: Exclude<ModuleTargetResolution, { kind: 'exact' }>): Error {
+  const candidates = resolution.candidates.map(moduleTargetLabel).join(', ');
+  if (resolution.kind === 'ambiguous') {
+    return new Error(`Ambiguous module target "${resolution.query}": ${candidates}.`);
+  }
+
+  return new Error(
+    candidates
+      ? `No module matches "${resolution.query}". Did you mean: ${candidates}?`
+      : `No module matches "${resolution.query}".`,
+  );
+}
+
+async function resolveDailyActionModuleTargets(
+  command: DailyActionCommand,
+  argv: readonly string[],
+  cwd: string,
+): Promise<string[]> {
+  const moduleArgIndex = dailyActionModuleArgIndex(command);
+  if (moduleArgIndex === undefined) {
+    return [...argv];
+  }
+
+  const moduleArg = argv[moduleArgIndex];
+  if (!moduleArg || moduleArg.startsWith('-')) {
+    return [...argv];
+  }
+
+  const modules = await listModulesInEnvironment(cwd);
+  if (modules.length === 0) {
+    return [...argv];
+  }
+
+  const resolvedModuleNames = moduleArg.split(',').map((query) => {
+    const trimmedQuery = query.trim();
+    const resolution = resolveModuleTarget(trimmedQuery, modules);
+    if (resolution.kind !== 'exact') {
+      throw moduleTargetResolutionError(resolution);
+    }
+    return resolution.module.moduleName;
+  });
+
+  const resolvedArgv = [...argv];
+  resolvedArgv[moduleArgIndex] = resolvedModuleNames.join(',');
+  return resolvedArgv;
+}
+
 async function selectDatabaseArg(
   cwd: string,
   message: string,
@@ -2043,7 +2100,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
 
   if (isDailyActionCommand(route.command)) {
     console.log(renderBanner());
-    await runDailyAction(route.command, route.argv, cwd);
+    await runDailyAction(route.command, await resolveDailyActionModuleTargets(route.command, route.argv, cwd), cwd);
     return;
   }
 

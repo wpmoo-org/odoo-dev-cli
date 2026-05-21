@@ -1,0 +1,453 @@
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import {
+  analyzeModuleDirectory,
+  scanModuleQuality,
+  type ModuleQualitySummary,
+} from '../src/module-quality.js';
+
+type ScanResultWithDependencyGraph = ModuleQualitySummary & {
+  dependencyGraph?: {
+    dependencies: Array<{
+      moduleName: string;
+      dependency: string;
+      kind: 'local' | 'external' | 'unresolved';
+    }>;
+    missingDependencies: Array<{
+      moduleName: string;
+      dependency: string;
+    }>;
+    cycles: string[][];
+  };
+};
+
+async function makeTarget(prefix: string): Promise<string> {
+  return mkdtemp(join(tmpdir(), prefix));
+}
+
+function formatPyList(values: string[]): string {
+  return `[${values.map((value) => `"${value}"`).join(', ')}]`;
+}
+
+function buildManifest(overrides: {
+  includeLicense?: boolean;
+  depends?: string[];
+  data?: string[];
+  includeDepends?: boolean;
+}) {
+  const lines: string[] = [
+    '{',
+    "  'name': 'Demo',",
+    "  'installable': True,",
+    "  'version': '1.0.0',",
+  ];
+
+  if (overrides.includeLicense ?? true) {
+    lines.push("  'license': 'LGPL-3',");
+  }
+
+  if (overrides.includeDepends ?? true) {
+    lines.push(`  'depends': ${formatPyList(overrides.depends ?? ['base'])},`);
+  }
+
+  lines.push(`  'data': ${formatPyList(overrides.data ?? ['security/ir.model.access.csv', 'views/demo_views.xml'])},`);
+  lines.push('}');
+
+  return lines.join('\n');
+}
+
+async function writeText(path: string, content: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, content);
+}
+
+async function writeMenuXml(modulePath: string, moduleName: string): Promise<void> {
+  await writeText(
+    join(modulePath, 'views', `${moduleName}_menus.xml`),
+    [
+      '<odoo><record',
+      ` id="action_${moduleName}" model="ir.actions.act_window"/>`,
+      ` <menuitem id="menu_${moduleName}" action="action_${moduleName}"/>`,
+      '</odoo>',
+      '',
+    ].join(''),
+  );
+}
+
+async function writeModelScaffold(modulePath: string, moduleName: string): Promise<void> {
+  await writeText(join(modulePath, 'models', '__init__.py'), `from . import ${moduleName}\n`);
+  await writeText(join(modulePath, 'models', `${moduleName}.py`), 'from odoo import models\n');
+}
+
+async function writeStandardQualityFiles(modulePath: string, moduleName: string): Promise<void> {
+  await writeText(join(modulePath, '__init__.py'), 'from . import models\n');
+  await writeText(join(modulePath, 'security', 'ir.model.access.csv'), 'id,name\n');
+  await writeText(join(modulePath, 'views', 'demo_views.xml'), '<odoo></odoo>\n');
+  await writeMenuXml(modulePath, moduleName);
+  await mkdir(join(modulePath, 'tests'), { recursive: true });
+}
+
+describe('analyzeModuleDirectory module quality v2 checks', () => {
+  it('returns actionable errors when manifest syntax is invalid', async () => {
+    const target = await makeTarget('wpmoo-module-quality-invalid-manifest-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(join(modulePath, '__manifest__.py'), '{\n  \'name\': \'Demo\',\n  \'installable\': True\n');
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: expect.stringContaining('invalid manifest syntax'),
+        }),
+      ]),
+    );
+  });
+
+  it('flags missing manifest license', async () => {
+    const target = await makeTarget('wpmoo-module-quality-missing-license-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(join(modulePath, '__manifest__.py'), buildManifest({ includeLicense: false }));
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing license in __manifest__.py',
+        },
+      ]),
+    );
+  });
+
+  it('flags explicitly non-installable manifests', async () => {
+    const target = await makeTarget('wpmoo-module-quality-noninstallable-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({ depends: ['base'] }).replace("'installable': True", "'installable': False"),
+    );
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.installable).toBe(false);
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'installable is false in __manifest__.py',
+        },
+      ]),
+    );
+  });
+
+  it('treats omitted installable as installable because Odoo defaults it to true', async () => {
+    const target = await makeTarget('wpmoo-module-quality-default-installable-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({ depends: ['base'] }).replace("  'installable': True,\n", ''),
+    );
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.installable).toBe(true);
+    expect(result.issues).not.toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'installable is false in __manifest__.py',
+        },
+      ]),
+    );
+  });
+
+  it('flags missing depends in __manifest__.py', async () => {
+    const target = await makeTarget('wpmoo-module-quality-missing-depends-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(join(modulePath, '__manifest__.py'), buildManifest({ includeDepends: false }));
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing depends in __manifest__.py',
+        },
+      ]),
+    );
+  });
+
+  it('flags model modules missing base dependency', async () => {
+    const target = await makeTarget('wpmoo-module-quality-missing-base-dep-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({ depends: ['mail'], data: ['security/ir.model.access.csv', 'views/demo_views.xml'] }),
+    );
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+    await writeModelScaffold(modulePath, 'demo_model');
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing base dependency for model-based module',
+        },
+      ]),
+    );
+  });
+
+  it('flags __init__.py without models import', async () => {
+    const target = await makeTarget('wpmoo-module-quality-missing-root-init-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({ depends: ['base'], data: ['security/ir.model.access.csv', 'views/demo_views.xml'] }),
+    );
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+    await writeText(join(modulePath, '__init__.py'), '# Intentionally empty\n');
+    await writeModelScaffold(modulePath, 'demo_model');
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing __init__.py models import',
+        },
+      ]),
+    );
+  });
+
+  it('flags models/__init__.py without model imports', async () => {
+    const target = await makeTarget('wpmoo-module-quality-missing-model-init-import-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({ depends: ['base'], data: ['security/ir.model.access.csv', 'views/demo_views.xml'] }),
+    );
+    await writeText(join(modulePath, '__init__.py'), 'from . import models\n');
+    await writeText(join(modulePath, 'models', '__init__.py'), '# Intentionally empty\n');
+    await writeText(join(modulePath, 'models', 'demo_model.py'), 'from odoo import models\n');
+    await writeMenuXml(modulePath, 'demo_module');
+    await writeText(join(modulePath, 'security', 'ir.model.access.csv'), 'id,name\n');
+    await writeText(join(modulePath, 'views', 'demo_views.xml'), '<odoo></odoo>\n');
+    await mkdir(join(modulePath, 'tests'), { recursive: true });
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing models/__init__.py model import',
+        },
+      ]),
+    );
+  });
+
+  it('flags module data missing access rights csv', async () => {
+    const target = await makeTarget('wpmoo-module-quality-missing-access-csv-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({ depends: ['base'], data: ['views/demo_views.xml'] }),
+    );
+    await writeText(join(modulePath, '__init__.py'), 'from . import models\n');
+    await writeMenuXml(modulePath, 'demo_module');
+    await writeText(join(modulePath, 'views', 'demo_views.xml'), '<odoo></odoo>\n');
+    await mkdir(join(modulePath, 'tests'), { recursive: true });
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing security/ir.model.access.csv in manifest data',
+        },
+      ]),
+    );
+  });
+
+  it('flags missing views XML files', async () => {
+    const target = await makeTarget('wpmoo-module-quality-missing-views-xml-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({ depends: ['base'], data: ['security/ir.model.access.csv'] }),
+    );
+    await writeText(join(modulePath, '__init__.py'), 'from . import models\n');
+    await mkdir(join(modulePath, 'security'), { recursive: true });
+    await writeText(join(modulePath, 'security', 'ir.model.access.csv'), 'id,name\n');
+    await mkdir(join(modulePath, 'tests'), { recursive: true });
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing views XML under views/',
+        },
+      ]),
+    );
+  });
+
+  it('flags missing tests directory', async () => {
+    const target = await makeTarget('wpmoo-module-quality-missing-tests-dir-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({ depends: ['base'] }),
+    );
+    await writeText(join(modulePath, '__init__.py'), 'from . import models\n');
+    await writeText(join(modulePath, 'security', 'ir.model.access.csv'), 'id,name\n');
+    await writeText(join(modulePath, 'views', 'demo_views.xml'), '<odoo></odoo>\n');
+    await writeMenuXml(modulePath, 'demo_module');
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing tests directory',
+        },
+      ]),
+    );
+  });
+});
+
+describe('scanModuleQuality dependency graph checks', () => {
+  it('reports missing local dependencies', async () => {
+    const target = await makeTarget('wpmoo-module-quality-missing-local-dependency-');
+    const modulesRoot = join(target, 'modules');
+    const modules = [
+      {
+        name: 'module_one',
+        manifest: buildManifest({
+          depends: ['base', 'module_two'],
+          data: ['security/ir.model.access.csv', 'views/demo_views.xml'],
+        }),
+      },
+    ];
+
+    for (const item of modules) {
+      const modulePath = join(modulesRoot, item.name);
+      await writeText(join(modulePath, '__manifest__.py'), item.manifest);
+      await writeStandardQualityFiles(modulePath, item.name);
+    }
+
+    const result = (await scanModuleQuality(modulesRoot, target)) as ScanResultWithDependencyGraph;
+
+    expect(result.dependencyGraph?.dependencies).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'module_one',
+          dependency: 'base',
+          kind: 'external',
+        },
+        {
+          moduleName: 'module_one',
+          dependency: 'module_two',
+          kind: 'unresolved',
+        },
+      ]),
+    );
+    expect(result.dependencyGraph?.missingDependencies).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'module_one',
+          dependency: 'module_two',
+        },
+      ]),
+    );
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'module_one',
+          issue: 'missing local dependency module_two',
+        }),
+      ]),
+    );
+  });
+
+  it('reports obvious local dependency cycles', async () => {
+    const target = await makeTarget('wpmoo-module-quality-cycle-');
+    const modulesRoot = join(target, 'modules');
+
+    const moduleAPath = join(modulesRoot, 'module_a');
+    const moduleBPath = join(modulesRoot, 'module_b');
+
+    await writeText(
+      join(moduleAPath, '__manifest__.py'),
+      buildManifest({ depends: ['base', 'module_b'], data: ['security/ir.model.access.csv', 'views/demo_views.xml'] }),
+    );
+    await writeText(
+      join(moduleBPath, '__manifest__.py'),
+      buildManifest({ depends: ['base', 'module_a'], data: ['security/ir.model.access.csv', 'views/demo_views.xml'] }),
+    );
+
+    await writeStandardQualityFiles(moduleAPath, 'module_a');
+    await writeStandardQualityFiles(moduleBPath, 'module_b');
+
+    const result = (await scanModuleQuality(modulesRoot, target)) as ScanResultWithDependencyGraph;
+
+    expect(result.dependencyGraph?.dependencies).toEqual(
+      expect.arrayContaining([
+        {
+          moduleName: 'module_a',
+          dependency: 'module_b',
+          kind: 'local',
+        },
+        {
+          moduleName: 'module_b',
+          dependency: 'module_a',
+          kind: 'local',
+        },
+      ]),
+    );
+    expect(result.dependencyGraph?.cycles).toEqual(
+      expect.arrayContaining([expect.arrayContaining(['module_a', 'module_b'])]),
+    );
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'module_a',
+          issue: 'dependency cycle detected: module_a -> module_b -> module_a',
+        }),
+        expect.objectContaining({
+          moduleName: 'module_b',
+          issue: 'dependency cycle detected: module_b -> module_a -> module_b',
+        }),
+      ]),
+    );
+  });
+});

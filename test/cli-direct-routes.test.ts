@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   removeModuleRepo: vi.fn(async () => undefined),
   addModuleToSourceRepo: vi.fn(async () => undefined),
   removeModuleFromSourceRepo: vi.fn(async () => undefined),
+  listModulesInEnvironment: vi.fn(async () => [] as unknown[]),
   safeResetEnvironment: vi.fn(async () => undefined),
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
   listSources: vi.fn(async () => [] as unknown[]),
@@ -77,6 +78,7 @@ vi.mock('../src/module-actions.js', async (importOriginal) => {
     ...actual,
     addModuleToSourceRepo: mocks.addModuleToSourceRepo,
     removeModuleFromSourceRepo: mocks.removeModuleFromSourceRepo,
+    listModulesInEnvironment: mocks.listModulesInEnvironment,
     listModulesInSourceRepo: vi.fn(async () => []),
   };
 });
@@ -654,6 +656,47 @@ describe('cli direct command routes', () => {
       expect(mocks.runDailyAction).toHaveBeenNthCalledWith(index + 1, command, args, cwd);
     }
     expect(logSpy).toHaveBeenCalledWith('mock banner');
+  });
+
+  it('resolves unique partial module targets before running daily lifecycle commands', async () => {
+    const { runCli } = await loadCli();
+    const cwd = '/tmp/worker-a-daily-target-resolver';
+    mocks.listModulesInEnvironment.mockResolvedValueOnce([
+      { moduleName: 'partner_portal', repoPath: 'product', sourceType: 'private' },
+      { moduleName: 'sale_order', repoPath: 'sale-workflow', sourceType: 'oca' },
+    ]);
+
+    await runCli(['update', 'portal', 'devel'], cwd);
+
+    expect(mocks.runDailyAction).toHaveBeenCalledWith('update', ['partner_portal', 'devel'], cwd);
+  });
+
+  it('refuses ambiguous daily lifecycle module targets before running scripts', async () => {
+    const { runCli } = await loadCli();
+    const cwd = '/tmp/worker-a-daily-target-ambiguous';
+    mocks.listModulesInEnvironment.mockResolvedValueOnce([
+      { moduleName: 'sale', repoPath: 'product', sourceType: 'private' },
+      { moduleName: 'sale', repoPath: 'sale-workflow', sourceType: 'oca' },
+    ]);
+
+    await expect(runCli(['install', 'sale', 'devel'], cwd)).rejects.toThrow(
+      'Ambiguous module target "sale": sale (private/product), sale (oca/sale-workflow).',
+    );
+    expect(mocks.runDailyAction).not.toHaveBeenCalled();
+  });
+
+  it('reports nearest candidates for unknown daily lifecycle module targets', async () => {
+    const { runCli } = await loadCli();
+    const cwd = '/tmp/worker-a-daily-target-missing';
+    mocks.listModulesInEnvironment.mockResolvedValueOnce([
+      { moduleName: 'partner_portal', repoPath: 'product', sourceType: 'private' },
+      { moduleName: 'partner_invoicing', repoPath: 'partner-tools', sourceType: 'external' },
+    ]);
+
+    await expect(runCli(['test', 'partnre', '--db', 'devel'], cwd)).rejects.toThrow(
+      'No module matches "partnre". Did you mean: partner_portal (private/product), partner_invoicing (external/partner-tools)?',
+    );
+    expect(mocks.runDailyAction).not.toHaveBeenCalled();
   });
 
   it('routes status command to renderEnvironmentStatusForTarget', async () => {

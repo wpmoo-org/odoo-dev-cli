@@ -875,7 +875,7 @@ function emptyModuleQuality() {
 }
 
 function manifestIsInstallable(content) {
-  return /["']installable["']\\s*:\\s*(?:True|true)\\b/.test(content);
+  return !/["']installable["']\\s*:\\s*(?:False|false)\\b/.test(content);
 }
 
 function menuXmlHasAction(content, moduleName) {
@@ -914,7 +914,7 @@ async function analyzeModule(modulePath) {
     issues.push({
       moduleName,
       path: moduleRelativePath,
-      issue: 'missing installable=True in __manifest__.py',
+      issue: 'installable is false in __manifest__.py',
     });
   }
 
