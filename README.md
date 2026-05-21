@@ -222,8 +222,12 @@ warning while keeping the scoped package release valid.
 
 ## Documentation
 
+- [Command Reference](docs/command-reference.md)
 - [External Resources](docs/external-resources.md)
 - [Generated Environment Verification](docs/generated-environment-verification.md)
+- [Lifecycle Recipes](docs/lifecycle-recipes.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [1.0 Readiness](docs/1-0-readiness.md)
 - Public documentation site: <https://wpmoo.org>
 
 ## License

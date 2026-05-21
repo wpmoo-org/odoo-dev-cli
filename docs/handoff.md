@@ -64,3 +64,14 @@ Current command standard:
 
 - Use `npx @wpmoo/toolkit ...` for package/operator commands.
 - Use generated environment `./moo ...` for local compose daily commands.
+
+1.0 readiness references:
+
+- [Command Reference](command-reference.md)
+- [Lifecycle Recipes](lifecycle-recipes.md)
+- [Troubleshooting](troubleshooting.md)
+- [1.0 Readiness](1-0-readiness.md)
+
+Before a `1.0.0` tag, review the readiness gap list and decide whether the next
+milestone is "ship 1.0" or "finish named gaps." Do not treat the gap list as an
+open-ended cleanup queue.
