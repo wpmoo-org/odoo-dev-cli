@@ -1030,12 +1030,35 @@ import { access, readdir, readFile, stat } from 'node:fs/promises';
 import { basename, isAbsolute, join, relative } from 'node:path';
 
 const args = process.argv.slice(2);
-if (!args.every((arg) => arg === '--json')) {
-  console.error('Usage: ./moo status [--json]');
-  process.exit(2);
+function parseJsonOption(argv) {
+  let json = false;
+  for (const arg of argv) {
+    if (arg === '--json') {
+      json = true;
+      continue;
+    }
+
+    if (arg.startsWith('--json=')) {
+      const value = arg.slice('--json='.length).toLowerCase().trim();
+      if (['true', '1', 'yes', 'y'].includes(value)) {
+        json = true;
+        continue;
+      }
+      if (['false', '0', 'no', 'n'].includes(value)) {
+        json = false;
+        continue;
+      }
+      console.error('Invalid boolean value for --json: ' + arg.slice('--json='.length));
+      process.exit(2);
+    }
+
+    console.error('Usage: ./moo status [--json]');
+    process.exit(2);
+  }
+  return json;
 }
 
-const json = args.includes('--json');
+const json = parseJsonOption(args);
 const target = process.cwd();
 const metadataPath = '.wpmoo/odoo.json';
 const validSourceTypes = new Set(['private', 'oca', 'external']);
