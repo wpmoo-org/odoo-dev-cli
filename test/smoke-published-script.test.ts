@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -6,28 +6,72 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+type SmokeCommandBehavior = 'default' | 'npx-version-fail' | 'npx-version-timeout';
+
 const scriptPath = new URL('../scripts/smoke-published.sh', import.meta.url);
 
-async function createSmokeFixture(version: string, expectedSpec: string) {
-  const root = mkdtempSync(join(tmpdir(), 'wpmoo-smoke-published-'));
-  await mkdir(join(root, 'bin'));
-  await mkdir(join(root, 'tmp'));
+function buildSmokeStub(expectedSpec: string, behavior: SmokeCommandBehavior) {
+  const failureBlock =
+    behavior === 'npx-version-fail'
+      ? `
+if [[ "$1" == "--yes" && "$5" == "--version" ]]; then
+  echo "simulated npx failure" >&2
+  exit 2
+fi`
+      : behavior === 'npx-version-timeout'
+        ? `
+if [[ "$1" == "--yes" && "$5" == "--version" ]]; then
+  echo "simulated npx timeout" >&2
+  sleep 5
+fi`
+        : '';
 
-  const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
-    version: string;
-  };
-  packageJson.version = version;
-  writeFileSync(join(root, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`);
-
-  const argsLogPath = join(root, 'npx-args.log');
-  const cacheLogPath = join(root, 'npx-cache.log');
-  const stubPath = join(root, 'bin', 'npx-stub');
-  await writeFile(
-    stubPath,
-    `#!/usr/bin/env bash
+  return `#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "$*" >> "${argsLogPath}"
-printf '%s\n' "${'$'}{NPM_CONFIG_CACHE:-}" >> "${cacheLogPath}"
+
+printf '%s\n' "$*" >> "${'$'}{npxArgsLogPath}"
+printf '%s\n' "${'$'}{NPM_CONFIG_CACHE:-}" >> "${'$'}{npxCacheLogPath}"
+
+${failureBlock}
+
+if [[ "$1" == "exec" ]]; then
+  if [[ "$2" == "--yes" && "$3" == "--package" && "$4" == "${expectedSpec}" && "$5" == "--" && "$6" == "wpmoo" ]]; then
+    case "${'$'}{7}" in
+      --version)
+        echo "${expectedSpec}"
+        ;;
+      --help)
+        echo "Usage: wpmoo"
+        ;;
+      create)
+        if [[ "${'$'}{8:-}" == "--help" ]]; then
+          echo "Usage: wpmoo create"
+          exit 0
+        fi
+        ;;
+      doctor)
+        if [[ "${'$'}{8:-}" == "--help" ]]; then
+          echo "Usage: wpmoo doctor"
+          exit 0
+        fi
+        ;;
+      status)
+        if [[ "${'$'}{8:-}" == "--help" ]]; then
+          echo "Usage: wpmoo status"
+          exit 0
+        fi
+        ;;
+      *)
+        echo "unexpected npm exec command: $*" >&2
+        exit 1
+        ;;
+    esac
+    exit 0
+  fi
+
+  echo "unexpected npm exec command: $*" >&2
+  exit 1
+fi
 
 case "$*" in
   "--yes --package ${expectedSpec} wpmoo --version")
@@ -50,6 +94,33 @@ case "$*" in
     exit 1
     ;;
 esac
+`;
+}
+
+async function createSmokeFixture(
+  version: string,
+  expectedSpec: string,
+  behavior: SmokeCommandBehavior = 'default',
+) {
+  const root = mkdtempSync(join(tmpdir(), 'wpmoo-smoke-published-'));
+  await mkdir(join(root, 'bin'));
+  await mkdir(join(root, 'tmp'));
+
+  const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+    version: string;
+  };
+  packageJson.version = version;
+  writeFileSync(join(root, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`);
+
+  const argsLogPath = join(root, 'npx-args.log');
+  const cacheLogPath = join(root, 'npx-cache.log');
+  const stubPath = join(root, 'bin', 'npx-stub');
+  await writeFile(
+    stubPath,
+    `export npxArgsLogPath="${argsLogPath}"
+export npxCacheLogPath="${cacheLogPath}"
+
+${buildSmokeStub(expectedSpec, behavior)}
 `,
     { mode: 0o755 },
   );
@@ -57,22 +128,36 @@ esac
   return { argsLogPath, cacheLogPath, root, stubPath, tmpRoot: join(root, 'tmp') };
 }
 
-function runSmoke(root: string, npxStub: string, args: string[] = [], env: Record<string, string> = {}) {
+function runSmoke(
+  root: string,
+  npxStub: string,
+  args: string[] = [],
+  env: Record<string, string> = {},
+  npmBin: string = npxStub,
+) {
   const runEnv: NodeJS.ProcessEnv = {
     ...process.env,
     WPMOO_SMOKE_ENVIRONMENT: '0',
     ...env,
     WPMOO_NPX_BIN: npxStub,
+    WPMOO_NPM_BIN: npmBin,
   };
   if (!('NPM_CONFIG_CACHE' in env)) {
     delete runEnv.NPM_CONFIG_CACHE;
   }
 
-  execFileSync('bash', [scriptPath.pathname, ...args], {
+  const result = spawnSync('bash', [scriptPath.pathname, ...args], {
     cwd: root,
     env: runEnv,
-    stdio: 'pipe',
+    encoding: 'utf8',
   });
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+
+  if (result.status !== 0) {
+    throw new Error(`smoke script failed with status ${result.status}:\n${output}`);
+  }
+
+  return output;
 }
 
 async function createAcceptanceFixture(version: string, expectedSpec: string) {
@@ -237,22 +322,68 @@ describe('published package smoke script', () => {
     ]);
   });
 
-  it.each(['@wpmoo/odoo', '@wpmoo/odoo-dev'])(
-    'uses compatibility aliases (%s)',
-    async (packageSpec) => {
-      const { argsLogPath, root, stubPath, tmpRoot } = await createSmokeFixture('9.8.7', packageSpec);
+  it.each(['@wpmoo/odoo', '@wpmoo/odoo-dev'])('uses compatibility aliases (%s)', async (packageSpec) => {
+    const { argsLogPath, root, stubPath, tmpRoot } = await createSmokeFixture('9.8.7', packageSpec);
 
-      runSmoke(root, stubPath, [], { TMPDIR: tmpRoot, WPMOO_PUBLISHED_PACKAGE_SPEC: packageSpec });
+    runSmoke(root, stubPath, [], { TMPDIR: tmpRoot, WPMOO_PUBLISHED_PACKAGE_SPEC: packageSpec });
 
-      expect(readFileSync(argsLogPath, 'utf8').trim().split('\n')).toEqual([
-        `--yes --package ${packageSpec} wpmoo --version`,
-        `--yes --package ${packageSpec} wpmoo --help`,
-        `--yes --package ${packageSpec} wpmoo create --help`,
-        `--yes --package ${packageSpec} wpmoo doctor --help`,
-        `--yes --package ${packageSpec} wpmoo status --help`,
-      ]);
-    },
-  );
+    expect(readFileSync(argsLogPath, 'utf8').trim().split('\n')).toEqual([
+      `--yes --package ${packageSpec} wpmoo --version`,
+      `--yes --package ${packageSpec} wpmoo --help`,
+      `--yes --package ${packageSpec} wpmoo create --help`,
+      `--yes --package ${packageSpec} wpmoo doctor --help`,
+      `--yes --package ${packageSpec} wpmoo status --help`,
+    ]);
+  });
+
+  it('falls back to npm exec when npx command fails', async () => {
+    const { argsLogPath, root, stubPath } = await createSmokeFixture(
+      '9.8.7',
+      '@wpmoo/toolkit@9.8.7',
+      'npx-version-fail',
+    );
+
+    const output = runSmoke(root, stubPath);
+
+    expect(output).toContain('npx command failed: status=2');
+    expect(output).toContain('Falling back to npm exec for this command');
+    const commands = readFileSync(argsLogPath, 'utf8').trim().split('\n');
+    expect(commands[0]).toBe('--yes --package @wpmoo/toolkit@9.8.7 wpmoo --version');
+    expect(commands[1]).toBe('exec --yes --package @wpmoo/toolkit@9.8.7 -- wpmoo --version');
+  });
+
+  it('rejects invalid timeout configuration with a clear error', async () => {
+    const { root, stubPath } = await createSmokeFixture('9.8.7', '@wpmoo/toolkit@9.8.7');
+
+    const result = spawnSync('bash', [scriptPath.pathname], {
+      cwd: root,
+      env: {
+        ...process.env,
+        WPMOO_SMOKE_ENVIRONMENT: '0',
+        WPMOO_NPX_BIN: stubPath,
+        WPMOO_SMOKE_CMD_TIMEOUT_SECONDS: 'soon',
+      },
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('WPMOO_SMOKE_CMD_TIMEOUT_SECONDS must be a positive integer');
+  });
+
+  it('falls back to npm exec when npx command times out', async () => {
+    const { argsLogPath, root, stubPath } = await createSmokeFixture(
+      '9.8.7',
+      '@wpmoo/toolkit@9.8.7',
+      'npx-version-timeout',
+    );
+
+    const output = runSmoke(root, stubPath, [], { WPMOO_SMOKE_CMD_TIMEOUT_SECONDS: '1' });
+
+    expect(output).toContain('npx command timed out after 1s');
+    expect(output).toContain('Falling back to npm exec for this command');
+    const commands = readFileSync(argsLogPath, 'utf8').trim().split('\n');
+    expect(commands).toContain('exec --yes --package @wpmoo/toolkit@9.8.7 -- wpmoo --version');
+  });
 
   it('runs the generated environment acceptance flow when enabled', async () => {
     const { argsLogPath, root, stubPath, tmpRoot } = await createAcceptanceFixture(

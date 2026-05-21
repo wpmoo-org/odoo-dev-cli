@@ -53,6 +53,7 @@ jobs:
       - name: Check required package publish state
         run: |
           VERSION="$(node -p "require('./package.json').version")"
+          echo "Checking required scoped artifacts for release validity:"
           package_specs=(
             "@wpmoo/toolkit@$VERSION"
             "@wpmoo/odoo@$VERSION"
@@ -60,20 +61,21 @@ jobs:
           )
           for spec in "${package_specs[@]}"; do
             if npm view "$spec" version >/dev/null 2>&1; then
-              echo "$spec already exists on npm; publish step will skip it."
+              echo "[required] $spec already exists on npm; publish step will skip it."
             else
-              echo "$spec is not published yet."
+              echo "[required] $spec is not published yet."
             fi
           done
 
       - name: Check optional short alias publish state
         run: |
           VERSION="$(node -p "require('./package.json').version")"
+          echo "Checking optional short alias artifact (best-effort):"
           spec="wpmoo@$VERSION"
           if npm view "$spec" version >/dev/null 2>&1; then
-            echo "$spec already exists on npm; optional alias publish step will skip it."
+            echo "[optional] $spec already exists on npm; optional alias publish step will skip it."
           else
-            echo "$spec is optional. If npm rejects the short alias publish, the workflow will emit a warning and keep the scoped package release valid."
+            echo "[optional] $spec is not published yet. If npm rejects the short alias publish, the workflow will emit a warning and keep scoped artifacts valid."
           fi
 
       - name: Check package dry run
@@ -142,20 +144,20 @@ jobs:
           {
             echo "## Release Candidate Report"
             echo ""
-            echo "### Required Artifacts"
+            echo "### Required Scoped Artifacts (release-validating)"
             for spec in "${required_specs[@]}"; do
               if npm view "$spec" version >/dev/null 2>&1; then
-                echo "- [ok] $spec published"
+                echo "- [required] [ok] $spec published"
               else
-                echo "- [warning] $spec pending"
+                echo "- [required] [warning] $spec pending"
               fi
             done
             echo ""
-            echo "### Optional Short Alias"
+            echo "### Optional Short Alias (best-effort)"
             if npm view "$alias_spec" version >/dev/null 2>&1; then
-              echo "- [ok] $alias_spec published"
+              echo "- [optional] [ok] $alias_spec published"
             else
-              echo "- [warning] $alias_spec is optional; if publish failed, scoped artifacts still define release validity."
+              echo "- [optional] [warning] $alias_spec is optional; if publish failed, scoped artifacts still define release validity."
             fi
             echo ""
             echo "### Smoke Check Command"
