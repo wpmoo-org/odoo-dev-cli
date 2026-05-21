@@ -42,7 +42,23 @@ npm view "@wpmoo/odoo-dev@$VERSION" version
 ```
 
 `npm view "wpmoo@$VERSION" version` is optional and may report that the short
-alias is absent.
+alias is absent. A release is valid when all required scoped packages verify:
+
+- `npm view "@wpmoo/toolkit@$VERSION" version`
+- `npm view "@wpmoo/odoo@$VERSION" version`
+- `npm view "@wpmoo/odoo-dev@$VERSION" version`
+
+Optional short alias rule:
+
+- `wpmoo` may be reported as missing or fail publish without invalidating the
+  release candidate. Scoped packages are the supported release artifacts and
+  are sufficient to mark the release valid.
+
+Suggested smoke check:
+
+```bash
+npm run smoke:published -- "$VERSION"
+```
 
 Current command standard:
 

@@ -26,8 +26,8 @@ async function createSmokeFixture(version: string, expectedSpec: string) {
     stubPath,
     `#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\\n' "$*" >> "${argsLogPath}"
-printf '%s\\n' "\${NPM_CONFIG_CACHE:-}" >> "${cacheLogPath}"
+printf '%s\n' "$*" >> "${argsLogPath}"
+printf '%s\n' "${'$'}{NPM_CONFIG_CACHE:-}" >> "${cacheLogPath}"
 
 case "$*" in
   "--yes --package ${expectedSpec} wpmoo --version")
@@ -35,6 +35,15 @@ case "$*" in
     ;;
   "--yes --package ${expectedSpec} wpmoo --help")
     echo "Usage: wpmoo"
+    ;;
+  "--yes --package ${expectedSpec} wpmoo create --help")
+    echo "Usage: wpmoo create"
+    ;;
+  "--yes --package ${expectedSpec} wpmoo doctor --help")
+    echo "Usage: wpmoo doctor"
+    ;;
+  "--yes --package ${expectedSpec} wpmoo status --help")
+    echo "Usage: wpmoo status"
     ;;
   *)
     echo "unexpected npx command: $*" >&2
@@ -83,7 +92,7 @@ async function createAcceptanceFixture(version: string, expectedSpec: string) {
     stubPath,
     `#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\\n' "$*" >> "${argsLogPath}"
+printf '%s\n' "$*" >> "${argsLogPath}"
 
 if [[ "$1" != "--yes" || "$2" != "--package" || "$3" != "${expectedSpec}" || "$4" != "wpmoo" ]]; then
   echo "unexpected npx command: $*" >&2
@@ -91,7 +100,7 @@ if [[ "$1" != "--yes" || "$2" != "--package" || "$3" != "${expectedSpec}" || "$4
 fi
 shift 4
 
-case "\${1:-}" in
+case "${'$'}{1:-}" in
   "--version")
     echo "${expectedSpec}"
     ;;
@@ -99,6 +108,11 @@ case "\${1:-}" in
     echo "Usage: wpmoo"
     ;;
   "create")
+    if [[ "${'$'}{2:-}" == "--help" ]]; then
+      echo "Usage: wpmoo create"
+      exit 0
+    fi
+
     target=""
     while [[ "$#" -gt 0 ]]; do
       case "$1" in
@@ -116,7 +130,7 @@ case "\${1:-}" in
     cat >"$target/moo" <<'MOO'
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'moo:%s\\n' "$*" >> "${argsLogPath}"
+printf 'moo:%s\n' "$*" >> "${argsLogPath}"
 if [[ "$1" == "snapshot" ]]; then
   echo "Snapshot written"
   exit 0
@@ -138,7 +152,20 @@ MOO
     echo "Safe reset preview"
     ;;
   "doctor")
+    if [[ "${'$'}{2:-}" == "--help" ]]; then
+      echo "Usage: wpmoo doctor"
+      exit 0
+    fi
+
     echo "Doctor checks passed."
+    ;;
+  "status")
+    if [[ "${'$'}{2:-}" == "--help" ]]; then
+      echo "Usage: wpmoo status"
+      exit 0
+    fi
+
+    echo "Status looks good."
     ;;
   *)
     echo "unexpected wpmoo command: $*" >&2
@@ -172,9 +199,12 @@ describe('published package smoke script', () => {
     expect(readFileSync(argsLogPath, 'utf8').trim().split('\n')).toEqual([
       '--yes --package @wpmoo/toolkit@9.8.7 wpmoo --version',
       '--yes --package @wpmoo/toolkit@9.8.7 wpmoo --help',
+      '--yes --package @wpmoo/toolkit@9.8.7 wpmoo create --help',
+      '--yes --package @wpmoo/toolkit@9.8.7 wpmoo doctor --help',
+      '--yes --package @wpmoo/toolkit@9.8.7 wpmoo status --help',
     ]);
     const cachePaths = readFileSync(cacheLogPath, 'utf8').trim().split('\n');
-    expect(cachePaths).toHaveLength(2);
+    expect(cachePaths).toHaveLength(5);
     expect(cachePaths[0]).toBe(cachePaths[1]);
     expect(cachePaths[0].startsWith(`${tmpRoot}/wpmoo-published-smoke-npm-cache.`)).toBe(true);
   });
@@ -187,6 +217,9 @@ describe('published package smoke script', () => {
     expect(readFileSync(argsLogPath, 'utf8').trim().split('\n')).toEqual([
       '--yes --package @wpmoo/toolkit@next wpmoo --version',
       '--yes --package @wpmoo/toolkit@next wpmoo --help',
+      '--yes --package @wpmoo/toolkit@next wpmoo create --help',
+      '--yes --package @wpmoo/toolkit@next wpmoo doctor --help',
+      '--yes --package @wpmoo/toolkit@next wpmoo status --help',
     ]);
   });
 
@@ -198,8 +231,28 @@ describe('published package smoke script', () => {
     expect(readFileSync(argsLogPath, 'utf8').trim().split('\n')).toEqual([
       '--yes --package @wpmoo/toolkit@9.8.8 wpmoo --version',
       '--yes --package @wpmoo/toolkit@9.8.8 wpmoo --help',
+      '--yes --package @wpmoo/toolkit@9.8.8 wpmoo create --help',
+      '--yes --package @wpmoo/toolkit@9.8.8 wpmoo doctor --help',
+      '--yes --package @wpmoo/toolkit@9.8.8 wpmoo status --help',
     ]);
   });
+
+  it.each(['@wpmoo/odoo', '@wpmoo/odoo-dev'])(
+    'uses compatibility aliases (%s)',
+    async (packageSpec) => {
+      const { argsLogPath, root, stubPath, tmpRoot } = await createSmokeFixture('9.8.7', packageSpec);
+
+      runSmoke(root, stubPath, [], { TMPDIR: tmpRoot, WPMOO_PUBLISHED_PACKAGE_SPEC: packageSpec });
+
+      expect(readFileSync(argsLogPath, 'utf8').trim().split('\n')).toEqual([
+        `--yes --package ${packageSpec} wpmoo --version`,
+        `--yes --package ${packageSpec} wpmoo --help`,
+        `--yes --package ${packageSpec} wpmoo create --help`,
+        `--yes --package ${packageSpec} wpmoo doctor --help`,
+        `--yes --package ${packageSpec} wpmoo status --help`,
+      ]);
+    },
+  );
 
   it('runs the generated environment acceptance flow when enabled', async () => {
     const { argsLogPath, root, stubPath, tmpRoot } = await createAcceptanceFixture(
@@ -212,6 +265,9 @@ describe('published package smoke script', () => {
     const commands = readFileSync(argsLogPath, 'utf8').trim().split('\n');
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo --version');
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo --help');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo create --help');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo doctor --help');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo status --help');
     expect(commands.some((command) => command.includes(' wpmoo create '))).toBe(true);
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo source list');
     expect(commands.some((command) => command.includes(' wpmoo reset --dry-run '))).toBe(true);

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -22,6 +22,7 @@ async function writeLegacyComposeFixture(root: string): Promise<string> {
 
   for (const script of Object.values(dailyActionScripts)) {
     await writeFile(join(fixture, 'scripts', script), '#!/usr/bin/env bash\nexit 0\n', 'utf8');
+    await chmod(join(fixture, 'scripts', script), 0o755);
   }
 
   return fixture;
@@ -106,8 +107,12 @@ describe('generated environment scaffold output matrix', () => {
     }
 
     for (const script of Object.values(dailyActionScripts)) {
-      await expect(stat(join(target, 'scripts', script))).resolves.toBeTruthy();
+      const scriptStat = await stat(join(target, 'scripts', script));
+      expect(scriptStat.mode & 0o111).toBeTruthy();
     }
+
+    const statusScriptStat = await stat(join(target, 'scripts', 'status.sh'));
+    expect(statusScriptStat.mode & 0o111).toBeTruthy();
 
     expect((await stat(join(target, 'moo'))).mode & 0o100).toBeTruthy();
 

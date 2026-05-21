@@ -124,3 +124,40 @@ jobs:
           else
             echo "::warning title=Optional wpmoo alias not published::The wpmoo short alias could not be published. Scoped packages remain the supported release artifacts."
           fi
+
+      - name: Add release candidate report
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          required_specs=(
+            "@wpmoo/toolkit@$VERSION"
+            "@wpmoo/odoo@$VERSION"
+            "@wpmoo/odoo-dev@$VERSION"
+          )
+          alias_spec="wpmoo@$VERSION"
+
+          if [[ -z "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            exit 0
+          fi
+
+          {
+            echo "## Release Candidate Report"
+            echo ""
+            echo "### Required Artifacts"
+            for spec in "${required_specs[@]}"; do
+              if npm view "$spec" version >/dev/null 2>&1; then
+                echo "- [ok] $spec published"
+              else
+                echo "- [warning] $spec pending"
+              fi
+            done
+            echo ""
+            echo "### Optional Short Alias"
+            if npm view "$alias_spec" version >/dev/null 2>&1; then
+              echo "- [ok] $alias_spec published"
+            else
+              echo "- [warning] $alias_spec is optional; if publish failed, scoped artifacts still define release validity."
+            fi
+            echo ""
+            echo "### Smoke Check Command"
+            echo "- \`npm run smoke:published -- \"$VERSION\"\`"
+          } >> "$GITHUB_STEP_SUMMARY"

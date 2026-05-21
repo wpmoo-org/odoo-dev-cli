@@ -160,3 +160,29 @@ npm test
 npm run test:coverage
 npm run build
 ```
+
+## Coverage watchlist (risk monitoring)
+
+The following list is a risk watchlist for Train 2 verification, not a hard gate.
+It uses the full `npm run test:coverage` suite to highlight where changes in
+high-impact runtime files should be reviewed with extra care:
+
+- `src/cli.ts`: **watch**: 83.74% line coverage (1458/1741), function coverage
+  92.47% (86/93), branch coverage 80.61% (420/521). This file remains the
+  highest-risk surface because it owns direct commands, cockpit dispatch, JSON
+  routes, and release-facing error behavior.
+- `src/doctor.ts`: **observe**: 94.48% line coverage (702/743), function
+  coverage 95.56% (43/45), branch coverage 86.42% (229/265).
+- `src/module-actions.ts`: **observe**: 96.83% line coverage (519/536),
+  function coverage 97.22% (35/36), branch coverage 88.97% (129/145).
+- `src/templates.ts`: **observe**: 99.24% line coverage (262/264), function
+  coverage 100.00% (38/38), branch coverage 90.08% (109/121).
+- `src/prompts/index.ts`: **observe**: 95.15% line coverage (294/309),
+  function coverage 100.00% (36/36), branch coverage 92.31% (96/104).
+
+Train 2 full-suite coverage baseline:
+
+- Statements: 92.65% (7304/7883)
+- Branches: 88.23% (2431/2755)
+- Functions: 96.27% (595/618)
+- Lines: 92.65% (7304/7883)

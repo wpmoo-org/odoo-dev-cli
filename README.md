@@ -190,6 +190,17 @@ The unscoped `wpmoo` short alias is optional. If npm returns `E404` or rejects
 that alias during the publish workflow, the workflow reports a non-blocking
 warning while keeping the scoped package release valid.
 
+### Release candidate rules
+
+- **Required release artifacts**: `@wpmoo/toolkit`, `@wpmoo/odoo`, and
+  `@wpmoo/odoo-dev` must be publishable at package version `$VERSION` for tag
+  `v$VERSION` to count as valid.
+- **Optional artifact**: `wpmoo` at package version `$VERSION` is best-effort only. If npm
+  rejects it, the release still succeeds as long as the three required scoped
+  packages are valid.
+- **Smoke expectation**: run `npm run smoke:published -- "$VERSION"` after the
+  release tag workflow completes.
+
 ## Documentation
 
 - [External Resources](docs/external-resources.md)

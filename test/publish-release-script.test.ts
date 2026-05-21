@@ -113,37 +113,49 @@ function runReleaseCheckExpectFailure(root: string, npmStub: string) {
 }
 
 describe('release check script', () => {
-  it('bumps patch version and stops before publishing when the current version already exists on npm', async () => {
-    const { root, logPath, stubPath } = await createReleaseFixture('0.8.36', ['@wpmoo/odoo@0.8.36']);
+  it.each(['@wpmoo/toolkit', '@wpmoo/odoo', '@wpmoo/odoo-dev'])(
+    'bumps patch version and stops before publishing when %s already exists on npm',
+    async (publishedPackage) => {
+      const { root, logPath, stubPath } = await createReleaseFixture('0.8.36', [`${publishedPackage}@0.8.36`]);
 
-    const output = runReleaseCheckExpectFailure(root, stubPath);
+      const output = runReleaseCheckExpectFailure(root, stubPath);
 
-    const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
-    const commands = readFileSync(logPath, 'utf8').trim().split('\n');
-    expect(packageJson.version).toBe('0.8.37');
-    expect(commands).toEqual([
-      'view @wpmoo/toolkit@0.8.36 version',
-      'view @wpmoo/odoo@0.8.36 version',
-      'version patch --no-git-tag-version',
-      'view @wpmoo/toolkit@0.8.37 version',
-      'view @wpmoo/odoo@0.8.37 version',
-      'view @wpmoo/odoo-dev@0.8.37 version',
-    ]);
-    for (const relativePath of [
-      'packages/wpmoo/package.json',
-      'packages/odoo-compat/package.json',
-      'packages/odoo-dev-compat/package.json',
-    ]) {
-      const aliasPackageJson = JSON.parse(readFileSync(join(root, relativePath), 'utf8')) as {
-        version: string;
-        dependencies: Record<string, string>;
+      const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
+      const commands = readFileSync(logPath, 'utf8').trim().split('\n');
+      expect(packageJson.version).toBe('0.8.37');
+      const expectedChecksByPublishedPackage: Record<string, string[]> = {
+        '@wpmoo/toolkit': ['view @wpmoo/toolkit@0.8.36 version'],
+        '@wpmoo/odoo': ['view @wpmoo/toolkit@0.8.36 version', 'view @wpmoo/odoo@0.8.36 version'],
+        '@wpmoo/odoo-dev': [
+          'view @wpmoo/toolkit@0.8.36 version',
+          'view @wpmoo/odoo@0.8.36 version',
+          'view @wpmoo/odoo-dev@0.8.36 version',
+        ],
       };
-      expect(aliasPackageJson.version).toBe('0.8.37');
-      expect(aliasPackageJson.dependencies['@wpmoo/toolkit']).toBe('0.8.37');
-    }
-    expect(output).toContain('Version was bumped to 0.8.37.');
-    expect(output).toContain('Commit package.json and package-lock.json, push them, then rerun this script.');
-  });
+      const expectedChecks = expectedChecksByPublishedPackage[publishedPackage];
+      expect(commands.slice(0, expectedChecks.length)).toEqual(expectedChecks);
+      expect(commands[expectedChecks.length]).toBe('version patch --no-git-tag-version');
+      expect(commands.slice(expectedChecks.length + 1)).toEqual([
+        'view @wpmoo/toolkit@0.8.37 version',
+        'view @wpmoo/odoo@0.8.37 version',
+        'view @wpmoo/odoo-dev@0.8.37 version',
+      ]);
+      for (const relativePath of [
+        'packages/wpmoo/package.json',
+        'packages/odoo-compat/package.json',
+        'packages/odoo-dev-compat/package.json',
+      ]) {
+        const aliasPackageJson = JSON.parse(readFileSync(join(root, relativePath), 'utf8')) as {
+          version: string;
+          dependencies: Record<string, string>;
+        };
+        expect(aliasPackageJson.version).toBe('0.8.37');
+        expect(aliasPackageJson.dependencies['@wpmoo/toolkit']).toBe('0.8.37');
+      }
+      expect(output).toContain('Version was bumped to 0.8.37.');
+      expect(output).toContain('Commit package.json and package-lock.json, push them, then rerun this script.');
+    },
+  );
 
   it('keeps the current version when it is not published yet', async () => {
     const { root, logPath, stubPath } = await createReleaseFixture('0.8.37', []);

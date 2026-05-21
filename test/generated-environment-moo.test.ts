@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
-import { renderMooDelegationScript } from '../src/templates.js';
+import { renderMooDelegationScript, renderStatusScript } from '../src/templates.js';
 import { packageName, packageVersion } from '../src/version.js';
 
 const expectedFallbackPackageSpec = `${packageName()}@${packageVersion()}`;
@@ -110,6 +110,50 @@ describe('generated environment moo delegation matrix', () => {
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(
       `npx|--yes ${expectedFallbackPackageSpec} status --json\n`,
     );
+  });
+
+  it('delegates doctor help to the package fallback command', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+
+    await execa(join(root, 'moo'), ['doctor', '--help'], { cwd: root, env });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor --help\n`);
+  });
+
+  it('reports local environment status text output without docker', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    await writeFile(join(root, 'scripts/status.sh'), renderStatusScript(), 'utf8');
+    await chmod(join(root, 'scripts/status.sh'), 0o755);
+    await writeFile(callsPath, '', 'utf8');
+
+    await writeFile(
+      join(root, 'bin', 'docker'),
+      `#!/usr/bin/env bash
+printf 'docker %s\\n' "$*" >> "${callsPath}"
+exit 1
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(root, 'bin', 'docker-compose'),
+      `#!/usr/bin/env bash
+printf 'docker-compose %s\\n' "$*" >> "${callsPath}"
+exit 1
+`,
+      'utf8',
+    );
+
+    await chmod(join(root, 'bin', 'docker'), 0o755);
+    await chmod(join(root, 'bin', 'docker-compose'), 0o755);
+
+    const result = await execa(join(root, 'moo'), ['status'], { cwd: root, env });
+
+    expect(result.stdout).toContain('Status:');
+    expect(result.stdout).toContain('Metadata:');
+    expect(result.stdout).toContain('.wpmoo/odoo.json');
+    await expect(readFile(callsPath, 'utf8')).resolves.not.toContain('docker-compose');
+    await expect(readFile(callsPath, 'utf8')).resolves.not.toContain('docker ');
+    await expect(readFile(callsPath, 'utf8')).resolves.not.toContain('npx');
   });
 
   it('prints generated command help without falling back to npx', async () => {

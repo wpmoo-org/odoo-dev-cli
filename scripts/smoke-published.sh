@@ -238,6 +238,27 @@ if [[ "$help_output" != *"Usage:"* && "$help_output" != *"wpmoo"* ]]; then
   exit 1
 fi
 
+create_help_output="$(run_wpmoo_in "$CLI_RUN_ROOT" create --help)"
+if [[ "$create_help_output" != *"Usage:"* && "$create_help_output" != *"wpmoo create"* ]]; then
+  echo "Expected wpmoo create --help output to include usage text, got:" >&2
+  echo "$create_help_output" >&2
+  exit 1
+fi
+
+doctor_help_output="$(run_wpmoo_in "$CLI_RUN_ROOT" doctor --help)"
+if [[ "$doctor_help_output" != *"Usage:"* && "$doctor_help_output" != *"wpmoo doctor"* ]]; then
+  echo "Expected wpmoo doctor --help output to include usage text, got:" >&2
+  echo "$doctor_help_output" >&2
+  exit 1
+fi
+
+status_help_output="$(run_wpmoo_in "$CLI_RUN_ROOT" status --help)"
+if [[ "$status_help_output" != *"Usage:"* && "$status_help_output" != *"wpmoo status"* ]]; then
+  echo "Expected wpmoo status --help output to include usage text, got:" >&2
+  echo "$status_help_output" >&2
+  exit 1
+fi
+
 if is_truthy "${WPMOO_SMOKE_ENVIRONMENT:-0}"; then
   run_environment_smoke
 fi
