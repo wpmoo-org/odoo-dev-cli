@@ -3,7 +3,11 @@
 Use `npx @wpmoo/toolkit ...` for package/operator commands. Use `./moo ...`
 inside a generated environment for daily local commands. The deprecated
 compatibility aliases `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` redirect to
-the toolkit package; new automation should use `@wpmoo/toolkit`.
+the toolkit package; new automation should use `@wpmoo/toolkit`. Deprecated
+compatibility aliases remain available through the 1.x line. Removing a
+compatibility alias requires a future major release and prior notice. The
+unscoped `npx wpmoo` short alias is optional and best-effort; scripts should use
+`npx @wpmoo/toolkit`.
 
 ## Package Commands
 
@@ -65,6 +69,10 @@ Current JSON contract notes:
 - `doctor --json --postgres` adds `postgres.contractVersion` and a PostgreSQL
   diagnostics object with its own `schemaVersion`.
 - PostgreSQL fields are optional when a metric is unavailable.
+- Automation should ignore unknown JSON fields.
+- Minor and patch releases may add optional fields without a breaking release.
+- Removing, renaming, or changing the meaning of a documented field requires a
+  major release or a `schemaVersion` bump.
 
 ## Environment Variables
 
@@ -107,4 +115,3 @@ Prefer read-only and dry-run commands first:
 ./moo doctor --postgres
 ./moo restore-snapshot --dry-run before-change devel
 ```
-

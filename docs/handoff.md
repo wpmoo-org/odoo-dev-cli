@@ -60,6 +60,14 @@ Suggested smoke check:
 npm run smoke:published -- "$VERSION"
 ```
 
+For a 1.0.0 tag, run generated-environment acceptance smoke with
+WPMOO_SMOKE_ENVIRONMENT=1. Treat the release as final only after that smoke
+passes:
+
+```bash
+WPMOO_SMOKE_ENVIRONMENT=1 npm run smoke:published -- "$VERSION"
+```
+
 Current command standard:
 
 - Use `npx @wpmoo/toolkit ...` for package/operator commands.

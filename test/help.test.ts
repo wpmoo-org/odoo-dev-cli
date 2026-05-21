@@ -6,6 +6,12 @@ import { renderHelp } from '../src/help.js';
 
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 const readmeText = readme.replace(/\s+/g, ' ');
+const commandReference = readFileSync(new URL('../docs/command-reference.md', import.meta.url), 'utf8');
+const handoff = readFileSync(new URL('../docs/handoff.md', import.meta.url), 'utf8');
+const readiness = readFileSync(new URL('../docs/1-0-readiness.md', import.meta.url), 'utf8');
+const commandReferenceText = commandReference.replace(/\s+/g, ' ');
+const handoffText = handoff.replace(/\s+/g, ' ');
+const readinessText = readiness.replace(/\s+/g, ' ');
 
 describe('help', () => {
   it('uses WPMoo Toolkit as the visible product brand', () => {
@@ -23,10 +29,41 @@ describe('help', () => {
 
     expect(output).toContain('Package aliases:');
     expect(output).toContain('npx @wpmoo/toolkit is the official package path.');
-    expect(output).toContain('npx wpmoo is the short alias.');
-    expect(output).toContain('npx @wpmoo/odoo and npx @wpmoo/odoo-dev remain deprecated compatibility aliases.');
-    expect(readme).toContain('npx wpmoo');
-    expect(readme).toContain('Deprecated package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain');
+    expect(output).toContain('npx wpmoo is an optional best-effort short alias; use @wpmoo/toolkit for automation.');
+    expect(output).toContain(
+      'npx @wpmoo/odoo and npx @wpmoo/odoo-dev remain deprecated compatibility aliases through 1.x.',
+    );
+    expect(output).toContain('Removing a compatibility alias requires a future major release and prior notice.');
+    expect(readme).toContain('Optional short alias: `npx wpmoo`.');
+    expect(readmeText).toContain('Use `npx @wpmoo/toolkit` for documentation, scripts, and automation.');
+    expect(readmeText).toContain(
+      'Deprecated package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain available through the 1.x line as compatibility aliases',
+    );
+    expect(commandReferenceText).toContain('Deprecated compatibility aliases remain available through the 1.x line.');
+    expect(readiness).toContain('Compatibility aliases remain available through the 1.x line.');
+  });
+
+  it('documents the 1.0 JSON compatibility policy', () => {
+    const output = renderHelp();
+
+    expect(output).toContain('JSON compatibility policy:');
+    expect(output).toContain('Automation should ignore unknown fields.');
+    expect(output).toContain('Minor and patch releases may add optional fields.');
+    expect(output).toContain('Removing, renaming, or changing the meaning of a documented field requires a major release or schemaVersion bump.');
+    expect(commandReference).toContain('Automation should ignore unknown JSON fields.');
+    expect(commandReference).toContain('Minor and patch releases may add optional fields without a breaking release.');
+    expect(readinessText).toContain('Post-1.0 JSON contracts allow additive optional fields in minor and patch releases.');
+    expect(readiness).toContain('Breaking JSON changes require a major release or a schemaVersion bump.');
+  });
+
+  it('documents closed 1.0 release, approval, and generated-file policy decisions', () => {
+    expect(readiness).not.toContain('Remaining decision');
+    expect(readinessText).toContain('Generated environments created by pre-1.0 releases are supported through safe reset and doctor-guided generated-file migration checks.');
+    expect(readiness).toContain('Environment-variable approvals remain supported through 1.x.');
+    expect(readinessText).toContain('Timestamped approval files may be added as an additive safety layer, not as a replacement for env flags in 1.x.');
+    expect(readinessText).toContain('Generated-environment acceptance smoke is mandatory for a 1.0.0 release candidate.');
+    expect(handoffText).toContain('For a 1.0.0 tag, run generated-environment acceptance smoke with WPMOO_SMOKE_ENVIRONMENT=1.');
+    expect(readmeText).toContain('For `1.0.0`, generated-environment acceptance smoke is required before the release is considered final.');
   });
 
   it('includes status in usage', () => {

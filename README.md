@@ -64,6 +64,9 @@ Short alias:
 npx wpmoo
 ```
 
+Optional short alias: `npx wpmoo`. Use `npx @wpmoo/toolkit` for documentation,
+scripts, and automation.
+
 Deprecated compatibility aliases:
 
 ```bash
@@ -71,7 +74,10 @@ npx @wpmoo/odoo
 npx @wpmoo/odoo-dev
 ```
 
-Deprecated package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain available as compatibility aliases that redirect to `@wpmoo/toolkit`.
+Deprecated package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain
+available through the 1.x line as compatibility aliases that redirect to
+`@wpmoo/toolkit`. Removing either compatibility alias requires a future major
+release and prior notice.
 
 When the current directory is not already a WPMoo environment, the CLI opens the create flow. It asks for a product slug, Odoo version, and environment folder. The default environment folder is `./<product>_dev`.
 
@@ -196,6 +202,13 @@ JSON variant exposes a versioned PostgreSQL diagnostics contract.
 `postgres` payload; individual fields are optional so automation can safely handle
 environments where PostgreSQL does not expose a metric.
 
+JSON compatibility policy:
+
+- Automation should ignore unknown JSON fields.
+- Minor and patch releases may add optional fields without a breaking release.
+- Removing, renaming, or changing the meaning of a documented field requires a
+  major release or a `schemaVersion` bump.
+
 ## Release Artifacts
 
 WPMoo Toolkit releases are valid when the required npm artifacts publish
@@ -219,6 +232,8 @@ warning while keeping the scoped package release valid.
   packages are valid.
 - **Smoke expectation**: run `npm run smoke:published -- "$VERSION"` after the
   release tag workflow completes.
+- **1.0 release smoke**: For `1.0.0`, generated-environment acceptance smoke is
+  required before the release is considered final.
 
 ## Documentation
 
