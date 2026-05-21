@@ -183,6 +183,6 @@ high-impact runtime files should be reviewed with extra care:
 Train 2 full-suite coverage baseline:
 
 - Statements: 92.65% (7304/7883)
-- Branches: 88.23% (2431/2755)
+- Branches: 88.24% (2432/2756)
 - Functions: 96.27% (595/618)
 - Lines: 92.65% (7304/7883)
