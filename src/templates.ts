@@ -791,7 +791,7 @@ cd "$root_dir"
 
 node --input-type=module - "$@" <<'NODE'
 import { access, readdir, readFile, stat } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { basename, isAbsolute, join, relative } from 'node:path';
 
 const args = process.argv.slice(2);
 if (!args.every((arg) => arg === '--json')) {
@@ -844,10 +844,100 @@ function normalizeSourceType(sourceType) {
   return typeof sourceType === 'string' && validSourceTypes.has(sourceType) ? sourceType : 'private';
 }
 
-async function countModuleCandidates(root) {
-  if (!(await isDirectory(root))) return 0;
+function emptyModuleQuality() {
+  return {
+    totalModules: 0,
+    installableModules: 0,
+    nonInstallableModules: 0,
+    modulesWithMenuActions: 0,
+    modulesMissingMenuActions: 0,
+    issues: [],
+  };
+}
+
+function manifestIsInstallable(content) {
+  return /["']installable["']\\s*:\\s*(?:True|true)\\b/.test(content);
+}
+
+function menuXmlHasAction(content, moduleName) {
+  const actionId = 'action_' + moduleName;
+  return (
+    content.includes('id="' + actionId + '"') &&
+    content.includes('model="ir.actions.act_window"') &&
+    content.includes('action="' + actionId + '"')
+  );
+}
+
+async function readMenuXmlFiles(modulePath) {
+  try {
+    const entries = await readdir(join(modulePath, 'views'), { withFileTypes: true });
+    return Promise.all(
+      entries
+        .filter((entry) => entry.isFile() && entry.name.endsWith('_menus.xml'))
+        .map((entry) => readFile(join(modulePath, 'views', entry.name), 'utf8')),
+    );
+  } catch {
+    return [];
+  }
+}
+
+async function analyzeModule(modulePath) {
+  const moduleName = basename(modulePath);
+  const moduleRelativePath = relative(target, modulePath);
+  const issues = [];
+  let installable = false;
+  try {
+    installable = manifestIsInstallable(await readFile(join(modulePath, '__manifest__.py'), 'utf8'));
+  } catch {
+    installable = false;
+  }
+  if (!installable) {
+    issues.push({
+      moduleName,
+      path: moduleRelativePath,
+      issue: 'missing installable=True in __manifest__.py',
+    });
+  }
+
+  const menuXml = await readMenuXmlFiles(modulePath);
+  const hasMenuAction = menuXml.some((content) => menuXmlHasAction(content, moduleName));
+  if (!hasMenuAction) {
+    issues.push({
+      moduleName,
+      path: moduleRelativePath,
+      issue: 'missing actionable menu XML',
+    });
+  }
+
+  return { installable, hasMenuAction, issues };
+}
+
+function addModuleQuality(summary, result) {
+  return {
+    totalModules: summary.totalModules + 1,
+    installableModules: summary.installableModules + (result.installable ? 1 : 0),
+    nonInstallableModules: summary.nonInstallableModules + (result.installable ? 0 : 1),
+    modulesWithMenuActions: summary.modulesWithMenuActions + (result.hasMenuAction ? 1 : 0),
+    modulesMissingMenuActions: summary.modulesMissingMenuActions + (result.hasMenuAction ? 0 : 1),
+    issues: [...summary.issues, ...result.issues],
+  };
+}
+
+function mergeModuleQuality(left, right) {
+  return {
+    totalModules: left.totalModules + right.totalModules,
+    installableModules: left.installableModules + right.installableModules,
+    nonInstallableModules: left.nonInstallableModules + right.nonInstallableModules,
+    modulesWithMenuActions: left.modulesWithMenuActions + right.modulesWithMenuActions,
+    modulesMissingMenuActions: left.modulesMissingMenuActions + right.modulesMissingMenuActions,
+    issues: [...left.issues, ...right.issues],
+  };
+}
+
+async function scanModuleQuality(root) {
+  if (!(await isDirectory(root))) return emptyModuleQuality();
   const stack = [root];
-  let count = 0;
+  let summary = emptyModuleQuality();
 
   while (stack.length > 0) {
     const current = stack.pop();
@@ -862,10 +952,12 @@ async function countModuleCandidates(root) {
       }
     }
 
-    if (hasManifest) count += 1;
+    if (hasManifest) {
+      summary = addModuleQuality(summary, await analyzeModule(current));
+    }
   }
 
-  return count;
+  return summary;
 }
 
 function parseEnvContent(content) {
@@ -1032,6 +1124,21 @@ function renderStatus(status) {
     lines.push('Invalid source repo paths: ' + status.invalidSourceRepoPaths.join(', '));
   }
   lines.push('Module candidates: ' + status.moduleCandidateCount);
+  lines.push(
+    'Module quality: ' +
+      status.moduleQuality.installableModules +
+      ' installable, ' +
+      status.moduleQuality.nonInstallableModules +
+      ' non-installable, ' +
+      status.moduleQuality.modulesMissingMenuActions +
+      ' missing menu actions.',
+  );
+  if (status.moduleQuality.issues.length > 0) {
+    lines.push(
+      'Module quality issues: ' +
+        status.moduleQuality.issues.map((issue) => issue.path + ': ' + issue.issue).join('; '),
+    );
+  }
   lines.push('Missing core files: ' + (status.missingCoreFiles.length > 0 ? status.missingCoreFiles.join(', ') : '(none)'));
   lines.push('Next: ' + status.recommendedNextAction);
   return lines.join('\\n');
@@ -1080,10 +1187,14 @@ async function getStatus() {
     sourceRepoLocations.push({ sourceType, path });
   }
 
-  let moduleCandidateCount = 0;
+  let moduleQuality = emptyModuleQuality();
   for (const repo of sourceRepoLocations) {
-    moduleCandidateCount += await countModuleCandidates(join(target, 'odoo/custom/src', repo.sourceType, repo.path));
+    moduleQuality = mergeModuleQuality(
+      moduleQuality,
+      await scanModuleQuality(join(target, 'odoo/custom/src', repo.sourceType, repo.path)),
+    );
   }
+  const moduleCandidateCount = moduleQuality.totalModules;
 
   const { missing, composeFiles, composeErrors } = await coreFileIssues(odooVersion);
   let recommendedNextAction = 'Run ./moo doctor for deep checks or ./moo start.';
@@ -1106,6 +1217,7 @@ async function getStatus() {
     sourceRepoPaths,
     invalidSourceRepoPaths,
     moduleCandidateCount,
+    moduleQuality,
     composeFiles,
     composeErrors,
     missingCoreFiles: missing,

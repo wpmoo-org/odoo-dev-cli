@@ -76,7 +76,7 @@ describe('module actions', () => {
     await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
     await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
 
-    await addModuleToSourceRepo({
+    const report = await addModuleToSourceRepo({
       target,
       repoPath: 'odoo_sample_module',
       moduleName: 'odoo_sample_module_base',
@@ -143,6 +143,9 @@ class TestOdooSampleModuleBase(TransactionCase):
       '<menuitem id="menu_odoo_sample_module_base_root"',
     );
     await expect(readFile(join(modulePath, 'views/odoo_sample_module_base_menus.xml'), 'utf8')).resolves.toContain(
+      'groups="base.group_user"',
+    );
+    await expect(readFile(join(modulePath, 'views/odoo_sample_module_base_menus.xml'), 'utf8')).resolves.toContain(
       'model="ir.actions.act_window"',
     );
     await expect(readFile(join(modulePath, 'views/odoo_sample_module_base_menus.xml'), 'utf8')).resolves.toContain(
@@ -151,6 +154,35 @@ class TestOdooSampleModuleBase(TransactionCase):
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
       'private/odoo_sample_module:\n  - odoo_sample_module_base',
     );
+    expect(report.summary).toBe(
+      'Module scaffold checks passed: manifest, model, access, views, menus, tests, registration.',
+    );
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+    expect(report.warnings).toEqual([]);
+  });
+
+  it('rejects incomplete existing menu XML before registering a generated module', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-bad-menu-'));
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
+    await mkdir(join(modulePath, 'views'), { recursive: true });
+    await writeFile(
+      join(modulePath, 'views/odoo_sample_module_base_menus.xml'),
+      '<odoo><menuitem id="menu_odoo_sample_module_base_root" name="Broken"/></odoo>\n',
+      'utf8',
+    );
+
+    await expect(
+      addModuleToSourceRepo({
+        target,
+        repoPath: 'odoo_sample_module',
+        moduleName: 'odoo_sample_module_base',
+        odooVersion: '18.0',
+        stage: false,
+      }),
+    ).rejects.toThrow(
+      'Generated module scaffold validation failed for odoo_sample_module_base: menus missing action menu action_odoo_sample_module_base',
+    );
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
   });
 
   it('uses tree views for generated modules targeting Odoo versions before 18', async () => {

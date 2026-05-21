@@ -162,7 +162,15 @@ describe('status', () => {
     await writeMetadata(target, JSON.stringify(metadata, null, 2));
     await writeCoreFiles(target, '19.0');
     await mkdir(join(target, 'odoo/custom/src/private/repo_a/mod_one'), { recursive: true });
-    await writeFile(join(target, 'odoo/custom/src/private/repo_a/mod_one/__manifest__.py'), '{}');
+    await mkdir(join(target, 'odoo/custom/src/private/repo_a/mod_one/views'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/private/repo_a/mod_one/__manifest__.py'),
+      '{\n    "installable": True,\n}\n',
+    );
+    await writeFile(
+      join(target, 'odoo/custom/src/private/repo_a/mod_one/views/mod_one_menus.xml'),
+      '<odoo><record id="action_mod_one" model="ir.actions.act_window"/><menuitem id="menu_mod_one" action="action_mod_one"/></odoo>\n',
+    );
     await mkdir(join(target, 'odoo/custom/src/private/repo_b/mod_two'), { recursive: true });
     await writeFile(join(target, 'odoo/custom/src/private/repo_b/mod_two/__manifest__.py'), '{}');
     await mkdir(join(target, 'odoo/custom/src/private/repo_b/mod_three'), { recursive: true });
@@ -176,10 +184,42 @@ describe('status', () => {
     expect(status.sourceRepoPaths).toEqual(['repo_a', 'repo_b']);
     expect(status.invalidSourceRepoPaths).toEqual([]);
     expect(status.moduleCandidateCount).toBe(3);
+    expect(status.moduleQuality).toEqual({
+      totalModules: 3,
+      installableModules: 1,
+      nonInstallableModules: 2,
+      modulesWithMenuActions: 1,
+      modulesMissingMenuActions: 2,
+      issues: [
+        {
+          moduleName: 'mod_two',
+          path: 'odoo/custom/src/private/repo_b/mod_two',
+          issue: 'missing installable=True in __manifest__.py',
+        },
+        {
+          moduleName: 'mod_two',
+          path: 'odoo/custom/src/private/repo_b/mod_two',
+          issue: 'missing actionable menu XML',
+        },
+        {
+          moduleName: 'mod_three',
+          path: 'odoo/custom/src/private/repo_b/mod_three',
+          issue: 'missing installable=True in __manifest__.py',
+        },
+        {
+          moduleName: 'mod_three',
+          path: 'odoo/custom/src/private/repo_b/mod_three',
+          issue: 'missing actionable menu XML',
+        },
+      ],
+    });
     expect(status.recommendedNextAction).toBe(
       'Run npx @wpmoo/toolkit doctor for deep checks or ./moo start.',
     );
     expect(renderEnvironmentStatusSummary(status)).toContain('Environment ready');
+    expect(renderEnvironmentStatus(status)).toContain(
+      'Module quality: 1 installable, 2 non-installable, 2 missing menu actions.',
+    );
   });
 
   it('counts module candidates from source-aware repo sourceType directories', async () => {
@@ -337,6 +377,14 @@ describe('status', () => {
         sourceRepoPaths: [],
         invalidSourceRepoPaths: [],
         moduleCandidateCount: 0,
+        moduleQuality: {
+          totalModules: 0,
+          installableModules: 0,
+          nonInstallableModules: 0,
+          modulesWithMenuActions: 0,
+          modulesMissingMenuActions: 0,
+          issues: [],
+        },
         composeFiles: ['docker-compose_19.0.yml'],
         composeErrors: [],
         missingCoreFiles: [],

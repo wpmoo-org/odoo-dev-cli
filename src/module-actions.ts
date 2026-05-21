@@ -7,6 +7,7 @@ import {
 } from './addons-yaml.js';
 import { readEnvironmentMetadata, replaceSourceRepos } from './environment.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
+import { analyzeModuleDirectory } from './module-quality.js';
 import { supportedOdooVersions, type SupportedOdooVersion } from './odoo-versions.js';
 import { pathUnderBase, validateModuleName, validateRepoPath } from './path-validation.js';
 import { listModuleRepos, readAddonsYaml, writeAddonsYaml } from './repo-actions.js';
@@ -32,6 +33,23 @@ export type AddModuleOptions = {
   odooVersion: string;
   sourceType?: SourceRepoType;
   stage: boolean;
+};
+
+export type ModuleScaffoldCheck = {
+  id: string;
+  label: string;
+  ok: boolean;
+  details?: string;
+};
+
+export type ModuleScaffoldReport = {
+  moduleName: string;
+  repoPath: string;
+  sourceType: SourceRepoType;
+  path: string;
+  checks: ModuleScaffoldCheck[];
+  warnings: string[];
+  summary: string;
 };
 
 export type RemoveModuleOptions = {
@@ -195,8 +213,8 @@ function menuXmlContent(moduleName: string, odooVersion: string): string {
         <field name="view_mode">${actionViewMode(odooVersion)}</field>
     </record>
 
-    <menuitem id="menu_${moduleName}_root" name="${moduleTitle}" sequence="10"/>
-    <menuitem id="menu_${moduleName}" name="${moduleTitle}" parent="menu_${moduleName}_root" action="action_${moduleName}" sequence="10"/>
+    <menuitem id="menu_${moduleName}_root" name="${moduleTitle}" groups="base.group_user" sequence="10"/>
+    <menuitem id="menu_${moduleName}" name="${moduleTitle}" parent="menu_${moduleName}_root" action="action_${moduleName}" groups="base.group_user" sequence="10"/>
 </odoo>
 `;
 }
@@ -237,6 +255,174 @@ async function writeIfMissing(path: string, content: string): Promise<void> {
   } catch {
     await writeFile(path, content, 'utf8');
   }
+}
+
+async function fileContains(path: string, expected: string): Promise<boolean> {
+  try {
+    return (await readFile(path, 'utf8')).includes(expected);
+  } catch {
+    return false;
+  }
+}
+
+async function moduleScaffoldChecks(
+  target: string,
+  sourceType: SourceRepoType,
+  repoPath: string,
+  moduleName: string,
+  includeRegistration: boolean,
+): Promise<ModuleScaffoldCheck[]> {
+  const destination = modulePath(target, sourceType, repoPath, moduleName);
+  const technicalName = modelTechnicalName(moduleName);
+  const modelId = technicalName.replace(/\./g, '_');
+  const checks: ModuleScaffoldCheck[] = [
+    {
+      id: 'manifest',
+      label: 'manifest',
+      ok:
+        (await fileContains(join(destination, '__manifest__.py'), '"installable": True')) &&
+        (await fileContains(join(destination, '__manifest__.py'), '"security/ir.model.access.csv"')) &&
+        (await fileContains(join(destination, '__manifest__.py'), `"views/${moduleName}_views.xml"`)) &&
+        (await fileContains(join(destination, '__manifest__.py'), `"views/${moduleName}_menus.xml"`)),
+      details: 'missing installable flag or required data entries',
+    },
+    {
+      id: 'model',
+      label: 'model',
+      ok:
+        (await fileContains(join(destination, '__init__.py'), 'from . import models')) &&
+        (await fileContains(join(destination, 'models/__init__.py'), `from . import ${moduleName}`)) &&
+        (await fileContains(join(destination, `models/${moduleName}.py`), `_name = "${technicalName}"`)),
+      details: `missing model import or _name ${technicalName}`,
+    },
+    {
+      id: 'access',
+      label: 'access',
+      ok: await fileContains(join(destination, 'security/ir.model.access.csv'), `model_${modelId}`),
+      details: `missing access CSV model_${modelId}`,
+    },
+    {
+      id: 'views',
+      label: 'views',
+      ok:
+        (await fileContains(join(destination, `views/${moduleName}_views.xml`), `model">${technicalName}</field>`)) &&
+        (await fileContains(join(destination, `views/${moduleName}_views.xml`), '<form ')),
+      details: `missing views for ${technicalName}`,
+    },
+    {
+      id: 'menus',
+      label: 'menus',
+      ok:
+        (await fileContains(join(destination, `views/${moduleName}_menus.xml`), `id="action_${moduleName}"`)) &&
+        (await fileContains(join(destination, `views/${moduleName}_menus.xml`), 'model="ir.actions.act_window"')) &&
+        (await fileContains(join(destination, `views/${moduleName}_menus.xml`), `action="action_${moduleName}"`)) &&
+        (await fileContains(join(destination, `views/${moduleName}_menus.xml`), 'groups="base.group_user"')),
+      details: `missing action menu action_${moduleName}`,
+    },
+    {
+      id: 'tests',
+      label: 'tests',
+      ok:
+        (await fileContains(join(destination, 'tests/__init__.py'), `from . import test_${moduleName}`)) &&
+        (await fileContains(join(destination, `tests/test_${moduleName}.py`), '')),
+      details: 'missing generated test file',
+    },
+  ];
+
+  if (includeRegistration) {
+    checks.push({
+      id: 'registration',
+      label: 'registration',
+      ok: await moduleRegistrationPresent(target, sourceType, repoPath, moduleName),
+      details: 'missing module registration in addons.yaml, source manifest, or metadata',
+    });
+  }
+
+  return checks;
+}
+
+async function moduleRegistrationPresent(
+  target: string,
+  sourceType: SourceRepoType,
+  repoPath: string,
+  moduleName: string,
+): Promise<boolean> {
+  if (sourceType === 'private' && (await usesAddonsYaml(target))) {
+    try {
+      const addonsYaml = await readAddonsYaml(target);
+      return addonsYaml.includes(`private/${repoPath}:`) && addonsYaml.includes(`  - ${moduleName}`);
+    } catch {
+      return false;
+    }
+  }
+
+  const manifest = await readSourceManifest(target);
+  if (
+    manifest.sources.some(
+      (entry) => entry.type === sourceType && entry.path === repoPath && entry.addons.includes(moduleName),
+    )
+  ) {
+    return true;
+  }
+
+  const metadata = await readEnvironmentMetadata(target);
+  return Boolean(
+    metadata?.sourceRepos?.some(
+      (entry) =>
+        normalizeSourceType(entry.sourceType) === sourceType &&
+        entry.path === repoPath &&
+        entry.addons.includes(moduleName),
+    ),
+  );
+}
+
+function buildModuleScaffoldReport(
+  moduleName: string,
+  repoPath: string,
+  sourceType: SourceRepoType,
+  path: string,
+  checks: ModuleScaffoldCheck[],
+): ModuleScaffoldReport {
+  return {
+    moduleName,
+    repoPath,
+    sourceType,
+    path,
+    checks: checks.map(({ details, ...check }) => (check.ok ? check : { ...check, details })),
+    warnings: checks.filter((check) => !check.ok).map((check) => `${check.label} ${check.details ?? 'failed'}`),
+    summary: `Module scaffold checks passed: ${checks.map((check) => check.label).join(', ')}.`,
+  };
+}
+
+async function assertGeneratedModuleScaffold(
+  target: string,
+  sourceType: SourceRepoType,
+  repoPath: string,
+  moduleName: string,
+): Promise<void> {
+  const quality = await analyzeModuleDirectory(
+    modulePath(target, sourceType, repoPath, moduleName),
+    moduleName,
+    `odoo/custom/src/${sourceType}/${repoPath}/${moduleName}`,
+  );
+  const checks = await moduleScaffoldChecks(target, sourceType, repoPath, moduleName, false);
+  const failed = checks.filter((check) => !check.ok);
+  if (!quality.installable) {
+    failed.unshift({ id: 'manifest-installable', label: 'manifest', ok: false, details: 'missing installable=True in __manifest__.py' });
+  }
+  if (!quality.hasMenuAction) {
+    failed.unshift({ id: 'menu-action', label: 'menus', ok: false, details: `missing action menu action_${moduleName}` });
+  }
+
+  if (failed.length > 0) {
+    throw new Error(
+      `Generated module scaffold validation failed for ${moduleName}: ${failed[0]?.label ?? 'unknown'} ${failed[0]?.details ?? 'failed'}`,
+    );
+  }
+}
+
+export function renderModuleScaffoldReport(report: ModuleScaffoldReport): string {
+  return report.summary;
 }
 
 async function usesAddonsYaml(target: string): Promise<boolean> {
@@ -332,7 +518,7 @@ async function updateModuleRegistration(
 export async function addModuleToSourceRepo(
   options: AddModuleOptions,
   git: GitRunner = realGit,
-): Promise<void> {
+): Promise<ModuleScaffoldReport> {
   const repoPath = validateRepoPath(options.repoPath);
   const moduleName = validateModuleName(options.moduleName);
   const odooVersion = validateSupportedOdooVersion(options.odooVersion);
@@ -357,6 +543,8 @@ export async function addModuleToSourceRepo(
   await writeIfMissing(join(destination, `views/${moduleName}_menus.xml`), menuXmlContent(moduleName, odooVersion));
   await writeIfMissing(join(destination, 'views/.gitkeep'), '');
 
+  await assertGeneratedModuleScaffold(options.target, sourceType, repoPath, moduleName);
+
   if (sourceType === 'private' && (await usesAddonsYaml(options.target))) {
     const addonsYaml = await readAddonsYaml(options.target);
     await writeAddonsYaml(
@@ -370,6 +558,14 @@ export async function addModuleToSourceRepo(
     await stageAll(git, sourceRepoPath(options.target, sourceType, repoPath));
     await stageAll(git, options.target);
   }
+
+  return buildModuleScaffoldReport(
+    moduleName,
+    repoPath,
+    sourceType,
+    destination,
+    await moduleScaffoldChecks(options.target, sourceType, repoPath, moduleName, true),
+  );
 }
 
 export async function listModulesInSourceRepo(

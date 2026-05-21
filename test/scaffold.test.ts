@@ -193,6 +193,58 @@ describe('scaffold', () => {
     expect(payload.status.missingCoreFiles).toContain('compose/stage.yaml');
   });
 
+  it('reports generated module quality from the generated local status script', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-local-status-module-quality-'));
+    const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-local-status-quality-assets-')));
+
+    await scaffold({
+      product: 'odoo_sample_module',
+      odooVersion: '19.0',
+      composeTemplateUrl: fixtures.compose,
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: '/tmp/odoo_sample_module_dev',
+      sourceRepos: [
+        {
+          sourceType: 'private',
+          url: 'https://github.com/example/product.git',
+          path: 'product',
+          addons: ['broken_module'],
+        },
+      ],
+      target,
+      dryRun: false,
+      initEmptyRepos: false,
+      stage: false,
+      skipSubmodules: true,
+    });
+
+    await mkdir(join(target, 'odoo/custom/src/private/product/broken_module'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/private/product/broken_module/__manifest__.py'),
+      '{\n    "installable": False,\n}\n',
+      'utf8',
+    );
+
+    const result = await execa(join(target, 'scripts/status.sh'), ['--json'], { cwd: target });
+    const payload = JSON.parse(result.stdout) as {
+      status: {
+        moduleQuality?: {
+          totalModules: number;
+          installableModules: number;
+          nonInstallableModules: number;
+          modulesMissingMenuActions: number;
+        };
+      };
+    };
+
+    expect(payload.status.moduleQuality).toMatchObject({
+      totalModules: 1,
+      installableModules: 0,
+      nonInstallableModules: 1,
+      modulesMissingMenuActions: 1,
+    });
+  });
+
   it('dry-run plans source-type aware submodule paths and source manifest', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-dry-run-source-type-'));
 

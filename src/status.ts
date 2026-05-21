@@ -1,8 +1,14 @@
-import { access, readdir, readFile, stat } from 'node:fs/promises';
+import { access, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { detectComposeLayout, readEnvFile, selectedComposeEnvironment } from './compose-layout.js';
 import { defaultOdooVersion, markerPath } from './environment.js';
+import {
+  emptyModuleQualitySummary,
+  mergeModuleQualitySummaries,
+  scanModuleQuality,
+  type ModuleQualitySummary,
+} from './module-quality.js';
 import { isValidPathSegment, validateRepoPath } from './path-validation.js';
 
 type StatusKind = 'no_environment' | 'invalid_metadata' | 'environment';
@@ -30,6 +36,7 @@ type ValidEnvironmentStatus = EnvironmentStatusBase & {
   sourceRepoPaths: string[];
   invalidSourceRepoPaths: string[];
   moduleCandidateCount: number;
+  moduleQuality: ModuleQualitySummary;
   composeFiles: string[];
   composeErrors: string[];
   missingCoreFiles: string[];
@@ -155,35 +162,6 @@ async function missingCoreFiles(
   return { missing, composeFiles: composeLayout.files, composeErrors: composeLayout.errors };
 }
 
-async function countModuleCandidatesInRepoPath(path: string): Promise<number> {
-  if (!(await pathExists(path))) return 0;
-  const rootStat = await stat(path);
-  if (!rootStat.isDirectory()) return 0;
-
-  let count = 0;
-  const stack = [path];
-
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (!current) continue;
-
-    const entries = await readdir(current, { withFileTypes: true });
-    let hasManifest = false;
-
-    for (const entry of entries) {
-      if (entry.isFile() && entry.name === '__manifest__.py') {
-        hasManifest = true;
-      } else if (entry.isDirectory()) {
-        stack.push(join(current, entry.name));
-      }
-    }
-
-    if (hasManifest) count += 1;
-  }
-
-  return count;
-}
-
 function summaryText(status: EnvironmentStatus): string {
   if (status.kind === 'no_environment') return 'No WPMoo environment detected.';
   if (status.kind === 'invalid_metadata') return 'Environment metadata is invalid.';
@@ -250,10 +228,11 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
   );
   const repoRoots = sourceRepoLocations.map(({ sourceType, path }) => sourceRepoPath(target, sourceType, path));
 
-  let moduleCandidateCount = 0;
+  let moduleQuality = emptyModuleQualitySummary();
   for (const repoRoot of repoRoots) {
-    moduleCandidateCount += await countModuleCandidatesInRepoPath(repoRoot);
+    moduleQuality = mergeModuleQualitySummaries(moduleQuality, await scanModuleQuality(repoRoot, target));
   }
+  const moduleCandidateCount = moduleQuality.totalModules;
 
   const {
     missing: missingFiles,
@@ -282,6 +261,7 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
     sourceRepoPaths,
     invalidSourceRepoPaths,
     moduleCandidateCount,
+    moduleQuality,
     composeFiles,
     composeErrors,
     missingCoreFiles: missingFiles,
@@ -327,6 +307,16 @@ export function renderEnvironmentStatus(status: EnvironmentStatus): string {
     lines.push(`Invalid source repo paths: ${status.invalidSourceRepoPaths.join(', ')}`);
   }
   lines.push(`Module candidates: ${status.moduleCandidateCount}`);
+  lines.push(
+    `Module quality: ${status.moduleQuality.installableModules} installable, ${status.moduleQuality.nonInstallableModules} non-installable, ${status.moduleQuality.modulesMissingMenuActions} missing menu actions.`,
+  );
+  if (status.moduleQuality.issues.length > 0) {
+    lines.push(
+      `Module quality issues: ${status.moduleQuality.issues
+        .map((issue) => `${issue.path}: ${issue.issue}`)
+        .join('; ')}`,
+    );
+  }
   lines.push(
     `Missing core files: ${
       status.missingCoreFiles.length > 0 ? status.missingCoreFiles.join(', ') : '(none)'
