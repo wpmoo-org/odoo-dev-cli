@@ -323,4 +323,45 @@ describe('cockpit top-level menu', () => {
       command: statusCommand,
     });
   });
+
+  it('disables module-dependent actions when no modules exist', async () => {
+    const startCommand = cockpitCommands.find((command) => command.id === 'start');
+    const listModulesCommand = cockpitCommands.find((command) => command.id === 'list-modules');
+    const installCommand = cockpitCommands.find((command) => command.id === 'install');
+    const updateCommand = cockpitCommands.find((command) => command.id === 'update');
+    const testCommand = cockpitCommands.find((command) => command.id === 'test');
+    const lintCommand = cockpitCommands.find((command) => command.id === 'lint');
+    const potCommand = cockpitCommands.find((command) => command.id === 'pot');
+    const addModuleCommand = cockpitCommands.find((command) => command.id === 'add-module');
+    const removeModuleCommand = cockpitCommands.find((command) => command.id === 'remove-module');
+    expect(startCommand).toBeDefined();
+
+    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
+      const config = options as MenuPromptConfig;
+      const choices = (config.choices ?? []).filter(isMenuChoice);
+
+      for (const command of [
+        listModulesCommand,
+        installCommand,
+        updateCommand,
+        testCommand,
+        lintCommand,
+        potCommand,
+        removeModuleCommand,
+      ]) {
+        expect(disabledValue(choices.find((choice) => choice.value === command))).toBe('No modules found.');
+      }
+      expect(disabledValue(choices.find((choice) => choice.value === addModuleCommand))).toBeUndefined();
+      expect(config.disabledError).toContain('Reason: No modules found.');
+      return startCommand;
+    });
+
+    await expect(selectCockpitTopLevelMenu({
+      select: prompt,
+      moduleCount: 0,
+    })).resolves.toEqual({
+      kind: 'command',
+      command: startCommand,
+    });
+  });
 });

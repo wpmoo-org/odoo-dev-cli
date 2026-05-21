@@ -49,6 +49,7 @@ type CockpitMenuDeps = {
   select?: CockpitMenuSelectPrompt;
   handleCancel?: (value: unknown, action: 'exit' | 'back') => void;
   serviceStatus?: ServiceRuntimeStatus;
+  moduleCount?: number;
   navigationWarning?: string | (() => string | undefined);
 };
 
@@ -74,6 +75,7 @@ const topLevelCommands: readonly CockpitCommand[] = topLevelCategoryOrder.flatMa
   cockpitCommands.filter((command) => command.category === category && command.id !== 'exit'),
 );
 const topLevelCommandLabelWidth = Math.max(...topLevelCommands.map((command) => command.label.length));
+const moduleDependentCommandIds = new Set(['list-modules', 'install', 'update', 'test', 'lint', 'pot', 'remove-module']);
 
 function rgb(red: number, green: number, blue: number, value: string): string {
   return `\u001B[38;2;${red};${green};${blue}m${value}\u001B[39m`;
@@ -91,7 +93,7 @@ function commandName(command: CockpitCommand): string {
   return `${rgb(226, 184, 96, ` ${command.label.padEnd(topLevelCommandLabelWidth)}`)}${dim(`  ${command.description}`)}`;
 }
 
-function disabledReason(command: CockpitCommand, serviceStatus?: ServiceRuntimeStatus): string | undefined {
+function serviceDisabledReason(command: CockpitCommand, serviceStatus?: ServiceRuntimeStatus): string | undefined {
   if (command.category !== 'services' || !serviceStatus) return undefined;
   if (serviceStatus.kind === 'docker-not-running') return 'Docker not running.';
   if (serviceStatus.kind === 'running' && command.id === 'start') return 'Already running.';
@@ -101,34 +103,71 @@ function disabledReason(command: CockpitCommand, serviceStatus?: ServiceRuntimeS
   return undefined;
 }
 
-function disabledMenuReason(serviceStatus?: ServiceRuntimeStatus): string | undefined {
-  if (serviceStatus?.kind === 'docker-not-running') return 'Docker not running.';
-  if (serviceStatus?.kind === 'running') return 'Already running.';
-  if (serviceStatus?.kind === 'stopped') return 'Services stopped.';
-  return undefined;
+function moduleDisabledReason(command: CockpitCommand, moduleCount?: number): string | undefined {
+  return moduleCount === 0 && moduleDependentCommandIds.has(command.id) ? 'No modules found.' : undefined;
 }
 
-function disabledError(serviceStatus?: ServiceRuntimeStatus): string | undefined {
-  const reason = disabledMenuReason(serviceStatus);
-  return reason ? `This option is disabled and cannot be selected.\nReason: ${reason}` : undefined;
+function disabledReason(
+  command: CockpitCommand,
+  serviceStatus?: ServiceRuntimeStatus,
+  moduleCount?: number,
+): string | undefined {
+  return serviceDisabledReason(command, serviceStatus) ?? moduleDisabledReason(command, moduleCount);
+}
+
+function disabledMenuReasons(serviceStatus?: ServiceRuntimeStatus, moduleCount?: number): string[] {
+  const reasons: string[] = [];
+  if (serviceStatus?.kind === 'docker-not-running') reasons.push('Docker not running.');
+  if (serviceStatus?.kind === 'running') reasons.push('Already running.');
+  if (serviceStatus?.kind === 'stopped') reasons.push('Services stopped.');
+  if (moduleCount === 0) reasons.push('No modules found.');
+  return reasons;
+}
+
+function disabledError(serviceStatus?: ServiceRuntimeStatus, moduleCount?: number): string | undefined {
+  const reasons = disabledMenuReasons(serviceStatus, moduleCount);
+  if (reasons.length === 0) {
+    return undefined;
+  }
+
+  return [
+    'This option is disabled and cannot be selected.',
+    ...reasons.map((reason) => `Reason: ${reason}`),
+  ].join('\n');
+}
+
+function moduleChoiceDisabledValue(reason: string | undefined): boolean | string | undefined {
+  if (!reason) {
+    return undefined;
+  }
+
+  return reason === 'No modules found.' ? reason : true;
+}
+
+function commandDisabledValue(
+  command: CockpitCommand,
+  serviceStatus?: ServiceRuntimeStatus,
+  moduleCount?: number,
+): boolean | string | undefined {
+  return moduleChoiceDisabledValue(disabledReason(command, serviceStatus, moduleCount));
 }
 
 function categoryChoices(
   category: CockpitCommandCategory,
   index: number,
   serviceStatus?: ServiceRuntimeStatus,
+  moduleCount?: number,
 ): readonly (CockpitMenuChoice | PromptSeparator)[] {
   const choices: (CockpitMenuChoice | PromptSeparator)[] = [
     promptSeparator(categoryHeading(category)),
     ...topLevelCommands
       .filter((command) => command.category === category)
       .map((command) => {
-        const reason = disabledReason(command, serviceStatus);
         return {
           value: command,
           name: commandName(command),
           short: command.label,
-          disabled: reason ? true : undefined,
+          disabled: commandDisabledValue(command, serviceStatus, moduleCount),
         };
       }),
   ];
@@ -171,8 +210,11 @@ function isCockpitCommand(value: unknown): value is CockpitCommand {
   return typeof value === 'object' && value !== null && 'id' in value && 'slashAlias' in value;
 }
 
-function topLevelChoices(serviceStatus?: ServiceRuntimeStatus): readonly (CockpitMenuChoice | PromptSeparator)[] {
-  return topLevelCategoryOrder.flatMap((category, index) => categoryChoices(category, index, serviceStatus));
+function topLevelChoices(
+  serviceStatus?: ServiceRuntimeStatus,
+  moduleCount?: number,
+): readonly (CockpitMenuChoice | PromptSeparator)[] {
+  return topLevelCategoryOrder.flatMap((category, index) => categoryChoices(category, index, serviceStatus, moduleCount));
 }
 
 function defaultCommand(serviceStatus?: ServiceRuntimeStatus): CockpitCommand {
@@ -187,7 +229,7 @@ function defaultCommand(serviceStatus?: ServiceRuntimeStatus): CockpitCommand {
 
 export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): Promise<CockpitTopLevelMenuSelection> {
   const deps = menuDeps(options);
-  const choices = topLevelChoices(options.serviceStatus);
+  const choices = topLevelChoices(options.serviceStatus, options.moduleCount);
   const cancelAction: 'back' = 'back';
 
   const selected = await deps.select({
@@ -197,7 +239,7 @@ export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): 
     pageSize: topLevelPageSize(choices.length),
     loop: false,
     hideMessage: true,
-    disabledError: disabledError(options.serviceStatus),
+    disabledError: disabledError(options.serviceStatus, options.moduleCount),
     navigationWarning: options.navigationWarning,
     escapeBehavior: 'ignore',
   });

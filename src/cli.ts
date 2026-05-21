@@ -417,8 +417,11 @@ async function showStartup(argv: string[], skipUpdateCheck: boolean, details?: S
   console.log();
 }
 
-async function selectCockpitCommandFromMenu(serviceStatus: ServiceRuntimeStatus): Promise<CockpitCommand | 'exit'> {
-  const selection = await selectCockpitTopLevelMenu({ serviceStatus });
+async function selectCockpitCommandFromMenu(
+  serviceStatus: ServiceRuntimeStatus,
+  moduleCount?: number,
+): Promise<CockpitCommand | 'exit'> {
+  const selection = await selectCockpitTopLevelMenu({ serviceStatus, moduleCount });
 
   if (selection.kind === 'exit') {
     return 'exit';
@@ -1889,7 +1892,10 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     };
     while (true) {
       try {
-        const command = await selectCockpitCommandFromMenu(serviceStatus);
+        const command = await selectCockpitCommandFromMenu(
+          serviceStatus,
+          status.kind === 'environment' ? status.moduleCandidateCount : undefined,
+        );
 
         if (command === 'exit') {
           return;

@@ -274,6 +274,23 @@ describe('cli menu environment routes', () => {
     expect(mocks.renderEnvironmentStatusSummary).not.toHaveBeenCalled();
     expect(vi.mocked(prompts.introPrompt)).not.toHaveBeenCalledWith('WPMoo Toolkit');
     expect(vi.mocked(prompts.notePrompt)).not.toHaveBeenCalledWith('Status summary', 'Environment status');
+    const topLevelPromptArgs = vi.mocked(prompts.selectPrompt).mock.calls[0]?.[0] as {
+      choices?: Array<{ value?: unknown; disabled?: unknown }>;
+      disabledError?: string;
+    };
+    const moduleDisabledIds = ['list-modules', 'install', 'update', 'test', 'lint', 'pot', 'remove-module'];
+    for (const commandId of moduleDisabledIds) {
+      expect(
+        topLevelPromptArgs.choices?.find((choice) => (choice.value as CockpitCommand | undefined)?.id === commandId)
+          ?.disabled,
+      ).toBe('No modules found.');
+    }
+    expect(
+      topLevelPromptArgs.choices?.find((choice) => (choice.value as CockpitCommand | undefined)?.id === 'add-module')
+        ?.disabled,
+    ).toBeUndefined();
+    expect(topLevelPromptArgs.disabledError).toContain('Reason: Services stopped.');
+    expect(topLevelPromptArgs.disabledError).toContain('Reason: No modules found.');
     const bannerOrder = mocks.renderBanner.mock.invocationCallOrder[0] ?? 0;
     const selectOrder = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER;
     expect(bannerOrder).toBeLessThan(selectOrder);
