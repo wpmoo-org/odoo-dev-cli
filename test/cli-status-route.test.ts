@@ -146,6 +146,22 @@ describe('cli status route', () => {
     );
   });
 
+  it('surfaces status JSON environment failures without banner or JSON envelope', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    mocks.getEnvironmentStatus.mockRejectedValueOnce(new Error('No WPMoo environment found at /tmp/example-environment.'));
+
+    await expect(runCli(['status', '--json'], '/tmp/example-environment')).rejects.toThrow(
+      'No WPMoo environment found at /tmp/example-environment.',
+    );
+
+    expect(mocks.getEnvironmentStatus).toHaveBeenCalledWith('/tmp/example-environment');
+    expect(mocks.environmentStatusJson).not.toHaveBeenCalled();
+    expect(mocks.renderEnvironmentStatusForTarget).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
+  });
+
   it('rejects unexpected status args with usage message', async () => {
     const { runCli } = await loadCli();
 
@@ -176,6 +192,35 @@ describe('cli status route', () => {
         appliedFixes: [],
       }),
     );
+  });
+
+  it('surfaces doctor JSON internal failures without banner or JSON envelope', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    mocks.getDoctorReport.mockRejectedValueOnce(new Error('Unexpected doctor failure.'));
+
+    await expect(runCli(['doctor', '--json'], '/tmp/example-environment')).rejects.toThrow(
+      'Unexpected doctor failure.',
+    );
+
+    expect(mocks.getDoctorReport).toHaveBeenCalledWith('/tmp/example-environment', {});
+    expect(mocks.runDoctor).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps doctor usage errors plain even when JSON was requested', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await expect(runCli(['doctor', '--json', '--unexpected'], '/tmp/example-environment')).rejects.toThrow(
+      'Usage: wpmoo doctor',
+    );
+
+    expect(mocks.getDoctorReport).not.toHaveBeenCalled();
+    expect(mocks.runDoctor).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
   });
 
   it('passes opt-in PostgreSQL diagnostics to doctor JSON output', async () => {

@@ -123,6 +123,52 @@ describe('prompt adapter', () => {
     expect(theme.i18n?.disabledError).toBe('This option is disabled and cannot be selected.\nReason: Services stopped.');
   });
 
+  it('supports boolean-disabled choices in hidden select prompts', async () => {
+    const select = vi.mocked(inquirerSelect);
+    select.mockResolvedValue('backup');
+
+    const value = await selectPrompt({
+      message: '',
+      choices: [
+        {
+          value: 'start' as const,
+          name: 'Start services',
+          disabled: true,
+        },
+        {
+          value: 'backup' as const,
+          name: 'Create backup',
+          disabled: 'Disk full.',
+        },
+      ],
+      hideMessage: true,
+      disabledError: 'This option is disabled and cannot be selected.',
+    });
+
+    expect(value).toBe('backup');
+    const [promptArgs] = select.mock.calls[0];
+    const theme = promptArgs.theme as {
+      style?: {
+        disabled?: (text: string) => string;
+      };
+      i18n?: {
+        disabledError?: string;
+      };
+      icon?: {
+        cursor?: string;
+      };
+    };
+    const cursor = theme.icon?.cursor ?? '';
+
+    expect(theme.style?.disabled?.('- Start services (disabled)')).toBe('\u001B[2m- Start services\u001B[22m');
+    expect(theme.style?.disabled?.(`${cursor} Create backup Disk full.`)).toBe(
+      '\u001B[2m\u001B[38;2;226;184;96m❯\u001B[39m Create backup\u001B[22m',
+    );
+    expect(theme.i18n?.disabledError).toBe(
+      'This option is disabled and cannot be selected.\nReason: Disk full.',
+    );
+  });
+
   it('hides disabled reason suffixes in rows and reports only the active disabled reason', async () => {
     const select = vi.mocked(inquirerSelect);
     select.mockResolvedValue('install');
@@ -237,6 +283,34 @@ describe('prompt adapter', () => {
     );
   });
 
+  it('re-evaluates navigationWarning each time help text is rendered', async () => {
+    const select = vi.mocked(inquirerSelect);
+    select.mockResolvedValue('native');
+
+    let warningCounter = 0;
+    const value = await selectPrompt({
+      message: 'Navigation Warning',
+      choices: ['native' as const],
+      hideMessage: true,
+      navigationWarning: () => `Warning ${(warningCounter += 1)}`,
+    });
+
+    expect(value).toBe('native');
+    const [promptArgs] = select.mock.calls[0];
+    const theme = promptArgs.theme as {
+      style?: {
+        keysHelpTip?: (keys: [key: string, action: string][]) => string;
+      };
+    };
+
+    expect(theme.style?.keysHelpTip?.([])).toBe(
+      '\u001B[2m\u001B[38;2;226;184;96mWarning 1\u001B[0m\n↑↓ navigate • ⏎ select • Ctrl+C exit',
+    );
+    expect(theme.style?.keysHelpTip?.([])).toBe(
+      '\u001B[2m\u001B[38;2;226;184;96mWarning 2\u001B[0m\n↑↓ navigate • ⏎ select • Ctrl+C exit',
+    );
+  });
+
   it('creates prompt separators through the adapter', () => {
     const separator = promptSeparator('Services');
 
@@ -333,6 +407,20 @@ describe('prompt adapter', () => {
 
     await expect(resultPromise).resolves.toBe(promptCancelled);
     expect(consumePromptCancelKey()).toBe('escape');
+  });
+
+  it('turns Ctrl+C prompt cancellation into the stable cancel sentinel', async () => {
+    const input = vi.mocked(inquirerInput);
+    const error = new Error('Prompt aborted with SIGINT');
+    error.name = 'ExitPromptError';
+    input.mockRejectedValue(error);
+
+    const value = await inputPrompt({
+      message: 'Source repo',
+    });
+
+    expect(value).toBe(promptCancelled);
+    expect(consumePromptCancelKey()).toBe('interrupt');
   });
 
   it('can ignore Escape keypresses without aborting an active select prompt', async () => {

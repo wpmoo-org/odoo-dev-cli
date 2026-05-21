@@ -35,10 +35,12 @@ const mocks = vi.hoisted(() => ({
   listModulesInSourceRepo: vi.fn(async () => ['odoo_sample_module_base']),
   removeModuleFromSourceRepo: vi.fn(async () => undefined),
   removeModuleRepo: vi.fn(async () => undefined),
+  runDoctor: vi.fn(async () => 'doctor report'),
   runDailyAction: vi.fn(async () => undefined),
   runDailyActionWithStyledOutput: vi.fn(async () => undefined),
   renderBanner: vi.fn(() => 'mock banner'),
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
+  renderEnvironmentStatusForTarget: vi.fn(async () => 'environment status report'),
   repositoryPreflightAvailable: vi.fn(async () => true),
   getGitHubPrerequisiteStatus: vi.fn(async () => ({ status: 'ready' as const })),
   renderGitHubPrerequisiteGuidance: vi.fn(() => 'GitHub CLI (`gh`) is not available or not authenticated.'),
@@ -215,12 +217,17 @@ vi.mock('../src/update-check.js', async (importOriginal) => {
   };
 });
 
+vi.mock('../src/doctor.js', () => ({
+  runDoctor: mocks.runDoctor,
+}));
+
 vi.mock('../src/status.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/status.js')>();
   return {
     ...actual,
     getEnvironmentStatus: mocks.getEnvironmentStatus,
     renderEnvironmentStatusSummary: mocks.renderEnvironmentStatusSummary,
+    renderEnvironmentStatusForTarget: mocks.renderEnvironmentStatusForTarget,
   };
 });
 
@@ -229,11 +236,82 @@ async function loadCli() {
   return import('../src/cli.js');
 }
 
+type CockpitRoutePromptStep = {
+  kind: 'text' | 'select';
+  value: unknown;
+};
+
+type TopLevelCockpitDailyCase = {
+  commandId: string;
+  expectedCommand: string;
+  expectedArgv: string[];
+  prompts?: ReadonlyArray<CockpitRoutePromptStep>;
+  confirm?: boolean;
+};
+
+const topLevelCockpitDailyCases: readonly TopLevelCockpitDailyCase[] = [
+  { commandId: 'start', expectedCommand: 'start', expectedArgv: [], prompts: [] },
+  { commandId: 'stop', expectedCommand: 'stop', expectedArgv: [], prompts: [], confirm: true },
+  { commandId: 'restart', expectedCommand: 'restart', expectedArgv: [], prompts: [] },
+  { commandId: 'logs', expectedCommand: 'logs', expectedArgv: ['odoo'], prompts: [{ kind: 'text', value: '' }] },
+  { commandId: 'shell', expectedCommand: 'shell', expectedArgv: [], prompts: [] },
+  { commandId: 'psql', expectedCommand: 'psql', expectedArgv: ['devel'], prompts: [{ kind: 'select', value: 'devel' }] },
+  {
+    commandId: 'snapshot',
+    expectedCommand: 'snapshot',
+    expectedArgv: ['devel', 'before-update'],
+    prompts: [{ kind: 'select', value: 'devel' }, { kind: 'text', value: '' }],
+  },
+  {
+    commandId: 'restore-snapshot',
+    expectedCommand: 'restore-snapshot',
+    expectedArgv: ['pre-upgrade', 'devel'],
+    prompts: [{ kind: 'text', value: 'pre-upgrade' }, { kind: 'select', value: 'devel' }],
+    confirm: true,
+  },
+  {
+    commandId: 'resetdb',
+    expectedCommand: 'resetdb',
+    expectedArgv: ['devel'],
+    prompts: [{ kind: 'select', value: 'devel' }, { kind: 'select', value: '' }],
+    confirm: true,
+  },
+];
+
+async function expectCockpitTopLevelDailyRoute({
+  commandId,
+  expectedCommand,
+  expectedArgv,
+  prompts = [],
+  confirm = false,
+}: TopLevelCockpitDailyCase) {
+  const promptsModule = await import('../src/prompts/index.js');
+  vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+  vi.mocked(promptsModule.selectPrompt).mockResolvedValueOnce(cockpitCommand(commandId));
+  for (const promptStep of prompts) {
+    if (promptStep.kind === 'text') {
+      vi.mocked(promptsModule.textPrompt).mockResolvedValueOnce(promptStep.value as never);
+      continue;
+    }
+    vi.mocked(promptsModule.selectPrompt).mockResolvedValueOnce(promptStep.value as never);
+  }
+  vi.mocked(promptsModule.confirmPrompt).mockResolvedValueOnce(confirm);
+  vi.mocked(promptsModule.selectPrompt).mockResolvedValueOnce('exit');
+  const { runCli } = await loadCli();
+
+  await runCli([], '/tmp/environment');
+
+  expect(mocks.runDailyAction).toHaveBeenCalledWith(expectedCommand, expectedArgv, '/tmp/environment');
+  expect(mocks.runDailyActionWithStyledOutput).not.toHaveBeenCalled();
+}
+
 describe('cli menu environment routes', () => {
   beforeEach(async () => {
     const prompts = await import('../src/prompts/index.js');
     vi.clearAllMocks();
     vi.mocked(prompts.isPromptCancel).mockImplementation(() => false);
+    vi.mocked(prompts.confirmPrompt).mockReset();
+    vi.mocked(prompts.confirmPrompt).mockResolvedValue(false);
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     mocks.getGitHubPrerequisiteStatus.mockResolvedValue({ status: 'ready' });
@@ -513,6 +591,44 @@ describe('cli menu environment routes', () => {
         initialValue: true,
       }),
     );
+  });
+
+  it.each(topLevelCockpitDailyCases)('routes top-level %s command from cockpit menu to runDailyAction', async ({
+    commandId,
+    expectedCommand,
+    expectedArgv,
+    prompts,
+    confirm,
+  }) => {
+    await expectCockpitTopLevelDailyRoute({
+      commandId,
+      expectedCommand,
+      expectedArgv,
+      prompts,
+      confirm,
+    });
+  });
+
+  it('routes status menu selection to status rendering', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce(cockpitCommand('status')).mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.renderEnvironmentStatusForTarget).toHaveBeenCalledWith('/tmp/environment');
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith('environment status report', 'Environment status');
+  });
+
+  it('routes doctor menu selection to runDoctor and shows doctor output', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce(cockpitCommand('doctor')).mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.runDoctor).toHaveBeenCalledWith('/tmp/environment');
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith('doctor report', 'Doctor');
   });
 
   it.each([

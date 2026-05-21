@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   })),
   syncSources: vi.fn(async () => [] as unknown[]),
   runDoctor: vi.fn(async () => 'doctor report'),
+  renderEnvironmentStatusForTarget: vi.fn(async () => 'environment status'),
   runDailyAction: vi.fn(async () => undefined),
   renderBanner: vi.fn(() => 'mock banner'),
   commandOdooVersion: vi.fn(async () => '18.0-mocked'),
@@ -96,6 +97,14 @@ vi.mock('../src/source-actions.js', () => ({
   sourceSyncJson: mocks.sourceSyncJson,
   syncSources: mocks.syncSources,
 }));
+
+vi.mock('../src/status.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/status.js')>();
+  return {
+    ...actual,
+    renderEnvironmentStatusForTarget: mocks.renderEnvironmentStatusForTarget,
+  };
+});
 
 vi.mock('../src/doctor.js', () => ({
   runDoctor: mocks.runDoctor,
@@ -364,6 +373,26 @@ describe('cli direct command routes', () => {
     );
   });
 
+  it('surfaces source sync --json runtime failures without banner or JSON envelope', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-source-sync-json-failure');
+    mocks.syncSources.mockRejectedValueOnce(new Error('Source manifest sync failed.'));
+
+    await expect(
+      runCli(['source', 'sync', '--target', target, '--stage=false', '--json'], '/tmp/ignored-cwd'),
+    ).rejects.toThrow('Source manifest sync failed.');
+
+    expect(mocks.syncSources).toHaveBeenCalledWith({
+      target,
+      stage: false,
+    });
+    expect(mocks.sourceSyncJson).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(promptMocks.outro).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
+  });
+
   it('routes source add as an alias for add-repo', async () => {
     const { runCli } = await loadCli();
     const target = resolve('/tmp/worker-a-source-add');
@@ -395,6 +424,21 @@ describe('cli direct command routes', () => {
       stage: false,
     });
     expect(promptMocks.outro).toHaveBeenCalledWith(`Added source repo under ${target}/odoo/custom/src/oca/server-tools.`);
+  });
+
+  it('keeps source add missing repo-url errors as usage guidance', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-source-add-missing-url');
+
+    await expect(
+      runCli(['source', 'add', '--repo', 'server-tools', '--target', target], '/tmp/ignored-cwd'),
+    ).rejects.toThrow('Usage: wpmoo source add --repo-url <url> [--source-type private|oca|external]');
+
+    expect(mocks.addModuleRepo).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(promptMocks.outro).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
   });
 
   it('routes source remove as an alias for remove-repo', async () => {
@@ -572,11 +616,24 @@ describe('cli direct command routes', () => {
     expect(logSpy).toHaveBeenCalledWith('safe reset preview');
   });
 
-  it('routes daily Odoo command matrix to runDailyAction', async () => {
+  it('routes daily/lifecycle commands to runDailyAction', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const { runCli } = await loadCli();
     const cwd = '/tmp/worker-a-daily-matrix';
     const cases = [
+      { argv: ['start'], command: 'start', args: [] },
+      { argv: ['stop'], command: 'stop', args: [] },
+      { argv: ['restart'], command: 'restart', args: [] },
+      { argv: ['logs', 'odoo'], command: 'logs', args: ['odoo'] },
+      { argv: ['shell'], command: 'shell', args: [] },
+      { argv: ['psql', 'devel'], command: 'psql', args: ['devel'] },
+      { argv: ['snapshot', 'devel', 'before-update'], command: 'snapshot', args: ['devel', 'before-update'] },
+      {
+        argv: ['restore-snapshot', '--dry-run', 'before-update', 'devel'],
+        command: 'restore-snapshot',
+        args: ['--dry-run', 'before-update', 'devel'],
+      },
+      { argv: ['resetdb', 'devel'], command: 'resetdb', args: ['devel'] },
       { argv: ['install', 'sale', 'devel'], command: 'install', args: ['sale', 'devel'] },
       { argv: ['update', 'sale', 'devel'], command: 'update', args: ['sale', 'devel'] },
       {
@@ -584,15 +641,9 @@ describe('cli direct command routes', () => {
         command: 'test',
         args: ['sale', '--db', 'devel', '--mode', 'update', '--tags', '/sale'],
       },
-      { argv: ['snapshot', 'devel', 'before-update'], command: 'snapshot', args: ['devel', 'before-update'] },
-      {
-        argv: ['restore-snapshot', '--dry-run', 'before-update', 'devel'],
-        command: 'restore-snapshot',
-        args: ['--dry-run', 'before-update', 'devel'],
-      },
       { argv: ['lint'], command: 'lint', args: [] },
       { argv: ['pot', 'sale', 'devel', 'i18n/sale.pot'], command: 'pot', args: ['sale', 'devel', 'i18n/sale.pot'] },
-    ] as const;
+    ];
 
     for (const { argv } of cases) {
       await runCli([...argv], cwd);
@@ -603,5 +654,40 @@ describe('cli direct command routes', () => {
       expect(mocks.runDailyAction).toHaveBeenNthCalledWith(index + 1, command, args, cwd);
     }
     expect(logSpy).toHaveBeenCalledWith('mock banner');
+  });
+
+  it('routes status command to renderEnvironmentStatusForTarget', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await runCli(['status'], '/tmp/worker-a-status');
+
+    expect(mocks.renderEnvironmentStatusForTarget).toHaveBeenCalledWith('/tmp/worker-a-status');
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith('environment status');
+  });
+
+  it('routes doctor command without flags to runDoctor without options', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await runCli(['doctor'], '/tmp/worker-a-doctor');
+
+    expect(mocks.runDoctor).toHaveBeenCalledWith('/tmp/worker-a-doctor');
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith('doctor report');
+  });
+
+  it('routes reset without dry-run to safeResetEnvironment', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-reset');
+
+    await runCli(['reset', '--target', target, '--stage=false'], '/tmp/ignored-cwd');
+
+    expect(mocks.safeResetEnvironment).toHaveBeenCalledWith({ target, stage: false });
+    expect(mocks.renderSafeResetPreview).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(promptMocks.outro).toHaveBeenCalledWith(`Safe reset refreshed generated environment files in ${target}.`);
   });
 });

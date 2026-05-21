@@ -76,6 +76,17 @@ describe('menu navigation', () => {
     }
   });
 
+  it('exits when Ctrl+C is used in back-enabled menu cancellation', () => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    try {
+      recordPromptCancelKey({ ctrl: true, name: 'c', sequence: '\u0003' });
+      handlePromptCancel(true, 'back');
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    } finally {
+      exitSpy.mockRestore();
+    }
+  });
+
   it('treats non-interrupt cancellation keys as back in back-enabled menus', () => {
     recordPromptCancelKey({ name: 'x', sequence: 'x' });
     expect(() => handlePromptCancel(true, 'back')).toThrow(MenuBackSignal);

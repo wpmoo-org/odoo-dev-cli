@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { cockpitCommands, type CockpitCommand } from '../src/cockpit/command-registry.js';
+import { cockpitCommands, type CockpitCommand, type CockpitCommandCategory } from '../src/cockpit/command-registry.js';
 import {
   selectCockpitTopLevelMenu,
   type CockpitMenuChoice,
@@ -8,6 +8,7 @@ import {
 } from '../src/cockpit/menu.js';
 import { promptCancelled } from '../src/prompts/index.js';
 import { recordPromptCancelKey } from '../src/menu-navigation.js';
+import type { ServiceRuntimeStatus } from '../src/service-runtime-status.js';
 
 type MenuPromptConfig = Parameters<CockpitMenuSelectPrompt>[0] & {
   choices?: Parameters<CockpitMenuSelectPrompt>[0]['choices'];
@@ -51,6 +52,44 @@ function inlineCommand(label: string, description: string): string {
 
 function disabledValue(choice: CockpitMenuChoice | undefined): unknown {
   return (choice as { disabled?: unknown } | undefined)?.disabled;
+}
+
+type MenuChoiceExpectation = {
+  id: string;
+  category: CockpitCommandCategory;
+  disabled?: string;
+};
+
+type DisabledReasonCase = {
+  description: string;
+  serviceStatus?: ServiceRuntimeStatus;
+  moduleCount?: number;
+  disabled: readonly Omit<MenuChoiceExpectation, 'category'>[];
+  defaultChoice: string;
+  expectAddModuleEnabled?: boolean;
+};
+
+function menuChoiceExpectationMatrix(overrides: readonly Omit<MenuChoiceExpectation, 'category'>[]): MenuChoiceExpectation[] {
+  return cockpitCommands
+    .filter((command) => command.id !== 'exit')
+    .map((command) => ({
+      id: command.id,
+      category: command.category,
+      disabled: overrides.find((entry) => entry.id === command.id)?.disabled,
+    }));
+}
+
+function expectMenuChoiceMatrix(config: MenuPromptConfig, expectations: readonly MenuChoiceExpectation[]): void {
+  const choices = (config.choices ?? []).filter(isMenuChoice);
+  expect(choices).toHaveLength(expectations.length);
+
+  for (const expectation of expectations) {
+    const choice = choices.find((candidate) => (candidate.value as CockpitCommand).id === expectation.id);
+    expect(choice).toBeDefined();
+    expect((choice?.value as CockpitCommand).id).toBe(expectation.id);
+    expect((choice?.value as CockpitCommand).category).toBe(expectation.category);
+    expect(disabledValue(choice)).toBe(expectation.disabled);
+  }
 }
 
 describe('cockpit top-level menu', () => {
@@ -232,136 +271,89 @@ describe('cockpit top-level menu', () => {
     }
   });
 
-  it('keeps service commands visible but disables start when services are running', async () => {
-    const startCommand = cockpitCommands.find((command) => command.id === 'start');
-    const stopCommand = cockpitCommands.find((command) => command.id === 'stop');
-    const logsCommand = cockpitCommands.find((command) => command.id === 'logs');
-    expect(startCommand).toBeDefined();
-    expect(stopCommand).toBeDefined();
-    expect(logsCommand).toBeDefined();
-
-    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
-      const config = options as MenuPromptConfig;
-      const choices = (config.choices ?? []).filter(isMenuChoice);
-
-      expect(menuChoiceLabels(config)).toContain(inlineCommand('Start services', 'Start the Odoo development services.'));
-      expect(disabledValue(choices.find((choice) => choice.value === startCommand))).toBe('Already running.');
-      expect(disabledValue(choices.find((choice) => choice.value === stopCommand))).toBeUndefined();
-      expect(disabledValue(choices.find((choice) => choice.value === logsCommand))).toBeUndefined();
-      expect(config.disabledError).toBe('This option is disabled and cannot be selected.');
-      expect(config.default).toBe(stopCommand);
-      return stopCommand;
-    });
-
-    await expect(selectCockpitTopLevelMenu({
-      select: prompt,
+  const disabledReasonCases: readonly DisabledReasonCase[] = [
+    {
+      description: 'Already running.',
       serviceStatus: { kind: 'running' },
-    })).resolves.toEqual({
-      kind: 'command',
-      command: stopCommand,
-    });
-  });
-
-  it('keeps service commands visible but disables dependent service actions when services are stopped', async () => {
-    const startCommand = cockpitCommands.find((command) => command.id === 'start');
-    const stopCommand = cockpitCommands.find((command) => command.id === 'stop');
-    const restartCommand = cockpitCommands.find((command) => command.id === 'restart');
-    const logsCommand = cockpitCommands.find((command) => command.id === 'logs');
-    const shellCommand = cockpitCommands.find((command) => command.id === 'shell');
-    expect(startCommand).toBeDefined();
-    expect(stopCommand).toBeDefined();
-    expect(restartCommand).toBeDefined();
-    expect(logsCommand).toBeDefined();
-    expect(shellCommand).toBeDefined();
-
-    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
-      const config = options as MenuPromptConfig;
-      const choices = (config.choices ?? []).filter(isMenuChoice);
-
-      expect(disabledValue(choices.find((choice) => choice.value === startCommand))).toBeUndefined();
-      expect(disabledValue(choices.find((choice) => choice.value === stopCommand))).toBe('Services stopped.');
-      expect(disabledValue(choices.find((choice) => choice.value === restartCommand))).toBe('Services stopped.');
-      expect(disabledValue(choices.find((choice) => choice.value === logsCommand))).toBe('Services stopped.');
-      expect(disabledValue(choices.find((choice) => choice.value === shellCommand))).toBe('Services stopped.');
-      expect(config.disabledError).toBe('This option is disabled and cannot be selected.');
-      expect(config.default).toBe(startCommand);
-      return startCommand;
-    });
-
-    await expect(selectCockpitTopLevelMenu({
-      select: prompt,
+      disabled: [{ id: 'start', disabled: 'Already running.' }],
+      defaultChoice: 'stop',
+    },
+    {
+      description: 'Services stopped.',
       serviceStatus: { kind: 'stopped' },
-    })).resolves.toEqual({
-      kind: 'command',
-      command: startCommand,
-    });
-  });
-
-  it('disables all service actions when Docker is not running', async () => {
-    const startCommand = cockpitCommands.find((command) => command.id === 'start');
-    const statusCommand = cockpitCommands.find((command) => command.id === 'status');
-    expect(startCommand).toBeDefined();
-    expect(statusCommand).toBeDefined();
-
-    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
-      const config = options as MenuPromptConfig;
-      const choices = (config.choices ?? []).filter(isMenuChoice);
-      const serviceChoices = choices.filter((choice) => isMenuChoice(choice) && (choice.value as CockpitCommand).category === 'services');
-
-      expect(serviceChoices).toHaveLength(5);
-      expect(serviceChoices.every((choice) => disabledValue(choice) === 'Docker not running.')).toBe(true);
-      expect(config.disabledError).toBe('This option is disabled and cannot be selected.');
-      expect(config.default).toBe(statusCommand);
-      return statusCommand;
-    });
-
-    await expect(selectCockpitTopLevelMenu({
-      select: prompt,
+      disabled: [
+        { id: 'stop', disabled: 'Services stopped.' },
+        { id: 'restart', disabled: 'Services stopped.' },
+        { id: 'logs', disabled: 'Services stopped.' },
+        { id: 'shell', disabled: 'Services stopped.' },
+      ],
+      defaultChoice: 'start',
+    },
+    {
+      description: 'Docker not running.',
       serviceStatus: { kind: 'docker-not-running' },
-    })).resolves.toEqual({
-      kind: 'command',
-      command: statusCommand,
-    });
-  });
+      disabled: [
+        { id: 'start', disabled: 'Docker not running.' },
+        { id: 'stop', disabled: 'Docker not running.' },
+        { id: 'restart', disabled: 'Docker not running.' },
+        { id: 'logs', disabled: 'Docker not running.' },
+        { id: 'shell', disabled: 'Docker not running.' },
+      ],
+      defaultChoice: 'status',
+    },
+    {
+      description: 'No modules found.',
+      moduleCount: 0,
+      disabled: [
+        { id: 'list-modules', disabled: 'No modules found.' },
+        { id: 'install', disabled: 'No modules found.' },
+        { id: 'update', disabled: 'No modules found.' },
+        { id: 'test', disabled: 'No modules found.' },
+        { id: 'lint', disabled: 'No modules found.' },
+        { id: 'pot', disabled: 'No modules found.' },
+        { id: 'remove-module', disabled: 'No modules found.' },
+      ],
+      defaultChoice: 'start',
+      expectAddModuleEnabled: true,
+    },
+  ];
 
-  it('disables module-dependent actions when no modules exist', async () => {
-    const startCommand = cockpitCommands.find((command) => command.id === 'start');
-    const listModulesCommand = cockpitCommands.find((command) => command.id === 'list-modules');
-    const installCommand = cockpitCommands.find((command) => command.id === 'install');
-    const updateCommand = cockpitCommands.find((command) => command.id === 'update');
-    const testCommand = cockpitCommands.find((command) => command.id === 'test');
-    const lintCommand = cockpitCommands.find((command) => command.id === 'lint');
-    const potCommand = cockpitCommands.find((command) => command.id === 'pot');
-    const addModuleCommand = cockpitCommands.find((command) => command.id === 'add-module');
-    const removeModuleCommand = cockpitCommands.find((command) => command.id === 'remove-module');
-    expect(startCommand).toBeDefined();
+  it.each(disabledReasonCases)('sets disabled reasons for "$description" context', async ({
+    description,
+    serviceStatus,
+    moduleCount,
+    disabled,
+    defaultChoice,
+    expectAddModuleEnabled,
+  }) => {
+    const expected = menuChoiceExpectationMatrix(disabled);
+    const defaultCommand = cockpitCommands.find((command) => command.id === defaultChoice);
+    const addRepoChoice = expected.find((entry) => entry.id === 'add-repo');
+    const addModuleChoice = expected.find((entry) => entry.id === 'add-module');
+    expect(defaultCommand).toBeDefined();
+    expect(addRepoChoice).toBeDefined();
+    expect(addModuleChoice).toBeDefined();
+    if (expectAddModuleEnabled) {
+      expect(addModuleChoice?.disabled).toBeUndefined();
+    }
 
     const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
       const config = options as MenuPromptConfig;
-      const choices = (config.choices ?? []).filter(isMenuChoice);
 
-      for (const command of [
-        listModulesCommand,
-        installCommand,
-        updateCommand,
-        testCommand,
-        lintCommand,
-        potCommand,
-        removeModuleCommand,
-      ]) {
-        expect(disabledValue(choices.find((choice) => choice.value === command))).toBe('No modules found.');
-      }
-      expect(disabledValue(choices.find((choice) => choice.value === addModuleCommand))).toBeUndefined();
+      expectMenuChoiceMatrix(config, expected);
       expect(config.disabledError).toBe('This option is disabled and cannot be selected.');
-      return startCommand;
+      expect(config.default).toBe(defaultCommand);
+      expect(addRepoChoice?.disabled).toBeUndefined();
+      return defaultCommand;
     });
 
     await expect(selectCockpitTopLevelMenu({
       select: prompt,
-      moduleCount: 0,
+      serviceStatus,
+      moduleCount,
     })).resolves.toEqual({
       kind: 'command',
-      command: startCommand,
+      command: defaultCommand,
     });
   });
 });
