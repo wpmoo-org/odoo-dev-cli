@@ -37,8 +37,13 @@ export type DoctorPostgresDiagnostics = {
   maxConnections?: number;
   connectionUtilizationPct?: number;
   totalDatabaseSizeBytes?: number;
+  largestDatabaseName?: string;
+  largestDatabaseSizeBytes?: number;
   slowQueryLogging?: string;
   pgStatStatements?: string;
+  pgStatStatementsAvailableVersion?: string;
+  pgStatStatementsInstalledVersion?: string;
+  sharedPreloadLibraries?: string;
   sharedBuffers?: string;
 };
 
@@ -133,6 +138,28 @@ WITH metrics(metric, value) AS (
     FROM pg_database
     WHERE datistemplate = false
   UNION ALL
+  SELECT 'largest_database_name', COALESCE(
+    (
+      SELECT datname
+      FROM pg_database
+      WHERE datistemplate = false
+      ORDER BY pg_database_size(datname) DESC, datname
+      LIMIT 1
+    ),
+    'unavailable'
+  )
+  UNION ALL
+  SELECT 'largest_database_size_bytes', COALESCE(
+    (
+      SELECT pg_database_size(datname)::text
+      FROM pg_database
+      WHERE datistemplate = false
+      ORDER BY pg_database_size(datname) DESC, datname
+      LIMIT 1
+    ),
+    '0'
+  )
+  UNION ALL
   SELECT 'slow_query_logging', COALESCE(
     (SELECT setting || unit FROM pg_settings WHERE name = 'log_min_duration_statement'),
     'unavailable'
@@ -144,6 +171,21 @@ WITH metrics(metric, value) AS (
       WHEN EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_stat_statements') THEN 'available'
       ELSE 'unavailable'
     END
+  UNION ALL
+  SELECT 'pg_stat_statements_available_version', COALESCE(
+    (SELECT default_version FROM pg_available_extensions WHERE name = 'pg_stat_statements'),
+    'unavailable'
+  )
+  UNION ALL
+  SELECT 'pg_stat_statements_installed_version', COALESCE(
+    (SELECT extversion FROM pg_extension WHERE extname = 'pg_stat_statements'),
+    ''
+  )
+  UNION ALL
+  SELECT 'shared_preload_libraries', COALESCE(
+    (SELECT setting FROM pg_settings WHERE name = 'shared_preload_libraries'),
+    'unavailable'
+  )
   UNION ALL
   SELECT 'shared_buffers', COALESCE(
     (SELECT setting FROM pg_settings WHERE name = 'shared_buffers'),
@@ -158,9 +200,14 @@ ORDER BY CASE metric
   WHEN 'connection_count' THEN 3
   WHEN 'max_connections' THEN 4
   WHEN 'total_database_size_bytes' THEN 5
-  WHEN 'slow_query_logging' THEN 6
-  WHEN 'pg_stat_statements' THEN 7
-  WHEN 'shared_buffers' THEN 8
+  WHEN 'largest_database_name' THEN 6
+  WHEN 'largest_database_size_bytes' THEN 7
+  WHEN 'slow_query_logging' THEN 8
+  WHEN 'pg_stat_statements' THEN 9
+  WHEN 'pg_stat_statements_available_version' THEN 10
+  WHEN 'pg_stat_statements_installed_version' THEN 11
+  WHEN 'shared_preload_libraries' THEN 12
+  WHEN 'shared_buffers' THEN 13
   ELSE 99
 END;
 `.trim();
@@ -171,12 +218,28 @@ const postgresDiagnosticKeys = [
   'connection_count',
   'max_connections',
   'total_database_size_bytes',
+  'largest_database_name',
+  'largest_database_size_bytes',
   'slow_query_logging',
   'pg_stat_statements',
+  'pg_stat_statements_available_version',
+  'pg_stat_statements_installed_version',
+  'shared_preload_libraries',
   'shared_buffers',
 ] as const;
 
 type PostgresDiagnosticKey = (typeof postgresDiagnosticKeys)[number];
+
+const requiredPostgresDiagnosticKeys: PostgresDiagnosticKey[] = [
+  'database_count',
+  'active_connections',
+  'connection_count',
+  'max_connections',
+  'total_database_size_bytes',
+  'slow_query_logging',
+  'pg_stat_statements',
+  'shared_buffers',
+];
 
 function parsePostgresMajorFromValue(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -223,7 +286,7 @@ function renderPostgresDiagnostics(diagnostics: Partial<Record<PostgresDiagnosti
 }
 
 function missingPostgresDiagnosticKeys(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): PostgresDiagnosticKey[] {
-  return postgresDiagnosticKeys.filter((key) => !diagnostics[key]);
+  return requiredPostgresDiagnosticKeys.filter((key) => !diagnostics[key]);
 }
 
 function unavailablePostgresDiagnosticsWarning(
@@ -252,6 +315,7 @@ function malformedPostgresDiagnosticKeys(
     'connection_count',
     'max_connections',
     'total_database_size_bytes',
+    'largest_database_size_bytes',
   ];
   return numericKeys.filter((key) => diagnostics[key] !== undefined && integerDiagnostic(diagnostics[key]) === undefined);
 }
@@ -284,11 +348,23 @@ function postgresConnectionUtilizationWarning(diagnostics: Partial<Record<Postgr
 
 function postgresSlowQueryLoggingWarning(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): string | undefined {
   const slowQueryLogging = diagnostics.slow_query_logging?.trim();
-  if (!slowQueryLogging || !/^-1\s*(?:ms)?$/iu.test(slowQueryLogging)) {
+  if (!slowQueryLogging || (!/^-1\s*(?:ms)?$/iu.test(slowQueryLogging) && !/^off$/iu.test(slowQueryLogging))) {
     return undefined;
   }
 
   return `PostgreSQL slow-query logging is disabled (log_min_duration_statement=${slowQueryLogging}). Enable it before performance triage.`;
+}
+
+function postgresExtensionVisibilityWarning(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): string | undefined {
+  if (
+    diagnostics.pg_stat_statements === 'available' &&
+    diagnostics.pg_stat_statements_available_version &&
+    !diagnostics.pg_stat_statements_installed_version
+  ) {
+    return 'PostgreSQL pg_stat_statements is available but not installed. Install it before query-level performance triage.';
+  }
+
+  return undefined;
 }
 
 function structuredPostgresDiagnostics(
@@ -301,6 +377,7 @@ function structuredPostgresDiagnostics(
   const maxConnections = integerDiagnostic(diagnostics.max_connections);
   const connectionUtilizationPct = postgresConnectionUtilizationPct(diagnostics);
   const totalDatabaseSizeBytes = integerDiagnostic(diagnostics.total_database_size_bytes);
+  const largestDatabaseSizeBytes = integerDiagnostic(diagnostics.largest_database_size_bytes);
 
   if (databaseCount !== undefined) structured.databaseCount = databaseCount;
   if (activeConnections !== undefined) structured.activeConnections = activeConnections;
@@ -308,8 +385,17 @@ function structuredPostgresDiagnostics(
   if (maxConnections !== undefined) structured.maxConnections = maxConnections;
   if (connectionUtilizationPct !== undefined) structured.connectionUtilizationPct = connectionUtilizationPct;
   if (totalDatabaseSizeBytes !== undefined) structured.totalDatabaseSizeBytes = totalDatabaseSizeBytes;
+  if (diagnostics.largest_database_name) structured.largestDatabaseName = diagnostics.largest_database_name;
+  if (largestDatabaseSizeBytes !== undefined) structured.largestDatabaseSizeBytes = largestDatabaseSizeBytes;
   if (diagnostics.slow_query_logging) structured.slowQueryLogging = diagnostics.slow_query_logging;
   if (diagnostics.pg_stat_statements) structured.pgStatStatements = diagnostics.pg_stat_statements;
+  if (diagnostics.pg_stat_statements_available_version) {
+    structured.pgStatStatementsAvailableVersion = diagnostics.pg_stat_statements_available_version;
+  }
+  if (diagnostics.pg_stat_statements_installed_version) {
+    structured.pgStatStatementsInstalledVersion = diagnostics.pg_stat_statements_installed_version;
+  }
+  if (diagnostics.shared_preload_libraries) structured.sharedPreloadLibraries = diagnostics.shared_preload_libraries;
   if (diagnostics.shared_buffers) structured.sharedBuffers = diagnostics.shared_buffers;
 
   return structured;
@@ -808,6 +894,10 @@ export async function getDoctorReport(
         const slowQueryLoggingWarning = postgresSlowQueryLoggingWarning(postgresDiagnostics);
         if (slowQueryLoggingWarning) {
           warnings.push(slowQueryLoggingWarning);
+        }
+        const extensionVisibilityWarning = postgresExtensionVisibilityWarning(postgresDiagnostics);
+        if (extensionVisibilityWarning) {
+          warnings.push(extensionVisibilityWarning);
         }
       } else {
         const warning =

@@ -566,8 +566,13 @@ describe('doctor', () => {
             'connection_count|42',
             'max_connections|100',
             'total_database_size_bytes|10485760',
+            'largest_database_name|devel',
+            'largest_database_size_bytes|7340032',
             'slow_query_logging|500ms',
-            'pg_stat_statements|available',
+            'pg_stat_statements|installed',
+            'pg_stat_statements_available_version|1.10',
+            'pg_stat_statements_installed_version|1.10',
+            'shared_preload_libraries|pg_stat_statements',
             'shared_buffers|128MB',
           ].join('\n'),
           stderr: '',
@@ -582,7 +587,7 @@ describe('doctor', () => {
     expect(report.ok).toBe(true);
     expect(report.warnings).toEqual([]);
     expect(report.checks).toContain(
-      'OK PostgreSQL diagnostics database_count=2 active_connections=3 connection_count=42 max_connections=100 connection_utilization_pct=42 total_database_size_bytes=10485760 slow_query_logging=500ms pg_stat_statements=available shared_buffers=128MB',
+      'OK PostgreSQL diagnostics database_count=2 active_connections=3 connection_count=42 max_connections=100 connection_utilization_pct=42 total_database_size_bytes=10485760 largest_database_name=devel largest_database_size_bytes=7340032 slow_query_logging=500ms pg_stat_statements=installed pg_stat_statements_available_version=1.10 pg_stat_statements_installed_version=1.10 shared_preload_libraries=pg_stat_statements shared_buffers=128MB',
     );
     expect(report.postgres).toEqual({
       requested: true,
@@ -594,8 +599,13 @@ describe('doctor', () => {
         maxConnections: 100,
         connectionUtilizationPct: 42,
         totalDatabaseSizeBytes: 10485760,
+        largestDatabaseName: 'devel',
+        largestDatabaseSizeBytes: 7340032,
         slowQueryLogging: '500ms',
-        pgStatStatements: 'available',
+        pgStatStatements: 'installed',
+        pgStatStatementsAvailableVersion: '1.10',
+        pgStatStatementsInstalledVersion: '1.10',
+        sharedPreloadLibraries: 'pg_stat_statements',
         sharedBuffers: '128MB',
       },
     });
@@ -604,7 +614,79 @@ describe('doctor', () => {
     expect(postgresCall?.[2]).toMatch(/\bstate\s*=\s*'active'/u);
     expect(postgresCall?.[2]).toContain('max_connections');
     expect(postgresCall?.[2]).toContain('pg_database_size');
+    expect(postgresCall?.[2]).toContain('largest_database_name');
+    expect(postgresCall?.[2]).toContain('pg_available_extensions');
     expect(postgresCall?.[2]).not.toMatch(/\b(ALTER|CREATE|DELETE|DROP|INSERT|UPDATE)\b/u);
+  });
+
+  it('warns when PostgreSQL slow-query logging is off', async () => {
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner();
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        return {
+          stdout: [
+            'database_count|2',
+            'active_connections|3',
+            'connection_count|42',
+            'max_connections|100',
+            'total_database_size_bytes|10485760',
+            'slow_query_logging|off',
+            'pg_stat_statements|installed',
+            'shared_buffers|128MB',
+          ].join('\n'),
+          stderr: '',
+        };
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual([
+      'PostgreSQL slow-query logging is disabled (log_min_duration_statement=off). Enable it before performance triage.',
+    ]);
+    expect(report.postgres?.available).toBe(true);
+  });
+
+  it('warns when pg_stat_statements is available but not installed', async () => {
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner();
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        return {
+          stdout: [
+            'database_count|2',
+            'active_connections|3',
+            'connection_count|42',
+            'max_connections|100',
+            'total_database_size_bytes|10485760',
+            'slow_query_logging|500ms',
+            'pg_stat_statements|available',
+            'pg_stat_statements_available_version|1.10',
+            'shared_preload_libraries|',
+            'shared_buffers|128MB',
+          ].join('\n'),
+          stderr: '',
+        };
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual([
+      'PostgreSQL pg_stat_statements is available but not installed. Install it before query-level performance triage.',
+    ]);
+    expect(report.postgres?.diagnostics.pgStatStatementsAvailableVersion).toBe('1.10');
   });
 
   it('warns when PostgreSQL slow-query logging is disabled', async () => {
