@@ -53,6 +53,21 @@ async function writeLocalComposeFixture(root: string): Promise<string> {
   return fixture;
 }
 
+function existingModuleManifest(moduleName: string): string {
+  return `{
+    "name": "${moduleName}",
+    "version": "19.0.1.0.0",
+    "depends": ["base"],
+    "data": [
+        "security/ir.model.access.csv",
+        "views/${moduleName}_views.xml",
+        "views/${moduleName}_menus.xml",
+    ],
+    "installable": True,
+}
+`;
+}
+
 describe('generated environment lifecycle and maintenance matrix', () => {
   it('preserves source repos and module directories across lifecycle maintenance flows', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wpmoo-generated-env-lifecycle-'));
@@ -113,7 +128,7 @@ describe('generated environment lifecycle and maintenance matrix', () => {
     const ocaModuleName = 'odoo_sample_module_oca_extra';
     const ocaModuleDir = join(target, 'odoo/custom/src/oca/odoo_sample_module_oca', ocaModuleName);
     await mkdir(ocaModuleDir, { recursive: true });
-    await writeFile(join(ocaModuleDir, '__manifest__.py'), '{}\n', 'utf8');
+    await writeFile(join(ocaModuleDir, '__manifest__.py'), existingModuleManifest(ocaModuleName), 'utf8');
 
     await expect(readFile(join(target, '.gitmodules'), 'utf8')).resolves.toContain(
       'path = odoo/custom/src/private/odoo_sample_module_reports',
@@ -131,7 +146,7 @@ describe('generated environment lifecycle and maintenance matrix', () => {
     const moduleName = 'odoo_sample_module_reports_extra';
     const moduleDir = join(target, 'odoo/custom/src/private/odoo_sample_module_reports', moduleName);
     await mkdir(moduleDir, { recursive: true });
-    await writeFile(join(moduleDir, '__manifest__.py'), '{}\n', 'utf8');
+    await writeFile(join(moduleDir, '__manifest__.py'), existingModuleManifest(moduleName), 'utf8');
 
     await addModuleToSourceRepo({
       target,
