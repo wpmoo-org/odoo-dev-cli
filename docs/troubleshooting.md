@@ -209,6 +209,8 @@ Expected result when available:
 
 - The JSON payload includes `postgres.contractVersion`.
 - The diagnostics object includes `schemaVersion`.
+- The optional `sections` array groups PostgreSQL warnings under the
+  `postgresql` section while preserving the flat `warnings` array.
 - Missing or malformed metric rows are reported as unavailable diagnostics
   instead of being treated as success.
 

@@ -53,6 +53,21 @@ export type DoctorPostgresReport = {
   warning?: string;
 };
 
+export type DoctorSectionId =
+  | 'generated-files'
+  | 'compose'
+  | 'source-repositories'
+  | 'postgresql'
+  | 'host-tools';
+
+export type DoctorSection = {
+  id: DoctorSectionId;
+  title: string;
+  checks: string[];
+  warnings: string[];
+  errors: string[];
+};
+
 export type DoctorReport = {
   schemaVersion: 1;
   command: 'doctor';
@@ -62,6 +77,7 @@ export type DoctorReport = {
   warnings: string[];
   errors: string[];
   appliedFixes: string[];
+  sections?: DoctorSection[];
   postgres?: DoctorPostgresReport;
 };
 
@@ -349,6 +365,112 @@ function renderFailure(errors: string[]): string {
   return ['WPMoo doctor failed:', ...errors.map((error) => `- ${error}`)].join('\n');
 }
 
+const doctorSectionDefinitions: readonly { id: DoctorSectionId; title: string }[] = [
+  { id: 'generated-files', title: 'Generated files' },
+  { id: 'compose', title: 'Compose' },
+  { id: 'source-repositories', title: 'Source repositories' },
+  { id: 'postgresql', title: 'PostgreSQL' },
+  { id: 'host-tools', title: 'Host tools' },
+] as const;
+
+function doctorSectionForLine(line: string): DoctorSectionId {
+  if (
+    line.includes('PostgreSQL diagnostics') ||
+    line.includes('PostgreSQL connection') ||
+    line.includes('PostgreSQL slow-query') ||
+    line.includes('pg_stat_statements') ||
+    line.includes('long transaction') ||
+    line.includes('idle in transaction') ||
+    line.includes('table health') ||
+    line.includes('unused index') ||
+    line.includes('WAL') ||
+    line.includes('capacity risk')
+  ) {
+    return 'postgresql';
+  }
+
+  if (
+    line.startsWith('OK compose files') ||
+    line.startsWith('OK .env ports') ||
+    line.startsWith('Missing compose file:') ||
+    line.startsWith('Missing compact compose overlay') ||
+    line.startsWith('Invalid Odoo version for compose file:') ||
+    line.includes('HTTP_PORT') ||
+    line.includes('GEVENT_PORT') ||
+    line.includes('PostgreSQL 18 compatibility issue')
+  ) {
+    return 'compose';
+  }
+
+  if (
+    line.startsWith('OK source repos') ||
+    line.includes('source repo') ||
+    line.includes('sourceRepos') ||
+    line.includes('source manifest') ||
+    line.includes('source path') ||
+    line.includes('Git submodule') ||
+    line.includes('git submodules') ||
+    line.includes('GitHub CLI')
+  ) {
+    return 'source-repositories';
+  }
+
+  if (
+    line.includes('Docker CLI') ||
+    line.includes('Docker Compose') ||
+    line.startsWith('OK docker')
+  ) {
+    return 'host-tools';
+  }
+
+  return 'generated-files';
+}
+
+function buildDoctorSections(
+  checks: readonly string[],
+  warnings: readonly string[],
+  errors: readonly string[],
+): DoctorSection[] {
+  const sections = new Map<DoctorSectionId, DoctorSection>(
+    doctorSectionDefinitions.map(({ id, title }) => [id, { id, title, checks: [], warnings: [], errors: [] }]),
+  );
+
+  for (const check of checks) {
+    sections.get(doctorSectionForLine(check))?.checks.push(check);
+  }
+  for (const warning of warnings) {
+    sections.get(doctorSectionForLine(warning))?.warnings.push(warning);
+  }
+  for (const error of errors) {
+    sections.get(doctorSectionForLine(error))?.errors.push(error);
+  }
+
+  return doctorSectionDefinitions
+    .map(({ id }) => sections.get(id))
+    .filter((section): section is DoctorSection =>
+      Boolean(section && (section.checks.length > 0 || section.warnings.length > 0 || section.errors.length > 0)),
+    );
+}
+
+function finalizeDoctorReport(report: DoctorReport): DoctorReport {
+  report.sections = buildDoctorSections(report.checks, report.warnings, report.errors);
+  return report;
+}
+
+function renderSuccessfulDoctorReport(report: DoctorReport): string {
+  const lines = ['WPMoo doctor'];
+  const sections = report.sections ?? buildDoctorSections(report.checks, report.warnings, report.errors);
+
+  for (const section of sections) {
+    lines.push(section.title);
+    lines.push(...section.checks);
+    lines.push(...section.warnings.map((warning) => `WARN ${warning}`));
+  }
+
+  lines.push('Doctor checks passed.');
+  return lines.join('\n');
+}
+
 function isNotGitCheckoutError(error: unknown): boolean {
   return commandErrorText(error).toLowerCase().includes('not a git repository');
 }
@@ -488,7 +610,7 @@ export async function getDoctorReport(
     } else {
       errors.push(message);
     }
-    return report;
+    return finalizeDoctorReport(report);
   }
 
   checks.push(`OK metadata ${markerPath}`);
@@ -570,7 +692,7 @@ export async function getDoctorReport(
     sourceRepos = sourceReposFromMetadata(metadata);
   } catch (error) {
     errors.push(errorMessage(error));
-    return report;
+    return finalizeDoctorReport(report);
   }
   for (const repo of sourceRepos) {
     const sourceType = normalizeSourceType(repo.sourceType);
@@ -728,7 +850,7 @@ export async function getDoctorReport(
   }
 
   report.ok = errors.length === 0;
-  return report;
+  return finalizeDoctorReport(report);
 }
 
 export async function runDoctor(
@@ -755,13 +877,6 @@ export async function runDoctor(
     throw new Error(renderFailure(report.errors));
   }
 
-  const renderedReport = [
-    'WPMoo doctor',
-    ...report.checks,
-    ...report.warnings.map((warning) => `WARN ${warning}`),
-    'Doctor checks passed.',
-  ];
-
   if (report.appliedFixes.length > 0) {
     const postFixReport = await runDoctor(target, actualRunner, { ...actualOptions, fix: false });
     return [
@@ -772,5 +887,5 @@ export async function runDoctor(
     ].join('\n');
   }
 
-  return renderedReport.join('\n');
+  return renderSuccessfulDoctorReport(report);
 }

@@ -122,17 +122,21 @@ describe('doctor', () => {
     await expect(runDoctor(target, passingDockerRunner(calls))).resolves.toBe(
       [
         'WPMoo doctor',
+        'Generated files',
         'OK metadata .wpmoo/odoo.json',
         'OK engine compose',
         'OK Odoo version 19.0',
-        'OK compose files docker-compose_19.0.yml',
         'OK scripts 14 checked',
-        'OK source repos 1 checked',
+        'Compose',
+        'OK compose files docker-compose_19.0.yml',
         'OK .env ports HTTP_PORT=10019 GEVENT_PORT=20019',
-        'OK docker CLI',
-        'OK docker compose',
+        'Source repositories',
+        'OK source repos 1 checked',
         'OK git submodules skipped (not a git checkout)',
         'OK GitHub CLI auth',
+        'Host tools',
+        'OK docker CLI',
+        'OK docker compose',
         'Doctor checks passed.',
       ].join('\n'),
     );
@@ -551,6 +555,48 @@ describe('doctor', () => {
       appliedFixes: [],
     });
     expect(report.checks).toContain('OK source repos 1 checked');
+    expect(report.sections).toEqual([
+      {
+        id: 'generated-files',
+        title: 'Generated files',
+        checks: [
+          'OK metadata .wpmoo/odoo.json',
+          'OK engine compose',
+          'OK Odoo version 19.0',
+          'OK scripts 14 checked',
+        ],
+        warnings: [],
+        errors: [],
+      },
+      {
+        id: 'compose',
+        title: 'Compose',
+        checks: [
+          'OK compose files docker-compose_19.0.yml',
+          'OK .env ports HTTP_PORT=10019 GEVENT_PORT=20019',
+        ],
+        warnings: [],
+        errors: [],
+      },
+      {
+        id: 'source-repositories',
+        title: 'Source repositories',
+        checks: [
+          'OK source repos 1 checked',
+          'OK git submodules skipped (not a git checkout)',
+          'OK GitHub CLI auth',
+        ],
+        warnings: [],
+        errors: [],
+      },
+      {
+        id: 'host-tools',
+        title: 'Host tools',
+        checks: ['OK docker CLI', 'OK docker compose'],
+        warnings: [],
+        errors: [],
+      },
+    ]);
   });
 
   it('returns ok=true with populated warnings when GitHub CLI auth is unavailable', async () => {
@@ -612,6 +658,9 @@ describe('doctor', () => {
             'pg_stat_statements_installed_version|1.10',
             'shared_preload_libraries|pg_stat_statements',
             'shared_buffers|128MB',
+            'work_mem|4MB',
+            'maintenance_work_mem|64MB',
+            'effective_cache_size|4GB',
           ].join('\n'),
           stderr: '',
         };
@@ -625,8 +674,18 @@ describe('doctor', () => {
     expect(report.ok).toBe(true);
     expect(report.warnings).toEqual([]);
     expect(report.checks).toContain(
-      'OK PostgreSQL diagnostics database_count=2 active_connections=3 connection_count=42 max_connections=100 connection_utilization_pct=42 total_database_size_bytes=10485760 largest_database_name=devel largest_database_size_bytes=7340032 slow_query_logging=500ms pg_stat_statements=installed pg_stat_statements_available_version=1.10 pg_stat_statements_installed_version=1.10 shared_preload_libraries=pg_stat_statements shared_buffers=128MB',
+      'OK PostgreSQL diagnostics database_count=2 active_connections=3 connection_count=42 max_connections=100 connection_utilization_pct=42 total_database_size_bytes=10485760 largest_database_name=devel largest_database_size_bytes=7340032 slow_query_logging=500ms pg_stat_statements=installed pg_stat_statements_available_version=1.10 pg_stat_statements_installed_version=1.10 shared_preload_libraries=pg_stat_statements shared_buffers=128MB work_mem=4MB maintenance_work_mem=64MB effective_cache_size=4GB',
     );
+    expect(report.sections).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'postgresql',
+        checks: [
+          'OK PostgreSQL diagnostics database_count=2 active_connections=3 connection_count=42 max_connections=100 connection_utilization_pct=42 total_database_size_bytes=10485760 largest_database_name=devel largest_database_size_bytes=7340032 slow_query_logging=500ms pg_stat_statements=installed pg_stat_statements_available_version=1.10 pg_stat_statements_installed_version=1.10 shared_preload_libraries=pg_stat_statements shared_buffers=128MB work_mem=4MB maintenance_work_mem=64MB effective_cache_size=4GB',
+        ],
+        warnings: [],
+        errors: [],
+      }),
+    ]));
     expect(report.postgres).toEqual({
       requested: true,
       contractVersion: 2,
@@ -647,6 +706,9 @@ describe('doctor', () => {
         pgStatStatementsInstalledVersion: '1.10',
         sharedPreloadLibraries: 'pg_stat_statements',
         sharedBuffers: '128MB',
+        workMem: '4MB',
+        maintenanceWorkMem: '64MB',
+        effectiveCacheSize: '4GB',
       },
     });
     const postgresCall = calls.find(([command]) => command === 'bash');

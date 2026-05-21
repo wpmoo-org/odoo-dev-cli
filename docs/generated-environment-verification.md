@@ -85,12 +85,18 @@ database count, sessions currently running queries where `pg_stat_activity.state
 is `active`, long transactions / idle-in-transaction sessions, table health
 signals, unused index advisor signals, WAL and capacity visibility, and
 slow-query logging readiness (`log_min_duration_statement` and
-`pg_stat_statements` visibility). If the database is unavailable, doctor reports
-a warning instead of failing the whole environment check.
+`pg_stat_statements` visibility). It also surfaces read-only PostgreSQL
+configuration visibility for `shared_buffers`, `work_mem`,
+`maintenance_work_mem`, `effective_cache_size`, and `shared_preload_libraries`.
+If the database is unavailable, doctor reports a warning instead of failing the
+whole environment check.
 
 `doctor --json --postgres` keeps output stable by exposing a versioned PostgreSQL
 diagnostics contract. The contract is intentionally permissive: fields are optional
 and omitted or marked unavailable when a running database does not expose them.
+The broader `doctor --json` payload also includes optional `sections` entries
+that group checks, warnings, and errors by generated files, compose, source
+repositories, PostgreSQL, and host tools while preserving the legacy flat arrays.
 
 ## Safe reset policy
 

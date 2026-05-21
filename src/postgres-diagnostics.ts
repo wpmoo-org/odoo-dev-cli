@@ -215,6 +215,21 @@ FROM (
     'unavailable'
   )
   UNION ALL
+  SELECT 'work_mem', COALESCE(
+    (SELECT setting || COALESCE(unit, '') FROM pg_settings WHERE name = 'work_mem'),
+    'unavailable'
+  )
+  UNION ALL
+  SELECT 'maintenance_work_mem', COALESCE(
+    (SELECT setting || COALESCE(unit, '') FROM pg_settings WHERE name = 'maintenance_work_mem'),
+    'unavailable'
+  )
+  UNION ALL
+  SELECT 'effective_cache_size', COALESCE(
+    (SELECT setting || COALESCE(unit, '') FROM pg_settings WHERE name = 'effective_cache_size'),
+    'unavailable'
+  )
+  UNION ALL
   SELECT 'long_transaction_count', long_transaction_count FROM transaction_health
   UNION ALL
   SELECT 'oldest_long_transaction_age_seconds', oldest_long_transaction_age_seconds FROM transaction_health
@@ -266,6 +281,9 @@ export const POSTGRES_DIAGNOSTIC_KEYS = [
   'pg_stat_statements_installed_version',
   'shared_preload_libraries',
   'shared_buffers',
+  'work_mem',
+  'maintenance_work_mem',
+  'effective_cache_size',
   'long_transaction_count',
   'oldest_long_transaction_age_seconds',
   'idle_in_transaction_count',
@@ -352,6 +370,9 @@ export type PostgresDiagnosticsReport = {
   pgStatStatementsInstalledVersion?: string;
   sharedPreloadLibraries?: string;
   sharedBuffers?: string;
+  workMem?: string;
+  maintenanceWorkMem?: string;
+  effectiveCacheSize?: string;
   longTransactionCount?: number;
   oldestLongTransactionAgeSeconds?: number;
   idleInTransactionCount?: number;
@@ -697,6 +718,15 @@ export function structuredPostgresDiagnostics(diagnostics: RawPostgresDiagnostic
   }
   if (diagnostics.shared_buffers) {
     structured.sharedBuffers = diagnostics.shared_buffers;
+  }
+  if (diagnostics.work_mem) {
+    structured.workMem = diagnostics.work_mem;
+  }
+  if (diagnostics.maintenance_work_mem) {
+    structured.maintenanceWorkMem = diagnostics.maintenance_work_mem;
+  }
+  if (diagnostics.effective_cache_size) {
+    structured.effectiveCacheSize = diagnostics.effective_cache_size;
   }
   if (longTransactionCount !== undefined) {
     structured.longTransactionCount = longTransactionCount;
