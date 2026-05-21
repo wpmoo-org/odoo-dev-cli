@@ -125,6 +125,46 @@ describe('daily action safety preview contract', () => {
     expect(previewRefusal(result)).toBeUndefined();
   });
 
+  it('includes restore-snapshot preflight issues in dry-run preview without refusing', async () => {
+    const preview = getPreviewer();
+    const target = await makeEnvironment({
+      scripts: ['restore-snapshot.sh'],
+      env: 'WPMOO_ENV=prod\n',
+    });
+    await mkdir(join(target, 'backups', 'snapshots'), { recursive: true });
+    await writeFile(
+      join(target, 'backups', 'snapshots', 'before-update.json'),
+      JSON.stringify({
+        name: 'before-update',
+        database: 'staging',
+        dump: 'before-update.dump',
+        filestore: 'before-update.filestore.tar.gz',
+      }),
+    );
+
+    const result = await preview('restore-snapshot', ['--dry-run', 'before-update', 'devel'], target);
+
+    expect(result.command).toBe('restore-snapshot');
+    expect(previewDryRun(result)).toBe(true);
+    expect(pick<boolean>(result, ['allowed'])).not.toBe(false);
+    expect(previewRefusal(result)).toBeUndefined();
+    expect(result).toMatchObject({
+      restoreSnapshot: {
+        name: 'before-update',
+        requestedDatabase: 'devel',
+        manifestDatabase: 'staging',
+        dumpStatus: 'missing',
+        filestoreStatus: 'missing',
+        databaseMatches: false,
+        issues: expect.arrayContaining([
+          'missing snapshot dump',
+          'missing snapshot filestore',
+          'snapshot database mismatch: manifest has staging, requested devel',
+        ]),
+      },
+    });
+  });
+
   it('refuses real restore-snapshot in prod without allow flag and reports destructive/required flag', async () => {
     const preview = getPreviewer();
     const target = await makeEnvironment({

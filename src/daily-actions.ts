@@ -5,7 +5,13 @@ import { join } from 'node:path';
 import { readActiveApprovals, type ActiveApproval, type ApprovalScope } from './approval-ledger.js';
 import { appendAuditLog } from './audit-log.js';
 import { readEnvFile, selectedComposeEnvironment } from './compose-layout.js';
-import { defaultDatabaseSnapshotMaxAgeMs, findDatabaseSnapshots, normalizeDatabaseName } from './databases.js';
+import {
+  defaultDatabaseSnapshotMaxAgeMs,
+  findDatabaseSnapshots,
+  normalizeDatabaseName,
+  restoreSnapshotPreflight,
+  type RestoreSnapshotPreflight,
+} from './databases.js';
 import {
   evaluateDailyActionPolicy,
   parseEnvironmentKind,
@@ -40,12 +46,17 @@ export type DailyActionPlan = {
   args: string[];
 };
 
-export type DailyActionSafetyWarningKind = 'no-recent-snapshot' | 'migration-risk';
+export type DailyActionSafetyWarningKind =
+  | 'no-recent-snapshot'
+  | 'migration-risk'
+  | 'restore-snapshot-missing-dump'
+  | 'restore-snapshot-missing-filestore'
+  | 'restore-snapshot-db-name-mismatch';
 
 export type DailyActionSafetyWarning = {
   kind: DailyActionSafetyWarningKind;
   message: string;
-  requiredFlag: 'WPMOO_ALLOW_NO_RECENT_SNAPSHOT' | 'WPMOO_ALLOW_MIGRATIONS';
+  requiredFlag?: 'WPMOO_ALLOW_NO_RECENT_SNAPSHOT' | 'WPMOO_ALLOW_MIGRATIONS';
   blocking: boolean;
 };
 
@@ -65,6 +76,7 @@ export type DailyActionSafetyPreview = DailyActionPlan & {
     newestSnapshotAgeMs: number | null;
     snapshotPaths: string[];
   };
+  restoreSnapshot?: RestoreSnapshotPreflight;
   migrations?: MigrationRiskResult;
   approvals: ActiveApproval[];
   approvedFlags: string[];
@@ -112,7 +124,7 @@ function usage(command: DailyActionCommand): string {
   if (command === 'update') return 'Usage: wpmoo update <module[,module]> [db]';
   if (command === 'test') return 'Usage: wpmoo test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]';
   if (command === 'resetdb') return 'Usage: wpmoo resetdb [db] [module[,module]]';
-  if (command === 'snapshot') return 'Usage: wpmoo snapshot [db] [snapshot-name]';
+  if (command === 'snapshot') return 'Usage: wpmoo snapshot [--list] [db] [snapshot-name]';
   if (command === 'restore-snapshot') return 'Usage: wpmoo restore-snapshot [--dry-run] <snapshot-name> [db]';
   if (command === 'lint') return 'Usage: wpmoo lint';
   return 'Usage: wpmoo pot <module[,module]> [db] [output]';
@@ -287,6 +299,30 @@ function migrationRiskMessage(command: DailyActionCommand, environment: Environm
   return `Refusing migration-risk command '${command}' in WPMOO_ENV=${environment}. Review detected migration scripts or set WPMOO_ALLOW_MIGRATIONS=1 to run it intentionally.`;
 }
 
+function restoreSnapshotWarningKind(issue: string): DailyActionSafetyWarningKind | undefined {
+  if (issue === 'missing snapshot dump') return 'restore-snapshot-missing-dump';
+  if (issue === 'missing snapshot filestore') return 'restore-snapshot-missing-filestore';
+  if (issue.startsWith('snapshot database mismatch:')) return 'restore-snapshot-db-name-mismatch';
+  return undefined;
+}
+
+function restoreSnapshotDryRunPreflight(
+  command: DailyActionCommand,
+  args: readonly string[],
+  cwd: string,
+): RestoreSnapshotPreflight | undefined {
+  if (command !== 'restore-snapshot' || args[0] !== '--dry-run') {
+    return undefined;
+  }
+
+  const snapshotName = args[1];
+  if (!snapshotName) {
+    return undefined;
+  }
+
+  return restoreSnapshotPreflight(cwd, snapshotName, args[2] ?? 'devel');
+}
+
 async function auditDailyActionPreview(preview: DailyActionSafetyPreview): Promise<void> {
   if (preview.environment !== 'prod' || !preview.auditWorthy) {
     return;
@@ -324,6 +360,17 @@ export async function dailyActionSafetyPreview(
       envValue(env, 'WPMOO_ALLOW_PROD_LIFECYCLE') || (hasApproval(approvals, 'prod-lifecycle') ? '1' : undefined),
   });
   const warnings: DailyActionSafetyWarning[] = [];
+  const restoreSnapshot = restoreSnapshotDryRunPreflight(command, args, cwd);
+  if (restoreSnapshot) {
+    for (const issue of restoreSnapshot.issues) {
+      const kind = restoreSnapshotWarningKind(issue);
+      if (!kind) {
+        continue;
+      }
+      warnings.push({ kind, message: issue, blocking: false });
+    }
+  }
+
   const snapshotRequired = policy.isDestructive && (policy.env === 'stage' || policy.env === 'prod');
   const snapshot = snapshotRequired ? findDatabaseSnapshots(cwd) : undefined;
   const noRecentSnapshot =
@@ -376,6 +423,7 @@ export async function dailyActionSafetyPreview(
           snapshotPaths: snapshot.snapshotPaths,
         }
       : undefined,
+    restoreSnapshot,
     migrations,
     approvals,
     approvedFlags: [...envApprovedFlags(env), ...approvalFlagLabels(approvals)],

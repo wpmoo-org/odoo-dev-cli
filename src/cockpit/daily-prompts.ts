@@ -1,6 +1,7 @@
 import type { DailyActionCommand } from '../daily-actions.js';
 import {
   listEnvironmentDatabases,
+  findDatabaseSnapshots,
   normalizeDatabaseListResult,
   type DatabaseListOptions,
   type DatabaseListResponse,
@@ -44,6 +45,7 @@ export type DailyActionPromptDeps = {
 
 const manualModuleValue = '__wpmoo_manual_module_entry__';
 const manualDatabaseValue = '__wpmoo_manual_database_entry__';
+const manualSnapshotValue = '__wpmoo_manual_snapshot_entry__';
 
 function defaultCancelHandler(value: unknown, action: DailyActionPromptCancelAction): void {
   handlePromptCancel(isPromptCancel(value), action);
@@ -313,15 +315,46 @@ export async function collectDailyActionArgs(
     return [db, snapshotName];
   }
   if (command === 'restore-snapshot') {
-    const snapshotName = requiredString(
-      await deps.text({
-        message: menuPromptMessage('Snapshot name', 'back'),
-        validate: (value) => (value.trim() ? undefined : 'Enter the snapshot name.'),
-      }),
-      'Snapshot name is required.',
-      deps,
-    );
-    const db = await databaseArg(cwd, deps, 'Odoo database', 'devel');
+    const snapshots = findDatabaseSnapshots(cwd).snapshots;
+    let snapshotName: string;
+    let fallbackDatabase = 'devel';
+
+    if (snapshots.length > 0) {
+      const selected = await deps.select({
+        message: menuPromptMessage('Snapshot', 'back'),
+        options: [
+          ...snapshots.map((snapshot) => ({ value: snapshot.name, label: snapshot.name })),
+          { value: manualSnapshotValue, label: 'Manual entry' },
+        ],
+        initialValue: snapshots[0]!.name,
+      });
+      deps.handleCancel(selected, 'back');
+
+      if (selected !== manualSnapshotValue) {
+        snapshotName = String(selected);
+        fallbackDatabase = snapshots.find((snapshot) => snapshot.name === snapshotName)?.databaseName ?? fallbackDatabase;
+      } else {
+        snapshotName = requiredString(
+          await deps.text({
+            message: menuPromptMessage('Snapshot name', 'back'),
+            validate: (value) => (value.trim() ? undefined : 'Enter the snapshot name.'),
+          }),
+          'Snapshot name is required.',
+          deps,
+        );
+      }
+    } else {
+      snapshotName = requiredString(
+        await deps.text({
+          message: menuPromptMessage('Snapshot name', 'back'),
+          validate: (value) => (value.trim() ? undefined : 'Enter the snapshot name.'),
+        }),
+        'Snapshot name is required.',
+        deps,
+      );
+    }
+
+    const db = await databaseArg(cwd, deps, 'Odoo database', fallbackDatabase);
     return [snapshotName, db];
   }
 

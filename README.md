@@ -147,6 +147,7 @@ Every cockpit action maps to a direct command, so the same workflow can be used 
 ./moo update sale
 ./moo test sale
 ./moo snapshot devel before-update
+./moo snapshot --list
 ./moo restore-snapshot --dry-run before-update devel
 ```
 

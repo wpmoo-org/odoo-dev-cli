@@ -529,7 +529,7 @@ describe('daily actions', () => {
       'Usage: wpmoo resetdb [db] [module[,module]]',
     );
     await expect(dailyActionPlan('snapshot', ['devel', 'before-update', 'extra'], target)).rejects.toThrow(
-      'Usage: wpmoo snapshot [db] [snapshot-name]',
+      'Usage: wpmoo snapshot [--list] [db] [snapshot-name]',
     );
     await expect(dailyActionPlan('restore-snapshot', [], target)).rejects.toThrow(
       'Usage: wpmoo restore-snapshot [--dry-run] <snapshot-name> [db]',

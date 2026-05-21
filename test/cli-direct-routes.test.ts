@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolve } from 'node:path';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 const mocks = vi.hoisted(() => ({
   addModuleRepo: vi.fn(async () => undefined),
@@ -656,6 +658,26 @@ describe('cli direct command routes', () => {
       expect(mocks.runDailyAction).toHaveBeenNthCalledWith(index + 1, command, args, cwd);
     }
     expect(logSpy).toHaveBeenCalledWith('mock banner');
+  });
+
+  it('renders snapshot catalog without delegating to the snapshot script', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const cwd = await mkdtemp(join(tmpdir(), 'wpmoo-cli-snapshot-list-'));
+    await mkdir(join(cwd, 'backups', 'snapshots'), { recursive: true });
+    await writeFile(join(cwd, 'backups', 'snapshots', 'before-update.dump'), 'snapshot', 'utf8');
+    await writeFile(
+      join(cwd, 'backups', 'snapshots', 'before-update.json'),
+      JSON.stringify({ name: 'before-update', database: 'devel', created_at: '2026-05-22T10:20:30Z' }),
+      'utf8',
+    );
+
+    await runCli(['snapshot', '--list'], cwd);
+
+    expect(mocks.runDailyAction).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Database snapshots'));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('before-update'));
   });
 
   it('resolves unique partial module targets before running daily lifecycle commands', async () => {

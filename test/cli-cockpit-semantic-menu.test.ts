@@ -108,6 +108,7 @@ describe('cockpit top-level semantic menu', () => {
     serviceStatus?: ServiceRuntimeStatus;
     moduleCount?: number;
     sourceRepoCount?: number;
+    snapshotCount?: number;
     defaultId: string;
     disabled: Record<string, string>;
     enabled: string[];
@@ -174,6 +175,17 @@ describe('cockpit top-level semantic menu', () => {
       },
       enabled: expectedCommandIds.filter((id) => id !== 'add-module'),
     },
+    {
+      description: 'no snapshots found',
+      moduleCount: 1,
+      sourceRepoCount: 1,
+      snapshotCount: 0,
+      defaultId: 'start',
+      disabled: {
+        'restore-snapshot': 'No snapshots found.',
+      },
+      enabled: expectedCommandIds.filter((id) => id !== 'restore-snapshot'),
+    },
   ];
 
   it.each(disabledCases)('captures disabled reasons and enabled actions for "$description"', async (testCase) => {
@@ -197,6 +209,7 @@ describe('cockpit top-level semantic menu', () => {
       serviceStatus: testCase.serviceStatus,
       moduleCount: testCase.moduleCount,
       sourceRepoCount: testCase.sourceRepoCount,
+      snapshotCount: testCase.snapshotCount,
     });
 
     expect(prompt).toHaveBeenCalledTimes(1);

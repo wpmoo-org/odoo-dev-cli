@@ -31,7 +31,14 @@ import {
 import { detectDevelopmentEnvironment } from './environment.js';
 import { commandOdooVersion } from './environment-version.js';
 import { defaultAgentSkillsTemplateUrl } from './external-templates.js';
-import { listEnvironmentDatabases, normalizeDatabaseListResult, type DatabaseListOptions } from './databases.js';
+import {
+  findDatabaseSnapshots,
+  databaseSnapshotCatalogJson,
+  listEnvironmentDatabases,
+  normalizeDatabaseListResult,
+  renderDatabaseSnapshotCatalog,
+  type DatabaseListOptions,
+} from './databases.js';
 import { isDailyActionCommand, runDailyAction, runDailyActionWithStyledOutput, type DailyActionCommand } from './daily-actions.js';
 import { getDoctorReport, runDoctor, type DoctorCommandOptions } from './doctor.js';
 import { getOriginUrl, realGit } from './git.js';
@@ -363,6 +370,7 @@ async function selectCockpitCommandFromMenu(
   serviceStatus: ServiceRuntimeStatus,
   moduleCount?: number,
   sourceRepoCount?: number,
+  snapshotCount?: number,
 ): Promise<CockpitCommand | 'exit'> {
   const legacyServiceStatus: ServiceRuntimeStatus =
     serviceStatus.kind === 'services-running' ||
@@ -376,6 +384,7 @@ async function selectCockpitCommandFromMenu(
     serviceStatus: legacyServiceStatus,
     moduleCount,
     sourceRepoCount,
+    snapshotCount,
   });
 
   if (selection.kind === 'exit') {
@@ -1750,6 +1759,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
           serviceStatus,
           status.kind === 'environment' ? status.moduleCandidateCount : undefined,
           status.kind === 'environment' ? status.sourceRepoCount : undefined,
+          status.kind === 'environment' ? findDatabaseSnapshots(cwd).snapshots.length : undefined,
         );
 
         if (command === 'exit') {
@@ -1906,6 +1916,22 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
 
     console.log(renderBanner());
     console.log(await renderEnvironmentStatusForTarget(cwd));
+    return;
+  }
+
+  if (route.command === 'snapshot' && route.argv[0] === '--list') {
+    const { values } = parseArgs(route.argv);
+    const keys = Object.keys(values);
+    if (!keys.every((key) => key === 'list' || key === 'json')) {
+      throw new Error('Usage: wpmoo snapshot [--list] [db] [snapshot-name]');
+    }
+    if (jsonOption(values)) {
+      printJson(databaseSnapshotCatalogJson(cwd));
+      return;
+    }
+
+    console.log(renderBanner());
+    console.log(renderDatabaseSnapshotCatalog(cwd));
     return;
   }
 

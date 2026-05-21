@@ -32,7 +32,7 @@ Usage:
   npx @wpmoo/toolkit update <module[,module]> [db]
   npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]
   npx @wpmoo/toolkit resetdb [db] [module[,module]]
-  npx @wpmoo/toolkit snapshot [db] [snapshot-name]
+  npx @wpmoo/toolkit snapshot [--list] [db] [snapshot-name]
   npx @wpmoo/toolkit restore-snapshot [--dry-run] <snapshot-name> [db]
   npx @wpmoo/toolkit lint
   npx @wpmoo/toolkit pot <module[,module]> [db] [output]
@@ -141,7 +141,7 @@ Task recipes:
   Run tests:
     npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]
   Safe reset and recover:
-    npx @wpmoo/toolkit snapshot [db] [snapshot-name]
+    npx @wpmoo/toolkit snapshot [--list] [db] [snapshot-name]
     npx @wpmoo/toolkit reset --dry-run
     npx @wpmoo/toolkit reset
     npx @wpmoo/toolkit restore-snapshot --dry-run <snapshot-name> [db]

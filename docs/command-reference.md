@@ -42,7 +42,7 @@ Run these from the generated environment root:
 | `./moo test <module[,module]> --db <db>` | Modules -> Run tests | Yes in prod | Runs Odoo tests for modules. |
 | `./moo lint` | Modules -> Run environment lint | No | Runs configured environment lint checks. |
 | `./moo pot <module[,module]> [db] [output]` | Modules -> Generate POT | No | Generates translation template files. |
-| `./moo snapshot [db] [name]` | Database -> Create snapshot | No | Creates a database and filestore snapshot. |
+| `./moo snapshot [--list] [db] [name]` | Database -> Create snapshot | No | Creates a database and filestore snapshot, or lists known snapshots with `--list`. |
 | `./moo restore-snapshot --dry-run <name> [db]` | Database -> Restore snapshot | Preview only | Prints a restore preview without changing data. |
 | `./moo restore-snapshot <name> [db]` | Database -> Restore snapshot | Yes | Restores database and filestore from a snapshot. |
 | `./moo resetdb [db] [module[,module]]` | Database -> Reset database | Yes | Destructive database reset. |

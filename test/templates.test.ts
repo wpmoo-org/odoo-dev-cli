@@ -165,6 +165,8 @@ describe('template rendering', () => {
     expect(script).toContain('"resetdb")');
     expect(script).toContain('./scripts/resetdb.sh');
     expect(script).toContain('"snapshot")');
+    expect(script).toContain('Usage: ./moo snapshot [--list] [db] [snapshot-name]');
+    expect(script).toContain('list_snapshots');
     expect(script).toContain('./scripts/snapshot.sh');
     expect(script).toContain('"restore-snapshot")');
     expect(script).toContain('Usage: ./moo restore-snapshot [--dry-run] <snapshot-name> [db]');
@@ -294,7 +296,7 @@ describe('template rendering', () => {
     expect(agents).toContain('./moo test odoo_sample_module');
     expect(agents).toContain('./moo lint');
     expect(agents).toContain('./moo resetdb [db] [module[,module]]');
-    expect(agents).toContain('./moo snapshot [db] [snapshot-name]');
+    expect(agents).toContain('./moo snapshot [--list] [db] [snapshot-name]');
     expect(agents).toContain('./moo restore-snapshot [--dry-run] <snapshot-name> [db]');
     expect(agents).toContain('./moo pot <module[,module]> [db] [output]');
     expect(agents).toContain('`./moo status` runs local offline metadata checks');

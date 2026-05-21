@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   installPromptCancelKeyTracker: vi.fn(),
   isUpdateCheckSkipped: vi.fn(() => true),
   listEnvironmentDatabases: vi.fn(async () => ['devel', 'postgres']),
+  findDatabaseSnapshots: vi.fn(() => ({ snapshots: [], snapshotPaths: [], newestSnapshotAgeMs: null })),
   getServiceRuntimeStatus: vi.fn(async () => ({ kind: 'stopped' } as ServiceRuntimeStatus)),
   listSources: vi.fn(async () => [
     {
@@ -111,6 +112,7 @@ vi.mock('../src/daily-actions.js', async (importOriginal) => {
 });
 
 vi.mock('../src/databases.js', () => ({
+  findDatabaseSnapshots: mocks.findDatabaseSnapshots,
   listEnvironmentDatabases: mocks.listEnvironmentDatabases,
   normalizeDatabaseListResult: (result: unknown) =>
     Array.isArray(result) ? { ok: true, databases: result } : result,

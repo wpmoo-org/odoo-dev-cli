@@ -125,6 +125,12 @@ Take a snapshot before risky changes:
 ./moo snapshot devel before-moo-test-update
 ```
 
+List available snapshots before choosing one:
+
+```bash
+./moo snapshot --list
+```
+
 Preview a restore:
 
 ```bash
@@ -187,4 +193,3 @@ WPMOO_ENV=prod WPMOO_ALLOW_DESTRUCTIVE=1 ./moo restore-snapshot before-change de
 
 Do not set production flags globally in a shell profile. Prefer one-command
 environment variable prefixes so intent is visible in shell history.
-

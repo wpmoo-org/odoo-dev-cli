@@ -348,6 +348,28 @@ done
     );
   });
 
+  it('lists generated snapshots locally without delegating to snapshot script', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    const snapshotDir = join(root, 'backups', 'snapshots');
+    await mkdir(snapshotDir, { recursive: true });
+    await writeFile(join(snapshotDir, 'before-update.dump'), 'snapshot', 'utf8');
+    await writeFile(join(snapshotDir, 'before-update.filestore.tar.gz'), 'filestore', 'utf8');
+    await writeFile(
+      join(snapshotDir, 'before-update.json'),
+      JSON.stringify({ name: 'before-update', database: 'devel', created_at: '2026-05-22T10:20:30Z' }),
+      'utf8',
+    );
+
+    const result = await execa(join(root, 'moo'), ['snapshot', '--list'], { cwd: root, env });
+
+    expect(result.stdout).toContain('- before-update');
+    expect(result.stdout).toContain('Created: 2026-05-22T10:20:30Z');
+    expect(result.stdout).toContain('Database: devel');
+    expect(result.stdout).toContain('Dump: backups/snapshots/before-update.dump');
+    expect(result.stdout).toContain('Filestore: backups/snapshots/before-update.filestore.tar.gz (found)');
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
+  });
+
   it('prints generated command help without falling back to npx', async () => {
     const { callsPath, env, root } = await createMooFixture();
 
