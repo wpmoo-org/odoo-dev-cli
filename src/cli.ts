@@ -84,8 +84,8 @@ import {
   environmentStatusJson,
   type EnvironmentStatus,
   getEnvironmentStatus,
+  environmentBannerSummaryLine,
   renderEnvironmentStatusForTarget,
-  renderEnvironmentStatusSummary,
 } from './status.js';
 import {
   getGitHubAccounts,
@@ -300,25 +300,6 @@ function startupVersionLine(latestVersion?: string): string {
   return `v${packageVersion()}${latestVersion ? ` -> v${latestVersion} available` : ''}`;
 }
 
-function pluralize(count: number, singular: string, plural: string): string {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function renderStartupEnvironmentLine(status: EnvironmentStatus): string {
-  if (status.kind !== 'environment') {
-    return `Environment: ${renderEnvironmentStatusSummary(status)}`;
-  }
-
-  const issueCount = status.composeErrors.length + status.invalidSourceRepoPaths.length + status.missingCoreFiles.length;
-  const issueSuffix = issueCount > 0 ? ` · ${pluralize(issueCount, 'issue', 'issues')}` : '';
-
-  return [
-    `Environment: Odoo ${status.odooVersion}`,
-    pluralize(status.sourceRepoCount, 'repo', 'repos'),
-    pluralize(status.moduleCandidateCount, 'module', 'modules'),
-  ].join(' · ') + issueSuffix;
-}
-
 function renderStartupBanner(details?: StartupBannerDetails, latestVersion?: string): string {
   const versionLine = startupVersionLine(latestVersion);
   return renderBanner(details?.(versionLine), details ? { version: versionLine } : undefined);
@@ -329,7 +310,11 @@ function renderCockpitStatusLines(
   serviceStatus: ServiceRuntimeStatus,
   lastStatus: string,
 ): string[] {
-  return [renderStartupEnvironmentLine(status), renderServiceRuntimeStatusLine(serviceStatus), lastStatus];
+  return [
+    environmentBannerSummaryLine(status),
+    renderServiceRuntimeStatusLine(serviceStatus),
+    lastStatus,
+  ];
 }
 
 function renderLastCommandStatus(command: CockpitCommand): string {

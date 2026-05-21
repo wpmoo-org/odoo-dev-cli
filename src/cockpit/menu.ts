@@ -11,6 +11,7 @@ import {
   isPromptCancel,
   promptSeparator,
   selectPrompt,
+  type DisabledErrorRenderer,
   type PromptSeparator,
 } from '../prompts/index.js';
 
@@ -40,7 +41,7 @@ export type CockpitMenuSelectPrompt = (options: {
   pageSize?: number;
   loop?: boolean;
   hideMessage?: boolean;
-  disabledError?: string;
+  disabledError?: DisabledErrorRenderer;
   navigationWarning?: string | (() => string | undefined);
   escapeBehavior?: 'cancel' | 'ignore';
 }) => Promise<unknown>;
@@ -94,6 +95,24 @@ function commandName(command: CockpitCommand): string {
   return `${rgb(226, 184, 96, ` ${command.label.padEnd(topLevelCommandLabelWidth)}`)}${dim(`  ${command.description}`)}`;
 }
 
+const disabledReasonNextStep: Record<string, string> = {
+  'No modules found.': 'Next: choose "Add module" first.',
+  'Services stopped.': 'Next: choose "Start services" first.',
+  'Already running.': 'Next: choose "Stop services" or "Restart services".',
+  'Docker not running.': 'Next: start Docker, then choose "Start services".',
+  'No source repos found.': 'Next: choose "Add source repo" first.',
+};
+
+function disabledError(reason?: string): string {
+  const base = 'This option is disabled and cannot be selected.';
+  if (!reason) {
+    return base;
+  }
+
+  const nextStep = disabledReasonNextStep[reason];
+  return nextStep ? `${base}\nReason: ${reason}\n${nextStep}` : `${base}\nReason: ${reason}`;
+}
+
 function serviceDisabledReason(command: CockpitCommand, serviceStatus?: ServiceRuntimeStatus): string | undefined {
   if (command.category !== 'services' || !serviceStatus) return undefined;
   if (serviceStatus.kind === 'docker-not-running') return 'Docker not running.';
@@ -123,10 +142,6 @@ function disabledReason(
     moduleDisabledReason(command, moduleCount) ??
     sourceRepoDisabledReason(command, sourceRepoCount)
   );
-}
-
-function disabledError(): string {
-  return 'This option is disabled and cannot be selected.';
 }
 
 function commandDisabledValue(reason: string | undefined): string | undefined {
@@ -228,7 +243,7 @@ export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): 
     pageSize: topLevelPageSize(choices.length),
     loop: false,
     hideMessage: true,
-    disabledError: disabledError(),
+    disabledError,
     navigationWarning: options.navigationWarning,
     escapeBehavior: 'ignore',
   });

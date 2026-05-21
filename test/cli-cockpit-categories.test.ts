@@ -54,6 +54,10 @@ function disabledValue(choice: CockpitMenuChoice | undefined): unknown {
   return (choice as { disabled?: unknown } | undefined)?.disabled;
 }
 
+function renderDisabledError(value: unknown, reason?: string): unknown {
+  return typeof value === 'function' ? (value as (activeReason?: string) => string)(reason) : value;
+}
+
 type MenuChoiceExpectation = {
   id: string;
   category: CockpitCommandCategory;
@@ -105,38 +109,38 @@ describe('cockpit top-level menu', () => {
       expect(config.hideMessage).toBe(true);
       expect(menuChoiceLabels(config)).toEqual([
         category('Services'),
-        inlineCommand('Start services', 'Start the Odoo development services.'),
-        inlineCommand('Stop services', 'Stop the Odoo development services.'),
-        inlineCommand('Restart services', 'Restart the Odoo development services.'),
-        inlineCommand('View logs', 'Stream logs for an Odoo environment service.'),
-        inlineCommand('Open shell', 'Open a shell inside the Odoo service container.'),
+        inlineCommand('Start services', 'Start Odoo services.'),
+        inlineCommand('Stop services', 'Stop Odoo services.'),
+        inlineCommand('Restart services', 'Restart Odoo services.'),
+        inlineCommand('View logs', 'Tail service logs.'),
+        inlineCommand('Open shell', 'Open a service shell.'),
         ' ',
         category('Modules'),
         inlineCommand('List modules', 'Browse detected Odoo modules by source category.'),
-        inlineCommand('Install module', 'Install one or more Odoo modules into a database.'),
-        inlineCommand('Update module', 'Update one or more Odoo modules in a database.'),
-        inlineCommand('Run tests', 'Run Odoo tests for one or more modules.'),
-        inlineCommand('Run environment lint', 'Run the configured environment lint checks.'),
-        inlineCommand('Generate POT', 'Generate translation template files for a module.'),
-        inlineCommand('Add module', 'Add a module folder to a source repository.'),
-        inlineCommand('Remove module', 'Remove a module folder from a source repository.'),
+        inlineCommand('Install module', 'Install modules in the database.'),
+        inlineCommand('Update module', 'Update modules in the database.'),
+        inlineCommand('Run tests', 'Run tests for selected modules.'),
+        inlineCommand('Run environment lint', 'Run environment lint checks.'),
+        inlineCommand('Generate POT', 'Generate module translation templates.'),
+        inlineCommand('Add module', 'Add a module to a source repository.'),
+        inlineCommand('Remove module', 'Remove a module from a source repository.'),
         ' ',
         category('Database'),
-        inlineCommand('Open psql', 'Open a PostgreSQL prompt for an environment database.'),
+        inlineCommand('Open psql', 'Open PostgreSQL prompt.'),
         inlineCommand('Create snapshot', 'Create a database snapshot.'),
-        inlineCommand('Restore snapshot', 'Restore a database from a named snapshot.'),
-        inlineCommand('Reset database', 'Reset an environment database.'),
+        inlineCommand('Restore snapshot', 'Restore a named snapshot.'),
+        inlineCommand('Reset database', 'Reset the environment database.'),
         ' ',
         category('Diagnostics'),
         inlineCommand('Environment status', 'Show a summary of the current environment state.'),
-        inlineCommand('Run doctor', 'Run environment diagnostics and report actionable issues.'),
+        inlineCommand('Run doctor', 'Run environment diagnostics.'),
         ' ',
         category('Repositories'),
-        inlineCommand('Add source repo', 'Add a source repository as an environment submodule.'),
-        inlineCommand('Remove source repo', 'Remove a source repository from the environment.'),
+        inlineCommand('Add source repo', 'Add a source repository.'),
+        inlineCommand('Remove source repo', 'Remove a source repository.'),
         ' ',
         category('Maintenance'),
-        inlineCommand('Safe reset environment', 'Refresh generated environment files while preserving source repositories.'),
+        inlineCommand('Safe reset environment', 'Refresh generated files only.'),
       ]);
       expect(config.pageSize).toBeGreaterThan(0);
       expect(config.pageSize).toBeLessThanOrEqual(config.choices?.length ?? 0);
@@ -350,7 +354,11 @@ describe('cockpit top-level menu', () => {
       const config = options as MenuPromptConfig;
 
       expectMenuChoiceMatrix(config, expected);
-      expect(config.disabledError).toBe('This option is disabled and cannot be selected.');
+      expect(renderDisabledError(config.disabledError)).toBe('This option is disabled and cannot be selected.');
+      if (disabled.length > 0) {
+        const activeReason = disabled[0]?.disabled;
+        expect(renderDisabledError(config.disabledError, activeReason)).toContain(`Reason: ${activeReason}`);
+      }
       expect(config.default).toBe(defaultCommand);
       expect(addRepoChoice?.disabled).toBeUndefined();
       return defaultCommand;

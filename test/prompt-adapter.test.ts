@@ -215,6 +215,49 @@ describe('prompt adapter', () => {
     );
   });
 
+  it('supports disabled error renderers for active disabled reasons', async () => {
+    const select = vi.mocked(inquirerSelect);
+    select.mockResolvedValue('install');
+
+    const value = await selectPrompt({
+      message: '',
+      choices: [
+        {
+          value: 'install' as const,
+          name: 'Install module',
+          disabled: 'No modules found.',
+        },
+      ],
+      hideMessage: true,
+      disabledError: (reason) =>
+        reason
+          ? `This option is disabled and cannot be selected.\nReason: ${reason}\nNext: choose "Add module" first.`
+          : 'This option is disabled and cannot be selected.',
+    });
+
+    expect(value).toBe('install');
+    const [promptArgs] = select.mock.calls[0];
+    const theme = promptArgs.theme as {
+      style?: {
+        disabled?: (text: string) => string;
+      };
+      icon?: {
+        cursor?: string;
+      };
+      i18n?: {
+        disabledError?: string;
+      };
+    };
+    const cursor = theme.icon?.cursor ?? '';
+
+    expect(theme.style?.disabled?.(`${cursor} Install module No modules found.`)).toBe(
+      '\u001B[2m\u001B[38;2;226;184;96m❯\u001B[39m Install module\u001B[22m',
+    );
+    expect(theme.i18n?.disabledError).toBe(
+      'This option is disabled and cannot be selected.\nReason: No modules found.\nNext: choose "Add module" first.',
+    );
+  });
+
   it('renders back-navigation help text for hidden select prompts', async () => {
     const select = vi.mocked(inquirerSelect);
     select.mockResolvedValue('native');

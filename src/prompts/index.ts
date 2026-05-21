@@ -22,6 +22,7 @@ export type PromptChoice<T> = {
 type SelectNavigationHelp = 'exit' | 'back';
 type SelectNavigationWarning = string | (() => string | undefined);
 type SelectEscapeBehavior = 'cancel' | 'ignore';
+export type DisabledErrorRenderer = string | ((reason: string | undefined) => string);
 export type SelectPromptOptions<T> =
   | {
       message: string;
@@ -30,7 +31,7 @@ export type SelectPromptOptions<T> =
       pageSize?: number;
       loop?: boolean;
       hideMessage?: boolean;
-      disabledError?: string;
+      disabledError?: DisabledErrorRenderer;
       navigationHelp?: SelectNavigationHelp;
       navigationWarning?: SelectNavigationWarning;
       escapeBehavior?: SelectEscapeBehavior;
@@ -42,7 +43,7 @@ export type SelectPromptOptions<T> =
       loop?: boolean;
       default?: T;
       hideMessage?: boolean;
-      disabledError?: string;
+      disabledError?: DisabledErrorRenderer;
       navigationHelp?: SelectNavigationHelp;
       navigationWarning?: SelectNavigationWarning;
       escapeBehavior?: SelectEscapeBehavior;
@@ -86,7 +87,7 @@ type InquirerSearchPromptConfig<T> = Parameters<typeof inquirerSearch<T>>[0];
 type InquirerSelectPromptConfig<T> = Parameters<typeof inquirerSelect<T>>[0];
 type HideableSelectPromptConfig<T> = InquirerSelectPromptConfig<T> & {
   hideMessage?: boolean;
-  disabledError?: string;
+  disabledError?: DisabledErrorRenderer;
   navigationHelp?: SelectNavigationHelp;
   navigationWarning?: SelectNavigationWarning;
   escapeBehavior?: SelectEscapeBehavior;
@@ -241,7 +242,7 @@ function isClackSelectOptions<T>(
   pageSize?: number;
   loop?: boolean;
   hideMessage?: boolean;
-  disabledError?: string;
+  disabledError?: DisabledErrorRenderer;
   navigationHelp?: SelectNavigationHelp;
   navigationWarning?: SelectNavigationWarning;
   escapeBehavior?: SelectEscapeBehavior;
@@ -257,7 +258,7 @@ function asInquirerSelectConfig<T>(
     pageSize?: number;
     loop?: boolean;
     hideMessage?: boolean;
-    disabledError?: string;
+    disabledError?: DisabledErrorRenderer;
     navigationHelp?: SelectNavigationHelp;
     navigationWarning?: SelectNavigationWarning;
     escapeBehavior?: SelectEscapeBehavior;
@@ -287,7 +288,7 @@ function renderedNavigationWarning(navigationWarning?: SelectNavigationWarning):
 }
 
 function hiddenSelectTheme<T>(
-  disabledError?: string,
+  disabledError?: DisabledErrorRenderer,
   navigationHelp: SelectNavigationHelp = 'exit',
   navigationWarning?: SelectNavigationWarning,
   hideMessage = true,
@@ -340,11 +341,19 @@ function hiddenSelectTheme<T>(
   };
 }
 
-function disabledErrorI18n(disabledError: string, activeReason: () => string | undefined): { disabledError: string } {
-  const i18n: { disabledError: string } = { disabledError };
+function disabledErrorI18n(
+  disabledError: DisabledErrorRenderer,
+  activeReason: () => string | undefined,
+): { disabledError: string } {
+  const i18n: { disabledError: string } =
+    typeof disabledError === 'string' ? { disabledError } : { disabledError: disabledError(undefined) };
   Object.defineProperty(i18n, 'disabledError', {
     get: () => {
       const reason = activeReason();
+      if (typeof disabledError === 'function') {
+        return disabledError(reason);
+      }
+
       return reason ? `${disabledError}\nReason: ${reason}` : disabledError;
     },
   });

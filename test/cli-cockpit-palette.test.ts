@@ -4,8 +4,22 @@ import { cockpitCommands, searchCockpitCommands } from '../src/cockpit/command-r
 import { selectCockpitCommandFromPalette, type CockpitSearchPrompt } from '../src/cockpit/command-palette.js';
 
 describe('cockpit command palette search', () => {
+  it('keeps top-level command descriptions compact', () => {
+    for (const command of cockpitCommands) {
+      expect(command.description.length).toBeLessThanOrEqual(48);
+    }
+  });
+
   it('ranks exact /test slash alias match first', () => {
     expect(searchCockpitCommands('/test')[0]?.id).toBe('test');
+  });
+
+  it('ranks slash term matches for key flows first', () => {
+    expect(searchCockpitCommands('/module')[0]?.id).toBe('list-modules');
+    expect(searchCockpitCommands('/db')[0]?.id).toBe('psql');
+    expect(searchCockpitCommands('/test')[0]?.id).toBe('test');
+    expect(searchCockpitCommands('/snapshot')[0]?.id).toBe('snapshot');
+    expect(searchCockpitCommands('/safe')[0]?.id).toBe('safe-reset');
   });
 
   it('ranks exact test id match first', () => {

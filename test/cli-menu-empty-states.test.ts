@@ -32,7 +32,20 @@ const mocks = vi.hoisted(() => ({
   getGitHubPrerequisiteStatus: vi.fn(async () => ({ status: 'ready' as const })),
   renderGitHubPrerequisiteGuidance: vi.fn(() => 'GitHub CLI (`gh`) is not available or not authenticated.'),
   renderEnvironmentStatusSummary: vi.fn(() => 'Status summary'),
-  getEnvironmentStatus: vi.fn(async () => ({ mock: true })),
+  getEnvironmentStatus: vi.fn(async () => ({
+    kind: 'environment',
+    target: '/tmp/environment',
+    metadataPath: '/tmp/environment/.wpmoo/odoo.json',
+    recommendedNextAction: 'Run ./moo.',
+    odooVersion: '19.0',
+    sourceRepoCount: 1,
+    sourceRepoPaths: ['odoo/custom/src/private/repo'],
+    invalidSourceRepoPaths: [],
+    moduleCandidateCount: 0,
+    composeFiles: ['compose.yaml'],
+    composeErrors: [],
+    missingCoreFiles: [],
+  })),
   safeResetEnvironment: vi.fn(async () => undefined),
 }));
 

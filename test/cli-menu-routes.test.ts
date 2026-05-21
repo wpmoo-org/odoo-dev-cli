@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { cockpitCommands, type CockpitCommand } from '../src/cockpit/command-registry.js';
+import type { ServiceRuntimeStatus } from '../src/service-runtime-status.js';
 import { packageVersion } from '../src/version.js';
 
 const mocks = vi.hoisted(() => ({
@@ -15,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   installPromptCancelKeyTracker: vi.fn(),
   isUpdateCheckSkipped: vi.fn(() => true),
   listEnvironmentDatabases: vi.fn(async () => ['devel', 'postgres']),
-  getServiceRuntimeStatus: vi.fn(async () => ({ kind: 'stopped' as const })),
+  getServiceRuntimeStatus: vi.fn(async () => ({ kind: 'stopped' } as ServiceRuntimeStatus)),
   listSources: vi.fn(async () => [
     {
       type: 'private',
@@ -52,12 +53,12 @@ const mocks = vi.hoisted(() => ({
     recommendedNextAction: 'Run ./moo.',
     odooVersion: '19.0',
     sourceRepoCount: 1,
-    sourceRepoPaths: ['odoo/custom/src/private/moo_olympiad'],
-    invalidSourceRepoPaths: [],
+    sourceRepoPaths: ['odoo/custom/src/private/moo_olympiad'] as string[],
+    invalidSourceRepoPaths: [] as string[],
     moduleCandidateCount: 0,
-    composeFiles: ['compose.yaml'],
-    composeErrors: [],
-    missingCoreFiles: [],
+    composeFiles: ['compose.yaml'] as string[],
+    composeErrors: [] as string[],
+    missingCoreFiles: [] as string[],
   })),
   safeResetEnvironment: vi.fn(async () => undefined),
 }));
@@ -354,7 +355,7 @@ describe('cli menu environment routes', () => {
     expect(vi.mocked(prompts.notePrompt)).not.toHaveBeenCalledWith('Status summary', 'Environment status');
     const topLevelPromptArgs = vi.mocked(prompts.selectPrompt).mock.calls[0]?.[0] as {
       choices?: Array<{ value?: unknown; disabled?: unknown }>;
-      disabledError?: string;
+      disabledError?: unknown;
     };
     const moduleDisabledIds = ['list-modules', 'install', 'update', 'test', 'lint', 'pot', 'remove-module'];
     for (const commandId of moduleDisabledIds) {
@@ -367,10 +368,79 @@ describe('cli menu environment routes', () => {
       topLevelPromptArgs.choices?.find((choice) => (choice.value as CockpitCommand | undefined)?.id === 'add-module')
         ?.disabled,
     ).toBeUndefined();
-    expect(topLevelPromptArgs.disabledError).toBe('This option is disabled and cannot be selected.');
+    const disabledError =
+      typeof topLevelPromptArgs.disabledError === 'function'
+        ? (topLevelPromptArgs.disabledError as (activeReason?: string) => string)('No modules found.')
+        : topLevelPromptArgs.disabledError;
+    expect(disabledError).toBe(
+      'This option is disabled and cannot be selected.\nReason: No modules found.\nNext: choose "Add module" first.',
+    );
     const bannerOrder = mocks.renderBanner.mock.invocationCallOrder[0] ?? 0;
     const selectOrder = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER;
     expect(bannerOrder).toBeLessThan(selectOrder);
+  });
+
+  it('renders startup banner with service state and repository/module header line', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    mocks.getServiceRuntimeStatus.mockResolvedValueOnce({ kind: 'running' });
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce('exit');
+    mocks.getEnvironmentStatus.mockResolvedValueOnce({
+      kind: 'environment',
+      target: '/tmp/environment',
+      metadataPath: '/tmp/environment/.wpmoo/odoo.json',
+      recommendedNextAction: 'Run ./moo.',
+      odooVersion: '19.0',
+      sourceRepoCount: 2,
+      sourceRepoPaths: ['odoo/custom/src/private/moo_olympiad', 'odoo/custom/src/private/custom_repo'],
+      invalidSourceRepoPaths: [],
+      moduleCandidateCount: 5,
+      composeFiles: ['compose.yaml'],
+      composeErrors: ['Missing overlay'],
+      missingCoreFiles: ['README.md'],
+    });
+
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.renderBanner).toHaveBeenCalledWith(
+      ['Environment: Odoo 19.0 · 2 repos · 5 modules · 2 issues', 'Status: ● Services running', 'Last: Ready'],
+      { version: `v${packageVersion()}` },
+    );
+  });
+
+  it('includes compose issues in startup banner header so menu status reflects environment drift', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce('exit');
+    mocks.getEnvironmentStatus.mockResolvedValueOnce({
+      kind: 'environment',
+      target: '/tmp/environment',
+      metadataPath: '/tmp/environment/.wpmoo/odoo.json',
+      recommendedNextAction: 'Run ./moo.',
+      odooVersion: '19.0',
+      sourceRepoCount: 0,
+      sourceRepoPaths: [],
+      invalidSourceRepoPaths: [],
+      moduleCandidateCount: 0,
+      composeFiles: ['compose.yaml'],
+      composeErrors: ['Invalid WPMOO_ENV in .env: expected a simple compose overlay name, got ../stage'],
+      missingCoreFiles: [],
+    });
+
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.renderBanner).toHaveBeenCalledWith(
+      [
+        'Environment: Odoo 19.0 · 0 repos · 0 modules · 1 issue',
+        'Status: ● Services stopped',
+        'Last: Ready',
+      ],
+      { version: `v${packageVersion()}` },
+    );
   });
 
   it('routes add-repo through prompts, repository preflight, and addModuleRepo', async () => {

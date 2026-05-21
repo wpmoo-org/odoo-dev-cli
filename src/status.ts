@@ -64,6 +64,11 @@ type StatusJsonPayload = {
 };
 
 const validSourceTypes: ReadonlyArray<SourceType> = ['private', 'oca', 'external'];
+const summarySeparator = ' \u00B7 ';
+
+function pluralize(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
 
 function normalizeSourceType(sourceType?: string): SourceType {
   if (typeof sourceType === 'string' && validSourceTypes.includes(sourceType as SourceType)) {
@@ -160,6 +165,22 @@ async function missingCoreFiles(
   missing.push(...composeLayout.missingFiles);
 
   return { missing, composeFiles: composeLayout.files, composeErrors: composeLayout.errors };
+}
+
+export function environmentBannerSummaryLine(status: EnvironmentStatus): string {
+  if (status.kind !== 'environment') {
+    return `Environment: ${summaryText(status)}`;
+  }
+
+  const issueCount =
+    status.composeErrors.length + status.invalidSourceRepoPaths.length + status.missingCoreFiles.length;
+  const issueSuffix = issueCount > 0 ? `${summarySeparator}${pluralize(issueCount, 'issue', 'issues')}` : '';
+
+  return [
+    `Environment: Odoo ${status.odooVersion}`,
+    pluralize(status.sourceRepoCount, 'repo', 'repos'),
+    pluralize(status.moduleCandidateCount, 'module', 'modules'),
+  ].join(summarySeparator) + issueSuffix;
 }
 
 function summaryText(status: EnvironmentStatus): string {

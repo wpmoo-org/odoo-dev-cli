@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getEnvironmentStatus,
   environmentStatusJson,
+  environmentBannerSummaryLine,
   renderEnvironmentStatus,
   renderEnvironmentStatusForTarget,
   renderEnvironmentStatusSummary,
@@ -264,6 +265,51 @@ describe('status', () => {
     expect(status.invalidSourceRepoPaths).toEqual([]);
     expect(status.moduleCandidateCount).toBe(3);
     expect(renderEnvironmentStatusSummary(status)).toContain('Environment ready');
+  });
+
+  it('renders compact environment summary line with repo and module counts', async () => {
+    const target = await makeTarget('wpmoo-status-banner-counts-');
+    const metadata = {
+      ...validMetadata,
+      sourceRepos: [
+        { url: 'https://github.com/example/repo_a.git', path: 'repo_a', addons: [] },
+        { url: 'https://github.com/example/repo_b.git', path: 'repo_b', addons: [] },
+      ],
+    };
+
+    await writeMetadata(target, JSON.stringify(metadata, null, 2));
+    await writeCoreFiles(target, '19.0');
+    await mkdir(join(target, 'odoo/custom/src/private/repo_a/a_module'), { recursive: true });
+    await writeFile(join(target, 'odoo/custom/src/private/repo_a/a_module/__manifest__.py'), '{}');
+    await mkdir(join(target, 'odoo/custom/src/private/repo_a/b_module'), { recursive: true });
+    await writeFile(join(target, 'odoo/custom/src/private/repo_a/b_module/__manifest__.py'), '{}');
+    await mkdir(join(target, 'odoo/custom/src/private/repo_b/c_module'), { recursive: true });
+    await writeFile(join(target, 'odoo/custom/src/private/repo_b/c_module/__manifest__.py'), '{}');
+
+    const status = await getEnvironmentStatus(target);
+    expect(status.kind).toBe('environment');
+    if (status.kind !== 'environment') return;
+
+    expect(status.sourceRepoCount).toBe(2);
+    expect(status.moduleCandidateCount).toBe(3);
+    expect(environmentBannerSummaryLine(status)).toBe('Environment: Odoo 19.0 · 2 repos · 3 modules');
+  });
+
+  it('adds compose errors to compact banner summary without drifting from status health', async () => {
+    const target = await makeTarget('wpmoo-status-banner-compose-errors-');
+    await writeMetadata(target, JSON.stringify(validMetadata, null, 2));
+    await writeCompactCoreFiles(target);
+    await writeFile(join(target, '.env'), 'WPMOO_ENV=../stage\n');
+
+    const status = await getEnvironmentStatus(target);
+    expect(status.kind).toBe('environment');
+    if (status.kind !== 'environment') return;
+
+    expect(status.composeErrors).toEqual([
+      'Invalid WPMOO_ENV in .env: expected a simple compose overlay name, got ../stage',
+    ]);
+    expect(environmentBannerSummaryLine(status)).toBe('Environment: Odoo 19.0 · 0 repos · 0 modules · 1 issue');
+    expect(renderEnvironmentStatusSummary(status)).toContain('Environment needs attention');
   });
 
   it('defaults legacy sourceRepos entries to private paths', async () => {
