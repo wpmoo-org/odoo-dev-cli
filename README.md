@@ -178,6 +178,9 @@ npx @wpmoo/toolkit doctor --json --postgres
 ```
 
 JSON output is optional; human-readable output remains the default.
+Human `doctor` output is grouped into stable sections (`Generated files`,
+`Compose`, `Source repositories`, `PostgreSQL`, and `Host tools`) so terminal
+operators can see which lifecycle layer needs attention first.
 `doctor --postgres` runs read-only PostgreSQL diagnostics as advisory checks only; it
 does not perform automatic tuning.
 Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics
@@ -193,7 +196,10 @@ Current advisory checks include:
 - optional unused index advisory output when index usage data is available;
 - WAL and capacity visibility including WAL activity and disk-level pressure context;
 - slow-query and query-plan readiness checks for common `log_min_duration_statement`
-  and `pg_stat_statements` prerequisites.
+  and `pg_stat_statements` prerequisites;
+- read-only PostgreSQL configuration visibility for `shared_buffers`, `work_mem`,
+  `maintenance_work_mem`, `effective_cache_size`, and
+  `shared_preload_libraries`.
 
 `npx @wpmoo/toolkit doctor --postgres` and
 `npx @wpmoo/toolkit doctor --json --postgres` use the same checks, and the
@@ -203,6 +209,8 @@ JSON variant exposes a versioned PostgreSQL diagnostics contract.
 `doctor --json --postgres` keeps the JSON contract stable by versioning the
 `postgres` payload; individual fields are optional so automation can safely handle
 environments where PostgreSQL does not expose a metric.
+All `doctor --json` reports also include optional `sections` entries that group
+checks, warnings, and errors without changing the legacy flat arrays.
 
 JSON compatibility policy:
 
