@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 
 import { scaffold } from '../src/scaffold.js';
@@ -104,6 +105,15 @@ describe('scaffold', () => {
     await expect(readFile(join(target, 'odoo/custom/manifests/README.md'), 'utf8')).resolves.toContain(
       'Manifest/lock/list files for external sources and pinned revisions go here.',
     );
+    await expect(stat(join(target, 'scripts/status.sh'))).resolves.toMatchObject({ mode: expect.any(Number) });
+    const statusResult = await execa(join(target, 'scripts/status.sh'), ['--json'], { cwd: target });
+    const statusPayload = JSON.parse(statusResult.stdout) as {
+      command: string;
+      status: { kind: string; odooVersion?: string };
+    };
+    expect(statusPayload.command).toBe('status');
+    expect(statusPayload.status.kind).toBe('environment');
+    expect(statusPayload.status.odooVersion).toBe('18.0');
     expect(gitCalls).toEqual([]);
   });
 
@@ -142,11 +152,45 @@ describe('scaffold', () => {
 
     expect(result.plannedFiles).toContain('.gitignore');
     expect(result.plannedFiles).toContain('moo');
+    expect(result.plannedFiles).toContain('scripts/status.sh');
     expect(result.plannedFiles).toContain('odoo/custom/src/oca/README.md');
     expect(result.plannedFiles).toContain('odoo/custom/src/external/README.md');
     expect(result.plannedFiles).toContain('odoo/custom/patches/README.md');
     expect(result.plannedFiles).toContain('odoo/custom/manifests/README.md');
     await expect(stat(join(target, '.gitignore'))).rejects.toThrow();
+  });
+
+  it('reports compact compose overlay errors from the generated local status script', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-local-status-compose-'));
+    const fixtures = await writeCompactComposeFixture(await mkdtemp(join(tmpdir(), 'wpmoo-local-status-compose-assets-')));
+
+    await scaffold({
+      product: 'odoo_sample_module',
+      odooVersion: '19.0',
+      engine: 'compose',
+      composeTemplateUrl: fixtures,
+      devRepo: 'odoo_sample_module_dev',
+      devRepoUrl: '/tmp/odoo_sample_module_dev',
+      sourceRepos: [],
+      target,
+      dryRun: false,
+      initEmptyRepos: false,
+      stage: false,
+      skipSubmodules: true,
+    });
+
+    await writeFile(join(target, '.env'), 'WPMOO_ENV=stage\n', 'utf8');
+    const result = await execa(join(target, 'scripts/status.sh'), ['--json'], { cwd: target });
+    const payload = JSON.parse(result.stdout) as {
+      ok: boolean;
+      status: { composeErrors?: string[]; missingCoreFiles?: string[] };
+    };
+
+    expect(payload.ok).toBe(false);
+    expect(payload.status.composeErrors).toContain(
+      'Missing compact compose overlay for WPMOO_ENV=stage: compose/stage.yaml',
+    );
+    expect(payload.status.missingCoreFiles).toContain('compose/stage.yaml');
   });
 
   it('dry-run plans source-type aware submodule paths and source manifest', async () => {

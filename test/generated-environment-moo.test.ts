@@ -25,6 +25,7 @@ const dailyScripts = [
   'restore-snapshot.sh',
   'lint.sh',
   'pot.sh',
+  'status.sh',
 ];
 
 async function createMooFixture() {
@@ -91,6 +92,26 @@ describe('generated environment moo delegation matrix', () => {
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor\n`);
   });
 
+  it('runs status locally when the generated status script exists', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+
+    await execa(join(root, 'moo'), ['status'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['status', '--json'], { cwd: root, env });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('status.sh|\nstatus.sh|--json\n');
+  });
+
+  it('falls back to package status when the generated status script is missing', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    await rm(join(root, 'scripts/status.sh'), { force: true });
+
+    await execa(join(root, 'moo'), ['status', '--json'], { cwd: root, env });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(
+      `npx|--yes ${expectedFallbackPackageSpec} status --json\n`,
+    );
+  });
+
   it('prints generated command help without falling back to npx', async () => {
     const { callsPath, env, root } = await createMooFixture();
 
@@ -101,7 +122,9 @@ describe('generated environment moo delegation matrix', () => {
     expect(result.stdout).toContain('start, stop, logs, restart, shell, psql');
     expect(result.stdout).toContain('install, update, test, resetdb, snapshot, restore-snapshot, lint, pot');
     expect(result.stdout).toContain('Management commands:');
-    expect(result.stdout).toContain('status, source, add-repo, remove-repo, add-module, remove-module, reset, doctor');
+    expect(result.stdout).toContain('source, add-repo, remove-repo, add-module, remove-module, reset, doctor');
+    expect(result.stdout).toContain('Local diagnostics:');
+    expect(result.stdout).toContain('status [--json]');
     await expect(readFile(callsPath, 'utf8')).rejects.toThrow();
   });
 

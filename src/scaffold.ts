@@ -20,6 +20,7 @@ import {
   renderMooDelegationScript,
   renderPlaceholder,
   renderReadme,
+  renderStatusScript,
 } from './templates.js';
 import { validateAddonName, validateRepoPath } from './path-validation.js';
 import { renderSourceManifest, sourceManifestEntriesFromMetadata } from './source-manifest.js';
@@ -85,6 +86,7 @@ export function generatedFiles(options: ScaffoldOptions): GeneratedFile[] {
   const files: GeneratedFile[] = [
     { path: markerPath, content: renderEnvironmentMetadata(safeOptions) },
     { path: 'moo', content: renderMooDelegationScript(), mode: 0o755 },
+    { path: 'scripts/status.sh', content: renderStatusScript(), mode: 0o755 },
     { path: '.gitignore', content: renderGitignore() },
     { path: 'README.md', content: renderReadme(safeOptions) },
     { path: 'AGENTS.md', content: renderAgents(safeOptions) },

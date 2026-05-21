@@ -249,8 +249,9 @@ exposes them through \`/mnt/wpmoo-addons\`.
 
 \`./moo\` routes day-to-day service and module workflows to local scripts in
 \`./scripts/\` (for example \`start\`, \`logs\`, \`update\`, \`test\`, \`snapshot\`).
-\`./moo status\` and \`./moo doctor\` are package fallback commands that run via
-\`npx --yes ${fallbackPackageSpec()} ...\`.
+\`./moo status\` runs local offline metadata checks without needing network access.
+\`./moo doctor\` remains the package fallback command and runs via
+\`npx --yes ${fallbackPackageSpec()} doctor\`.
 
 ### Start And Inspect Services
 
@@ -518,7 +519,10 @@ Daily commands:
   install, update, test, resetdb, snapshot, restore-snapshot, lint, pot
 
 Management commands:
-  status, source, add-repo, remove-repo, add-module, remove-module, reset, doctor
+  source, add-repo, remove-repo, add-module, remove-module, reset, doctor
+
+Local diagnostics:
+  status [--json]
 
 Run ./moo <command> with invalid arguments to see command-specific usage.
 HELP
@@ -675,7 +679,14 @@ case "$command" in
   "--version"|"-v"|"version")
     run_package_command "$@"
     ;;
-  "create"|"status"|"add-repo"|"remove-repo"|"add-module"|"remove-module"|"source"|"reset"|"doctor")
+  "status")
+    shift
+    if [[ -x ./scripts/status.sh ]]; then
+      run_script ./scripts/status.sh "$@"
+    fi
+    run_package_command "$command" "$@"
+    ;;
+  "create"|"add-repo"|"remove-repo"|"add-module"|"remove-module"|"source"|"reset"|"doctor")
     run_package_command "$@"
     ;;
   "start")
@@ -767,6 +778,348 @@ case "$command" in
     exit 2
     ;;
 esac
+`;
+}
+
+export function renderStatusScript(): string {
+  return `#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")" && pwd)"
+root_dir="$(cd -- "$script_dir/.." && pwd)"
+cd "$root_dir"
+
+node --input-type=module - "$@" <<'NODE'
+import { access, readdir, readFile, stat } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
+
+const args = process.argv.slice(2);
+if (!args.every((arg) => arg === '--json')) {
+  console.error('Usage: ./moo status [--json]');
+  process.exit(2);
+}
+
+const json = args.includes('--json');
+const target = process.cwd();
+const metadataPath = '.wpmoo/odoo.json';
+const validSourceTypes = new Set(['private', 'oca', 'external']);
+
+async function exists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isDirectory(path) {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function isRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isValidPathSegment(value) {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  return Boolean(
+    normalized &&
+      normalized !== '.' &&
+      normalized !== '..' &&
+      !normalized.includes('/') &&
+      !normalized.includes('\\\\') &&
+      !normalized.includes('\\0') &&
+      !normalized.includes(':') &&
+      !isAbsolute(normalized) &&
+      !/^[a-zA-Z]:/.test(normalized),
+  );
+}
+
+function normalizeSourceType(sourceType) {
+  return typeof sourceType === 'string' && validSourceTypes.has(sourceType) ? sourceType : 'private';
+}
+
+async function countModuleCandidates(root) {
+  if (!(await isDirectory(root))) return 0;
+  const stack = [root];
+  let count = 0;
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const entries = await readdir(current, { withFileTypes: true });
+    let hasManifest = false;
+
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name === '__manifest__.py') {
+        hasManifest = true;
+      } else if (entry.isDirectory()) {
+        stack.push(join(current, entry.name));
+      }
+    }
+
+    if (hasManifest) count += 1;
+  }
+
+  return count;
+}
+
+function parseEnvContent(content) {
+  const values = new Map();
+  for (const rawLine of content.split(/\\r?\\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const separator = line.indexOf('=');
+    if (separator === -1) continue;
+    const key = line.slice(0, separator).trim();
+    let value = line.slice(separator + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    values.set(key, value);
+  }
+  return values;
+}
+
+async function readEnvFile() {
+  if (!(await exists(join(target, '.env')))) return undefined;
+  return parseEnvContent(await readFile(join(target, '.env'), 'utf8'));
+}
+
+function selectedComposeEnvironment(env) {
+  const envName = env?.get('WPMOO_ENV')?.trim();
+  return envName || 'dev';
+}
+
+function isValidComposeEnvironmentName(value) {
+  return /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+function isValidOdooVersion(value) {
+  return /^\\d+\\.\\d+$/.test(value);
+}
+
+function compactOverlayError(envName, overlayFile) {
+  if (envName === 'dev') return 'Missing compact compose overlay: ' + overlayFile;
+  return 'Missing compact compose overlay for WPMOO_ENV=' + envName + ': ' + overlayFile;
+}
+
+async function detectComposeLayout(odooVersion) {
+  const envName = selectedComposeEnvironment(await readEnvFile());
+  if (!isValidComposeEnvironmentName(envName)) {
+    return {
+      files: [],
+      missingFiles: [],
+      errors: ['Invalid WPMOO_ENV in .env: expected a simple compose overlay name, got ' + envName],
+    };
+  }
+
+  const compactBase = 'compose.yaml';
+  const compactOverlay = 'compose/' + envName + '.yaml';
+  const hasCompactBase = await exists(join(target, compactBase));
+  const hasCompactOverlay = await exists(join(target, compactOverlay));
+
+  if (hasCompactBase && hasCompactOverlay) {
+    return { files: [compactBase, compactOverlay], missingFiles: [], errors: [] };
+  }
+
+  if (hasCompactBase || hasCompactOverlay) {
+    const errors = [];
+    const missingFiles = [];
+    if (!hasCompactBase) {
+      missingFiles.push(compactBase);
+      errors.push('Missing compact compose base: ' + compactBase);
+    }
+    if (!hasCompactOverlay) {
+      missingFiles.push(compactOverlay);
+      errors.push(compactOverlayError(envName, compactOverlay));
+    }
+    return { files: [], missingFiles, errors };
+  }
+
+  if (!isValidOdooVersion(odooVersion)) {
+    return {
+      files: [],
+      missingFiles: [],
+      errors: ['Invalid Odoo version for compose file: ' + odooVersion],
+    };
+  }
+
+  const legacyFile = 'docker-compose_' + odooVersion + '.yml';
+  if (await exists(join(target, legacyFile))) {
+    return { files: [legacyFile], missingFiles: [], errors: [] };
+  }
+
+  return {
+    files: [],
+    missingFiles: [legacyFile],
+    errors: ['Missing compose file: ' + legacyFile],
+  };
+}
+
+async function coreFileIssues(odooVersion) {
+  const missing = [];
+  for (const check of [
+    { label: 'moo', path: 'moo' },
+    { label: 'README.md', path: 'README.md' },
+    { label: 'AGENTS.md', path: 'AGENTS.md' },
+  ]) {
+    if (!(await exists(join(target, check.path)))) missing.push(check.label);
+  }
+  if (!(await isDirectory(join(target, 'scripts')))) missing.push('scripts/');
+
+  const composeLayout = await detectComposeLayout(odooVersion);
+  missing.push(...composeLayout.missingFiles);
+  return { missing, composeFiles: composeLayout.files, composeErrors: composeLayout.errors };
+}
+
+function summaryText(status) {
+  if (status.kind === 'no_environment') return 'No WPMoo environment detected.';
+  if (status.kind === 'invalid_metadata') return 'Environment metadata is invalid.';
+  const needsAttention =
+    status.missingCoreFiles.length > 0 ||
+    status.invalidSourceRepoPaths.length > 0 ||
+    status.composeErrors.length > 0;
+  const prefix = needsAttention ? 'Environment needs attention' : 'Environment ready';
+  return (
+    prefix +
+    ': Odoo ' +
+    status.odooVersion +
+    ', source repos ' +
+    status.sourceRepoCount +
+    ', module candidates ' +
+    status.moduleCandidateCount +
+    '.'
+  );
+}
+
+function isHealthy(status) {
+  return (
+    status.kind === 'environment' &&
+    status.missingCoreFiles.length === 0 &&
+    status.invalidSourceRepoPaths.length === 0 &&
+    status.composeErrors.length === 0
+  );
+}
+
+function renderStatus(status) {
+  const lines = ['Status: ' + summaryText(status)];
+  if (status.kind === 'no_environment') {
+    lines.push('Metadata: missing ' + status.metadataPath);
+    lines.push('Next: ' + status.recommendedNextAction);
+    return lines.join('\\n');
+  }
+  if (status.kind === 'invalid_metadata') {
+    lines.push('Metadata: invalid ' + status.metadataPath);
+    lines.push('Error: ' + status.metadataError);
+    lines.push('Next: ' + status.recommendedNextAction);
+    return lines.join('\\n');
+  }
+  lines.push('Metadata: ' + status.metadataPath);
+  lines.push('Odoo: ' + status.odooVersion);
+  lines.push('Compose files: ' + (status.composeFiles.length > 0 ? status.composeFiles.join(', ') : '(missing)'));
+  if (status.composeErrors.length > 0) lines.push('Compose errors: ' + status.composeErrors.join(', '));
+  lines.push('Source repos: ' + status.sourceRepoCount);
+  lines.push('Source repo paths: ' + (status.sourceRepoPaths.length > 0 ? status.sourceRepoPaths.join(', ') : '(none configured)'));
+  if (status.invalidSourceRepoPaths.length > 0) {
+    lines.push('Invalid source repo paths: ' + status.invalidSourceRepoPaths.join(', '));
+  }
+  lines.push('Module candidates: ' + status.moduleCandidateCount);
+  lines.push('Missing core files: ' + (status.missingCoreFiles.length > 0 ? status.missingCoreFiles.join(', ') : '(none)'));
+  lines.push('Next: ' + status.recommendedNextAction);
+  return lines.join('\\n');
+}
+
+async function getStatus() {
+  if (!(await exists(join(target, metadataPath)))) {
+    return {
+      kind: 'no_environment',
+      target,
+      metadataPath,
+      recommendedNextAction: 'Run npx @wpmoo/toolkit create ...',
+    };
+  }
+
+  let metadata;
+  try {
+    const parsed = JSON.parse(await readFile(join(target, metadataPath), 'utf8'));
+    if (!isRecord(parsed)) throw new Error('metadata is not an object');
+    metadata = parsed;
+  } catch (error) {
+    return {
+      kind: 'invalid_metadata',
+      target,
+      metadataPath,
+      metadataError: error instanceof Error ? error.message : String(error),
+      recommendedNextAction: 'Fix .wpmoo/odoo.json or run ./moo reset from a valid environment.',
+    };
+  }
+
+  const odooVersion =
+    typeof metadata.odooVersion === 'string' && metadata.odooVersion.trim() ? metadata.odooVersion.trim() : '19.0';
+  const sourceRepoPaths = [];
+  const sourceRepoLocations = [];
+  const invalidSourceRepoPaths = [];
+
+  for (const repo of Array.isArray(metadata.sourceRepos) ? metadata.sourceRepos : []) {
+    const path = isRecord(repo) && typeof repo.path === 'string' ? repo.path.trim() : '';
+    if (!path) continue;
+    if (!isValidPathSegment(path)) {
+      invalidSourceRepoPaths.push(path);
+      continue;
+    }
+    const sourceType = normalizeSourceType(isRecord(repo) ? repo.sourceType : undefined);
+    sourceRepoPaths.push(path);
+    sourceRepoLocations.push({ sourceType, path });
+  }
+
+  let moduleCandidateCount = 0;
+  for (const repo of sourceRepoLocations) {
+    moduleCandidateCount += await countModuleCandidates(join(target, 'odoo/custom/src', repo.sourceType, repo.path));
+  }
+
+  const { missing, composeFiles, composeErrors } = await coreFileIssues(odooVersion);
+  let recommendedNextAction = 'Run ./moo doctor for deep checks or ./moo start.';
+  if (invalidSourceRepoPaths.length > 0) {
+    recommendedNextAction = 'Fix invalid source repo paths in .wpmoo/odoo.json, then run ./moo doctor.';
+  } else if (missing.length > 0) {
+    recommendedNextAction = 'Run ./moo reset, then ./moo doctor.';
+  } else if (composeErrors.length > 0) {
+    recommendedNextAction = 'Fix compose layout errors, then run ./moo doctor.';
+  } else if (sourceRepoPaths.length === 0) {
+    recommendedNextAction = 'Run ./moo add-repo ...';
+  }
+
+  return {
+    kind: 'environment',
+    target,
+    metadataPath,
+    odooVersion,
+    sourceRepoCount: sourceRepoPaths.length,
+    sourceRepoPaths,
+    invalidSourceRepoPaths,
+    moduleCandidateCount,
+    composeFiles,
+    composeErrors,
+    missingCoreFiles: missing,
+    recommendedNextAction,
+  };
+}
+
+const status = await getStatus();
+if (json) {
+  console.log(JSON.stringify({ schemaVersion: 1, command: 'status', ok: isHealthy(status), status }, null, 2));
+} else {
+  console.log(renderStatus(status));
+}
+NODE
 `;
 }
 
@@ -928,7 +1281,8 @@ Useful maintenance commands:
 
 Daily script delegation vs package fallback:
 - \`./moo start\`, \`logs\`, \`install\`, \`update\`, \`test\`, \`snapshot\`, and related runtime tasks delegate to local \`./scripts/*.sh\`.
-- \`./moo status\` and \`./moo doctor\` are package fallback commands routed to \`npx --yes ${fallbackPackageSpec()} ...\`.
+- \`./moo status\` runs local offline metadata checks through \`./scripts/status.sh\`.
+- \`./moo doctor\` remains a package fallback command routed to \`npx --yes ${fallbackPackageSpec()} doctor\`.
 
 Only report completion after the relevant update/test/lint command exits cleanly.
 `;

@@ -105,7 +105,8 @@ describe('template rendering', () => {
     expect(readme).toContain('### Lint');
     expect(readme).toContain('### Export Translations');
     expect(readme).toContain('### Recover / Reset');
-    expect(readme).toContain('`./moo status` and `./moo doctor` are package fallback commands');
+    expect(readme).toContain('`./moo status` runs local offline metadata checks');
+    expect(readme).toContain('`./moo doctor` remains the package fallback command');
     expect(readme).toContain('routes day-to-day service and module workflows to local scripts');
     expect(readme).toContain('compose.yaml');
     expect(readme).toContain('compose/dev.yaml');
@@ -174,6 +175,9 @@ describe('template rendering', () => {
     expect(script).toContain('./scripts/lint.sh');
     expect(script).toContain('"pot")');
     expect(script).toContain('./scripts/pot.sh');
+    expect(script).toContain('"status")');
+    expect(script).toContain('./scripts/status.sh');
+    expect(script).toContain('run_package_command "$command" "$@"');
     expect(script).toContain('Usage: ./moo <command> [args]');
     expect(script).toContain('"--help"|"-h"|"help")');
     expect(script).toContain('Unknown ./moo command: $command');
@@ -223,6 +227,7 @@ describe('template rendering', () => {
     await execa(join(target, 'moo'), ['restart'], { env });
     await execa(join(target, 'moo'), ['restore-snapshot', '--dry-run', 'before-update', 'devel'], { env });
     await execa(join(target, 'moo'), ['pot', 'sale,stock', 'devel', 'i18n/sale.pot'], { env });
+    await execa(join(target, 'moo'), ['status', '--json'], { env });
     await execa(join(target, 'moo'), ['doctor'], { env });
     await execa(join(target, 'moo'), ['add-module'], { env });
 
@@ -232,6 +237,7 @@ describe('template rendering', () => {
         'restart:',
         'restore-snapshot:--dry-run before-update devel',
         'pot:sale,stock devel i18n/sale.pot',
+        `npx:--yes ${expectedFallbackPackageSpec} status --json`,
         `npx:--yes ${expectedFallbackPackageSpec} doctor`,
         `npx:--yes ${expectedFallbackPackageSpec} add-module`,
         '',
@@ -281,7 +287,8 @@ describe('template rendering', () => {
     expect(agents).toContain('./moo snapshot [db] [snapshot-name]');
     expect(agents).toContain('./moo restore-snapshot [--dry-run] <snapshot-name> [db]');
     expect(agents).toContain('./moo pot <module[,module]> [db] [output]');
-    expect(agents).toContain('`./moo status` and `./moo doctor` are package fallback commands');
+    expect(agents).toContain('`./moo status` runs local offline metadata checks');
+    expect(agents).toContain('`./moo doctor` remains a package fallback command');
     expect(agents).toContain('delegate to local `./scripts/*.sh`');
   });
 
