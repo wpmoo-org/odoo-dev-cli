@@ -7,6 +7,7 @@ export type ModuleQualityIssue = {
   moduleName: string;
   path: string;
   issue: string;
+  severity?: 'error' | 'warning';
 };
 
 export type ModuleDependencyGraph = {
@@ -129,8 +130,21 @@ function moduleIssue(moduleName: string, path: string, issue: string): ModuleQua
   return { moduleName, path, issue };
 }
 
+function moduleQualityIssue(
+  moduleName: string,
+  path: string,
+  issue: string,
+  severity: NonNullable<ModuleQualityIssue['severity']>,
+): ModuleQualityIssue {
+  return { moduleName, path, issue, severity };
+}
+
 function manifestData(manifest: OdooManifest | undefined): string[] {
   return Array.isArray(manifest?.data) ? manifest.data : [];
+}
+
+function manifestDemo(manifest: OdooManifest | undefined): string[] {
+  return Array.isArray(manifest?.demo) ? manifest.demo : [];
 }
 
 function manifestDepends(manifest: OdooManifest | undefined): string[] {
@@ -157,6 +171,76 @@ function moduleHasOdooStructures(modelFiles: readonly string[], viewFiles: reado
 function pythonImportPresent(content: string | undefined, importName: string): boolean {
   if (!content) return false;
   return new RegExp(`^\\s*from\\s+\\.\\s+import\\s+.*\\b${importName}\\b`, 'mu').test(content);
+}
+
+function xmlAttributeValues(content: string, attributeName: string): string[] {
+  const values: string[] = [];
+  const pattern = new RegExp(`\\b${attributeName}=(["'])(.*?)\\1`, 'gsu');
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(content))) {
+    const value = match[2]?.trim();
+    if (value) values.push(value);
+  }
+  return values;
+}
+
+function declaredActionIds(xmlFiles: readonly string[]): Set<string> {
+  const ids = new Set<string>();
+  for (const content of xmlFiles) {
+    for (const record of content.matchAll(/<record\b[^>]*\bmodel=(["'])ir\.actions\.act_window\1[^>]*>/gsu)) {
+      for (const id of xmlAttributeValues(record[0], 'id')) {
+        ids.add(id);
+      }
+    }
+  }
+  return ids;
+}
+
+function menuActionReferences(xmlFiles: readonly string[]): string[] {
+  const refs: string[] = [];
+  for (const content of xmlFiles) {
+    for (const menu of content.matchAll(/<menuitem\b[^>]*>/gsu)) {
+      refs.push(...xmlAttributeValues(menu[0], 'action'));
+    }
+  }
+  return refs;
+}
+
+function declaredModelIds(modelFileContents: readonly string[]): Set<string> {
+  const modelIds = new Set<string>();
+  for (const content of modelFileContents) {
+    for (const match of content.matchAll(/^\s*_name\s*=\s*["']([^"']+)["']/gmu)) {
+      const modelName = match[1]?.trim();
+      if (modelName) {
+        modelIds.add(`model_${modelName.replace(/\./gu, '_')}`);
+      }
+    }
+  }
+  return modelIds;
+}
+
+function accessCsvModelIds(content: string | undefined): string[] {
+  if (!content) return [];
+  const lines = content
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'));
+  if (lines.length < 2) return [];
+
+  const header = lines[0]?.split(',').map((value) => value.trim()) ?? [];
+  const modelColumn = header.findIndex((value) => value === 'model_id:id' || value === 'model_id');
+  if (modelColumn < 0) return [];
+
+  return lines
+    .slice(1)
+    .map((line) => line.split(',')[modelColumn]?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
+async function readModelFileContents(modulePath: string, modelFiles: readonly string[]): Promise<string[]> {
+  return Promise.all(
+    modelFiles.map(async (fileName) => (await readOptionalFile(join(modulePath, 'models', fileName))) ?? ''),
+  );
 }
 
 export async function analyzeModuleDirectory(
@@ -194,9 +278,22 @@ export async function analyzeModuleDirectory(
   const menuXml = await readMenusXml(modulePath);
   const modelFiles = await readPythonModelFiles(modulePath);
   const viewFiles = await readViewXmlFiles(modulePath);
+  const viewXml = await Promise.all(viewFiles.map(async (fileName) => (await readOptionalFile(join(modulePath, 'views', fileName))) ?? ''));
   const depends = manifestDepends(manifest);
   const data = manifestData(manifest);
+  const demo = manifestDemo(manifest);
   const hasOdooStructures = moduleHasOdooStructures(modelFiles, viewFiles, menuXml, data);
+
+  for (const entry of data) {
+    if (!(await fileExists(join(modulePath, entry)))) {
+      issues.push(moduleQualityIssue(moduleName, relativePath, `missing manifest data file: ${entry}`, 'error'));
+    }
+  }
+  for (const entry of demo) {
+    if (!(await fileExists(join(modulePath, entry)))) {
+      issues.push(moduleQualityIssue(moduleName, relativePath, `missing manifest demo file: ${entry}`, 'warning'));
+    }
+  }
 
   if (hasOdooStructures && !depends.includes('base')) {
     issues.push(moduleIssue(moduleName, relativePath, 'missing base dependency for model-based module'));
@@ -221,6 +318,16 @@ export async function analyzeModuleDirectory(
     }
   }
 
+  const modelFileContents = await readModelFileContents(modulePath, modelFiles);
+  const modelIds = declaredModelIds(modelFileContents);
+  if (modelIds.size > 0) {
+    for (const modelId of accessCsvModelIds(await readOptionalFile(join(modulePath, 'security/ir.model.access.csv')))) {
+      if (!modelIds.has(modelId)) {
+        issues.push(moduleQualityIssue(moduleName, relativePath, `access CSV references unknown model id: ${modelId}`, 'error'));
+      }
+    }
+  }
+
   if (hasOdooStructures && !dataIncludesAccessCsv(data)) {
     issues.push(moduleIssue(moduleName, relativePath, 'missing security/ir.model.access.csv in manifest data'));
   }
@@ -231,6 +338,14 @@ export async function analyzeModuleDirectory(
 
   if (!(await directoryExists(join(modulePath, 'tests')))) {
     issues.push(moduleIssue(moduleName, relativePath, 'missing tests directory'));
+  }
+
+  const allViewXml = [...viewXml, ...menuXml];
+  const actionIds = declaredActionIds(allViewXml);
+  for (const actionRef of menuActionReferences(menuXml)) {
+    if (!actionIds.has(actionRef)) {
+      issues.push(moduleQualityIssue(moduleName, relativePath, `menu XML references missing action id: ${actionRef}`, 'error'));
+    }
   }
 
   const hasMenuAction = menuXml.some((content) => hasActionableMenuXml(content, moduleName));

@@ -40,6 +40,7 @@ describe('Odoo module manifest parser', () => {
   # comment
   'depends': [],
   'data': [],
+  'demo': ['demo/simple_demo.xml'],
   'installable': False,
   'application': True,
 }`;
@@ -52,6 +53,7 @@ describe('Odoo module manifest parser', () => {
         name: 'Simple',
         depends: [],
         data: [],
+        demo: ['demo/simple_demo.xml'],
         installable: false,
         application: true,
       },
@@ -107,6 +109,17 @@ describe('Odoo module manifest parser', () => {
     const result = parseOdooManifest(content);
 
     expect(result).toEqual({ ok: false, error: expect.stringContaining('depends must be a list of strings') });
+  });
+
+  it('returns a parser error for non-string demo values', () => {
+    const content = `{
+  "name": "Bad Module",
+  "demo": ["demo/data.xml", 2],
+}`;
+
+    const result = parseOdooManifest(content);
+
+    expect(result).toEqual({ ok: false, error: expect.stringContaining('demo must be a list of strings') });
   });
 
   it('returns a parser error for syntax errors', () => {
