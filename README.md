@@ -144,6 +144,7 @@ Every cockpit action maps to a direct command, so the same workflow can be used 
 ./moo restore-snapshot --dry-run before-update devel
 ```
 
+In `WPMOO_ENV=stage`, `install` and `update` require `WPMOO_ALLOW_STAGE_LIFECYCLE=1`.
 In `WPMOO_ENV=prod`, `install`, `update`, and `test` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.
 `resetdb` and real `restore-snapshot` require `WPMOO_ALLOW_DESTRUCTIVE=1` in `stage` and `prod`.
 `restore-snapshot --dry-run` remains allowed for preview.
@@ -155,7 +156,7 @@ npx @wpmoo/toolkit add-module --repo sale-workflow --module sale_order_line_no_d
 npx @wpmoo/toolkit remove-module --repo sale-workflow --module sale_order_line_no_discount --source-type oca
 ```
 
-`add-module` creates a minimal Odoo module skeleton with `__init__.py`, `__manifest__.py`, `models/<module>.py`, `models/__init__.py`, `security/ir.model.access.csv`, `views/<module>_views.xml`, `views/<module>_menus.xml`, and `tests/test_<module>.py`. The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and menu entry; the test skeleton adds a post-install TransactionCase smoke test. Module names must be lower `snake_case`; use letters, numbers, and underscores only.
+`add-module` creates a minimal Odoo module skeleton with `__init__.py`, `__manifest__.py`, `models/<module>.py`, `models/__init__.py`, `security/ir.model.access.csv`, `views/<module>_views.xml`, `views/<module>_menus.xml`, and `tests/test_<module>.py`. The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and internal-user menu entry; the test skeleton adds a post-install TransactionCase smoke test. WPMoo reports scaffold quality after generation and `status` reports installable modules, non-installable modules, and modules without actionable menus. Module names must be lower `snake_case`; use letters, numbers, and underscores only.
 
 For automation and VS Code cockpit integration, selected commands support JSON output:
 
@@ -175,6 +176,19 @@ such as database size, sessions currently running queries with
 `max_connections`, slow-query readiness, extension visibility, and settings.
 `doctor --json --postgres` includes a structured `postgres` object for automation.
 Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics.
+
+## Release Artifacts
+
+WPMoo Toolkit releases are valid when the required npm artifacts publish
+successfully:
+
+- `@wpmoo/toolkit`
+- `@wpmoo/odoo`
+- `@wpmoo/odoo-dev`
+
+The unscoped `wpmoo` short alias is optional. If npm returns `E404` or rejects
+that alias during the publish workflow, the workflow reports a non-blocking
+warning while keeping the scoped package release valid.
 
 ## Documentation
 

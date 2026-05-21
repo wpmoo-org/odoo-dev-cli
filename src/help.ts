@@ -85,7 +85,8 @@ Daily actions:
   Generated environments also include ./moo for local compose commands such as ./moo start.
   Use ./moo or npx @wpmoo/toolkit with the same daily action arguments.
 
-Production command guards:
+Lifecycle command guards:
+  In WPMOO_ENV=stage, install/update require WPMOO_ALLOW_STAGE_LIFECYCLE=1.
   In WPMOO_ENV=prod, install/update/test require WPMOO_ALLOW_PROD_LIFECYCLE=1.
   resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage/prod.
   restore-snapshot --dry-run remains allowed for preview.
@@ -128,7 +129,8 @@ Task recipes:
   Add module:
     npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> --source-type private|oca|external
     Creates a minimal skeleton: __init__.py, __manifest__.py, models/<module>.py, models/__init__.py, security/ir.model.access.csv, views/<module>_views.xml, views/<module>_menus.xml, and tests/test_<module>.py.
-    The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and menu entry; the test skeleton adds a post-install TransactionCase smoke test.
+    The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and internal-user menu entry; the test skeleton adds a post-install TransactionCase smoke test.
+    WPMoo reports scaffold quality after generation and status reports installable modules, non-installable modules, and modules without actionable menus.
     Module names must be lower snake_case; use letters, numbers, and underscores only.
   Remove module:
     npx @wpmoo/toolkit remove-module --repo <source-repo> --module <module-name> --source-type private|oca|external

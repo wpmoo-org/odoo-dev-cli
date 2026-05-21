@@ -23,6 +23,27 @@ Publishing is handled by the `Publish` GitHub Actions workflow through npm
 Trusted Publishing after the tag is pushed. Do not run `npm publish` manually
 unless a coordinator explicitly requests a fallback.
 
+Required release artifacts:
+
+- `@wpmoo/toolkit`
+- `@wpmoo/odoo`
+- `@wpmoo/odoo-dev`
+
+The optional `wpmoo` short alias is warning-only. If npm returns `E404` or
+otherwise rejects that alias, the release remains valid when the required
+scoped packages publish and verify correctly.
+
+Verify a tagged release with:
+
+```bash
+npm view "@wpmoo/toolkit@$VERSION" version
+npm view "@wpmoo/odoo@$VERSION" version
+npm view "@wpmoo/odoo-dev@$VERSION" version
+```
+
+`npm view "wpmoo@$VERSION" version` is optional and may report that the short
+alias is absent.
+
 Current command standard:
 
 - Use `npx @wpmoo/toolkit ...` for package/operator commands.

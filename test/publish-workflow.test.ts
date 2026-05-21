@@ -29,13 +29,15 @@ describe('publish workflow', () => {
     expect(requiredPackageBlock).not.toContain('"wpmoo@$VERSION"');
     expect(workflow).toContain('"@wpmoo/odoo@$VERSION"');
     expect(workflow).toContain('"@wpmoo/odoo-dev@$VERSION"');
+    expect(workflow).toContain('Check optional short alias publish state');
+    expect(workflow).toContain('spec="wpmoo@$VERSION"');
+    expect(workflow).toContain('the scoped package release valid');
     expect(workflow).toContain('already exists on npm; skipping publish');
     expect(workflow).toContain('npm publish --access public');
     expect(workflow).toContain('Publish @wpmoo/odoo alias to npm');
     expect(workflow).toContain('Publish @wpmoo/odoo-dev alias to npm');
     expect(workflow).toContain('Publish wpmoo short alias to npm');
     expect(workflow).not.toContain('continue-on-error: true');
-    expect(workflow).toContain('spec="wpmoo@$VERSION"');
     expect(workflow).toContain('::warning title=Optional wpmoo alias not published::');
     expect(workflow).toContain('npm publish --access public ./packages/wpmoo');
     expect(workflow).toContain('npm publish --access public ./packages/odoo-compat');

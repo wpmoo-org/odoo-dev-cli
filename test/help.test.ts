@@ -73,13 +73,15 @@ describe('help', () => {
     expect(output).toContain('Daily command checks:');
   });
 
-  it('documents protected production lifecycle command guards', () => {
+  it('documents protected lifecycle command guards', () => {
     const output = renderHelp();
 
-    expect(output).toContain('Production command guards:');
+    expect(output).toContain('Lifecycle command guards:');
+    expect(output).toContain('In WPMOO_ENV=stage, install/update require WPMOO_ALLOW_STAGE_LIFECYCLE=1.');
     expect(output).toContain('In WPMOO_ENV=prod, install/update/test require WPMOO_ALLOW_PROD_LIFECYCLE=1.');
     expect(output).toContain('resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage/prod.');
     expect(output).toContain('restore-snapshot --dry-run remains allowed for preview.');
+    expect(readme).toContain('In `WPMOO_ENV=stage`, `install` and `update` require `WPMOO_ALLOW_STAGE_LIFECYCLE=1`.');
     expect(readme).toContain('In `WPMOO_ENV=prod`, `install`, `update`, and `test` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.');
     expect(readme).toContain('`restore-snapshot --dry-run` remains allowed for preview.');
   });
@@ -114,7 +116,10 @@ describe('help', () => {
       'Creates a minimal skeleton: __init__.py, __manifest__.py, models/<module>.py, models/__init__.py, security/ir.model.access.csv, views/<module>_views.xml, views/<module>_menus.xml, and tests/test_<module>.py.',
     );
     expect(output).toContain(
-      'The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and menu entry; the test skeleton adds a post-install TransactionCase smoke test.',
+      'The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and internal-user menu entry; the test skeleton adds a post-install TransactionCase smoke test.',
+    );
+    expect(output).toContain(
+      'WPMoo reports scaffold quality after generation and status reports installable modules, non-installable modules, and modules without actionable menus.',
     );
     expect(output).toContain('Module names must be lower snake_case; use letters, numbers, and underscores only.');
     expect(output).toContain('Must be lower snake_case; use letters, numbers, and underscores only.');
@@ -128,8 +133,9 @@ describe('help', () => {
     expect(readme).toContain('`views/<module>_menus.xml`');
     expect(readme).toContain('`tests/test_<module>.py`');
     expect(readme).toContain(
-      'The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and menu entry; the test skeleton adds a post-install TransactionCase smoke test.',
+      'The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and internal-user menu entry; the test skeleton adds a post-install TransactionCase smoke test.',
     );
+    expect(readme).toContain('WPMoo reports scaffold quality after generation');
     expect(readme).toContain('Module names must be lower `snake_case`; use letters, numbers, and underscores only.');
   });
 

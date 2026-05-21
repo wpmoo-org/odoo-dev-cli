@@ -66,6 +66,16 @@ jobs:
             fi
           done
 
+      - name: Check optional short alias publish state
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          spec="wpmoo@$VERSION"
+          if npm view "$spec" version >/dev/null 2>&1; then
+            echo "$spec already exists on npm; optional alias publish step will skip it."
+          else
+            echo "$spec is optional. If npm rejects the short alias publish, the workflow will emit a warning and keep the scoped package release valid."
+          fi
+
       - name: Check package dry run
         run: |
           npm pack --dry-run
