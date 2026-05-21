@@ -218,6 +218,28 @@ describe('cockpit daily action prompts', () => {
     ).resolves.toEqual(['pre-upgrade', 'prod']);
   });
 
+  it('offers detected snapshots before manual restore-snapshot entry', async () => {
+    const target = await makeEnvironment();
+    await mkdir(join(target, 'backups', 'snapshots'), { recursive: true });
+    await writeFile(join(target, 'backups', 'snapshots', 'before-update.dump'), 'snapshot');
+    await writeFile(
+      join(target, 'backups', 'snapshots', 'before-update.json'),
+      JSON.stringify({ name: 'before-update', database: 'devel' }),
+    );
+
+    await expect(
+      collectDailyActionArgs(
+        'restore-snapshot',
+        target,
+        promptDeps({
+          select: ['before-update'],
+          list: ['devel'],
+          databases: ['devel'],
+        }),
+      ),
+    ).resolves.toEqual(['before-update', 'devel']);
+  });
+
   it('falls back to manual module entry when no modules are detected', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-cockpit-daily-empty-'));
 

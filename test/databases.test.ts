@@ -98,9 +98,68 @@ describe('database discovery', () => {
     expect(result.snapshotPaths).toEqual([newestPath, olderPath, zippedPath]);
     expect(result.newestSnapshotAgeMs).toBeCloseTo(5 * 60 * 1000);
     expect(result.snapshots).toHaveLength(3);
-    expect(result.snapshots[0]).toMatchObject({ path: newestPath });
+    expect(result.snapshots[0]).toMatchObject({
+      path: newestPath,
+      dumpPath: newestPath,
+      filestoreStatus: 'missing',
+    });
+    expect(Math.abs(result.snapshots[0]!.createdAtMs - (nowMs - 5 * 60 * 1000))).toBeLessThanOrEqual(1);
+    expect(Math.abs(Date.parse(result.snapshots[0]!.createdAt) - (nowMs - 5 * 60 * 1000))).toBeLessThanOrEqual(1);
     expect(result.snapshots[1]).toMatchObject({ path: olderPath });
     expect(result.snapshots[2]).toMatchObject({ path: zippedPath });
+  });
+
+  it('catalogs generated snapshot dump, manifest, and filestore siblings', async () => {
+    const nowMs = Date.now();
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-db-snapshot-catalog-'));
+    const snapshotDir = join(target, 'backups', 'snapshots');
+    await mkdir(snapshotDir, { recursive: true });
+
+    const dumpPath = await writeSnapshotFile(join(snapshotDir, 'before-update.dump'), nowMs - 60 * 1000);
+    const filestorePath = await writeSnapshotFile(
+      join(snapshotDir, 'before-update.filestore.tar.gz'),
+      nowMs - 30 * 1000,
+    );
+    const manifestPath = join(snapshotDir, 'before-update.json');
+    await writeFile(
+      manifestPath,
+      JSON.stringify({
+        name: 'before-update',
+        database: 'devel',
+        created_at: '2026-05-22T10:20:30Z',
+        dump: 'before-update.dump',
+        filestore: 'before-update.filestore.tar.gz',
+      }),
+    );
+
+    const result = findDatabaseSnapshots(target, { nowMs });
+
+    expect(result.snapshotPaths).toEqual([dumpPath]);
+    expect(result.snapshots).toEqual([
+      expect.objectContaining({
+        name: 'before-update',
+        path: dumpPath,
+        dumpPath,
+        manifestPath,
+        databaseName: 'devel',
+        createdAtMs: Date.parse('2026-05-22T10:20:30Z'),
+        createdAt: '2026-05-22T10:20:30.000Z',
+        filestorePath,
+        filestoreStatus: 'found',
+      }),
+    ]);
+  });
+
+  it('does not infer a database name from non-generated snapshot names', async () => {
+    const nowMs = Date.now();
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-db-snapshot-no-db-'));
+    await mkdir(join(target, 'backups', 'snapshots'), { recursive: true });
+    await writeSnapshotFile(join(target, 'backups', 'snapshots', 'before-update.dump'), nowMs - 60 * 1000);
+
+    const result = findDatabaseSnapshots(target, { nowMs });
+
+    expect(result.snapshots[0]?.name).toBe('before-update');
+    expect(result.snapshots[0]?.databaseName).toBeUndefined();
   });
 
   it('does not throw when snapshot directories are missing', () => {

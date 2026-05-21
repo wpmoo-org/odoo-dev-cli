@@ -134,6 +134,9 @@ Use restore preview before a destructive restore:
 ./moo restore-snapshot --dry-run <snapshot-name> [db]
 ```
 
+Use `./moo snapshot --list` to inspect known snapshot names, created times,
+database hints, dump paths, and filestore presence before selecting one.
+
 `WPMOO_SNAPSHOT_RETENTION_COUNT` may be set to a positive integer to prune old
 snapshot manifests and their matching dump/filestore files after a new snapshot
 is written.

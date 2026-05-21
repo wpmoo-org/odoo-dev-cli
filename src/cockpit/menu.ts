@@ -52,6 +52,7 @@ type CockpitMenuDeps = {
   serviceStatus?: ServiceRuntimeStatus;
   moduleCount?: number;
   sourceRepoCount?: number;
+  snapshotCount?: number;
   navigationWarning?: string | (() => string | undefined);
 };
 
@@ -97,6 +98,7 @@ function commandName(command: CockpitCommand): string {
 
 const disabledReasonNextStep: Record<string, string> = {
   'No modules found.': 'Next: choose "Add module" first.',
+  'No snapshots found.': 'Next: choose "Create snapshot" first.',
   'Services stopped.': 'Next: choose "Start services" first.',
   'Already running.': 'Next: choose "Stop services" or "Restart services".',
   'Docker not running.': 'Next: start Docker, then choose "Start services".',
@@ -131,16 +133,22 @@ function sourceRepoDisabledReason(command: CockpitCommand, sourceRepoCount?: num
   return sourceRepoCount === 0 && command.id === 'add-module' ? 'No source repos found.' : undefined;
 }
 
+function snapshotDisabledReason(command: CockpitCommand, snapshotCount?: number): string | undefined {
+  return snapshotCount === 0 && command.id === 'restore-snapshot' ? 'No snapshots found.' : undefined;
+}
+
 function disabledReason(
   command: CockpitCommand,
   serviceStatus?: ServiceRuntimeStatus,
   moduleCount?: number,
   sourceRepoCount?: number,
+  snapshotCount?: number,
 ): string | undefined {
   return (
     serviceDisabledReason(command, serviceStatus) ??
     moduleDisabledReason(command, moduleCount) ??
-    sourceRepoDisabledReason(command, sourceRepoCount)
+    sourceRepoDisabledReason(command, sourceRepoCount) ??
+    snapshotDisabledReason(command, snapshotCount)
   );
 }
 
@@ -158,6 +166,7 @@ function categoryChoices(
   serviceStatus?: ServiceRuntimeStatus,
   moduleCount?: number,
   sourceRepoCount?: number,
+  snapshotCount?: number,
 ): readonly (CockpitMenuChoice | PromptSeparator)[] {
   const choices: (CockpitMenuChoice | PromptSeparator)[] = [
     promptSeparator(categoryHeading(category)),
@@ -168,7 +177,7 @@ function categoryChoices(
           value: command,
           name: commandName(command),
           short: command.label,
-          disabled: commandDisabledValue(disabledReason(command, serviceStatus, moduleCount, sourceRepoCount)),
+          disabled: commandDisabledValue(disabledReason(command, serviceStatus, moduleCount, sourceRepoCount, snapshotCount)),
         };
       }),
   ];
@@ -215,9 +224,10 @@ function topLevelChoices(
   serviceStatus?: ServiceRuntimeStatus,
   moduleCount?: number,
   sourceRepoCount?: number,
+  snapshotCount?: number,
 ): readonly (CockpitMenuChoice | PromptSeparator)[] {
   return topLevelCategoryOrder.flatMap((category, index) =>
-    categoryChoices(category, index, serviceStatus, moduleCount, sourceRepoCount),
+    categoryChoices(category, index, serviceStatus, moduleCount, sourceRepoCount, snapshotCount),
   );
 }
 
@@ -233,7 +243,7 @@ function defaultCommand(serviceStatus?: ServiceRuntimeStatus): CockpitCommand {
 
 export async function selectCockpitTopLevelMenu(options: CockpitMenuDeps = {}): Promise<CockpitTopLevelMenuSelection> {
   const deps = menuDeps(options);
-  const choices = topLevelChoices(options.serviceStatus, options.moduleCount, options.sourceRepoCount);
+  const choices = topLevelChoices(options.serviceStatus, options.moduleCount, options.sourceRepoCount, options.snapshotCount);
   const cancelAction: 'back' = 'back';
 
   const selected = await deps.select({

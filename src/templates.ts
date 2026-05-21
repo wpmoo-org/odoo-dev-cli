@@ -506,7 +506,7 @@ usage() {
     "update") echo "Usage: ./moo update <module[,module]> [db]" ;;
     "test") echo "Usage: ./moo test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]" ;;
     "resetdb") echo "Usage: ./moo resetdb [db] [module[,module]]" ;;
-    "snapshot") echo "Usage: ./moo snapshot [db] [snapshot-name]" ;;
+    "snapshot") echo "Usage: ./moo snapshot [--list] [db] [snapshot-name]" ;;
     "restore-snapshot") echo "Usage: ./moo restore-snapshot [--dry-run] <snapshot-name> [db]" ;;
     "lint") echo "Usage: ./moo lint" ;;
     "pot") echo "Usage: ./moo pot <module[,module]> [db] [output]" ;;
@@ -712,13 +712,63 @@ allow_migrations() {
 
 has_recent_snapshot() {
   local dir
-  for dir in backups backup snapshots; do
+  for dir in backups/snapshots backups backup snapshots; do
     [[ -d "$dir" ]] || continue
     if find "$dir" -type f \\( -name "*.dump" -o -name "*.sql" -o -name "*.sql.gz" -o -name "*.zip" -o -name "*.tar" -o -name "*.tar.gz" \\) -mtime -1 -print -quit 2>/dev/null | grep -q .; then
       return 0
     fi
   done
   return 1
+}
+
+snapshot_stem() {
+  local file="$1"
+  file="\${file##*/}"
+  file="\${file%.filestore.tar.gz}"
+  file="\${file%.sql.gz}"
+  file="\${file%.tar.gz}"
+  file="\${file%.dump}"
+  file="\${file%.sql}"
+  file="\${file%.zip}"
+  file="\${file%.tar}"
+  printf '%s' "$file"
+}
+
+json_string_value() {
+  local key="$1"
+  local file="$2"
+  [[ -f "$file" ]] || return 0
+  sed -n "s/.*\\"$key\\"[[:space:]]*:[[:space:]]*\\"\\([^\\"]*\\)\\".*/\\1/p" "$file" | head -n 1
+}
+
+list_snapshots() {
+  local found=0 dir dump stem manifest database created filestore
+  for dir in backups/snapshots backups backup snapshots; do
+    [[ -d "$dir" ]] || continue
+    while IFS= read -r dump; do
+      [[ -n "$dump" ]] || continue
+      found=1
+      stem="$(snapshot_stem "$dump")"
+      manifest="$dir/$stem.json"
+      database="$(json_string_value database "$manifest")"
+      created="$(json_string_value created_at "$manifest")"
+      filestore="$dir/$stem.filestore.tar.gz"
+      echo "- $stem"
+      [[ -n "$created" ]] && echo "  Created: $created"
+      echo "  Database: \${database:-unknown}"
+      echo "  Dump: $dump"
+      if [[ -f "$filestore" ]]; then
+        echo "  Filestore: $filestore (found)"
+      else
+        echo "  Filestore: missing (missing)"
+      fi
+    done < <(find "$dir" -maxdepth 1 -type f \\( -name "*.dump" -o -name "*.sql" -o -name "*.sql.gz" \\) | sort)
+  done
+
+  if [[ "$found" -eq 0 ]]; then
+    echo "No database snapshots found."
+    echo "Next: run ./moo snapshot [db] [snapshot-name]."
+  fi
 }
 
 require_recent_snapshot_or_override() {
@@ -894,6 +944,12 @@ case "$command" in
     ;;
   "snapshot")
     shift
+    if [[ "\${1:-}" == "--list" ]]; then
+      shift
+      require_no_args "$command" "$@"
+      list_snapshots
+      exit 0
+    fi
     positional_args "$command" 0 2 "$@"
     run_script ./scripts/snapshot.sh "$@"
     ;;
@@ -1645,7 +1701,7 @@ Useful maintenance commands:
 \`\`\`bash
 ./moo lint
 ./moo resetdb [db] [module[,module]]
-./moo snapshot [db] [snapshot-name]
+./moo snapshot [--list] [db] [snapshot-name]
 ./moo restore-snapshot [--dry-run] <snapshot-name> [db]
 ./moo pot <module[,module]> [db] [output]
 \`\`\`
