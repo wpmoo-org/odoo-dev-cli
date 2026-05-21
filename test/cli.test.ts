@@ -126,6 +126,13 @@ describe('cli runCli', () => {
     expect(mocks.installPromptCancelKeyTracker).toHaveBeenCalledTimes(1);
   });
 
+  it('normalizes CLI error messages before printing from the entrypoint', async () => {
+    const { formatCliErrorMessage } = await loadCli();
+
+    expect(formatCliErrorMessage(new Error('  Something failed.  '))).toBe('Something failed.');
+    expect(formatCliErrorMessage('')).toBe('Unknown WPMoo Toolkit error');
+  });
+
   it('prints version for --version', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const { runCli } = await loadCli();

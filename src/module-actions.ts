@@ -515,6 +515,28 @@ async function updateModuleRegistration(
   await updateMetadataModuleRegistration(target, sourceType, repoPath, moduleName, mode);
 }
 
+async function assertModuleCleanBeforeDelete(
+  target: string,
+  sourceType: SourceRepoType,
+  repoPath: string,
+  moduleName: string,
+  git: GitRunner,
+): Promise<void> {
+  const repoRoot = sourceRepoPath(target, sourceType, repoPath);
+  try {
+    const result = await git.run(repoRoot, ['status', '--short', '--', moduleName]);
+    if (result.stdout.trim()) {
+      throw new Error(
+        `Refusing to delete module ${moduleName} because it has dirty git changes in source repo ${repoPath}.`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Refusing to delete module ')) {
+      throw error;
+    }
+  }
+}
+
 export async function addModuleToSourceRepo(
   options: AddModuleOptions,
   git: GitRunner = realGit,
@@ -649,6 +671,10 @@ export async function removeModuleFromSourceRepo(
   const repoPath = validateRepoPath(options.repoPath);
   const moduleName = validateModuleName(options.moduleName);
   const sourceType = normalizeSourceType(options.sourceType);
+
+  if (options.deleteFiles) {
+    await assertModuleCleanBeforeDelete(options.target, sourceType, repoPath, moduleName, git);
+  }
 
   if (sourceType === 'private' && (await usesAddonsYaml(options.target))) {
     const addonsYaml = await readAddonsYaml(options.target);

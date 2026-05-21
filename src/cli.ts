@@ -2085,10 +2085,14 @@ export function isCliEntrypoint(metaUrl: string, argvPath = process.argv[1]): bo
   }
 }
 
+export function formatCliErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.trim() || 'Unknown WPMoo Toolkit error';
+}
+
 if (isCliEntrypoint(import.meta.url)) {
   runCli().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(message);
+    console.error(formatCliErrorMessage(error));
     process.exit(1);
   });
 }

@@ -369,6 +369,47 @@ class TestOdooSampleModuleBase(TransactionCase):
     expect(git.calls).toContainEqual({ cwd: target, args: ['add', '.'] });
   });
 
+  it('refuses to delete module files when the module has dirty git status', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-dirty-'));
+    const git: GitRunner = {
+      async run() {
+        return { stdout: ' M odoo_sample_module_base/__manifest__.py\n', stderr: '' };
+      },
+    };
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base'), {
+      recursive: true,
+    });
+    await writeFile(
+      join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/addons.yaml'),
+      'private/odoo_sample_module:\n  - odoo_sample_module_base\n',
+      'utf8',
+    );
+
+    await expect(
+      removeModuleFromSourceRepo(
+        {
+          target,
+          repoPath: 'odoo_sample_module',
+          moduleName: 'odoo_sample_module_base',
+          deleteFiles: true,
+          stage: true,
+        },
+        git,
+      ),
+    ).rejects.toThrow(
+      'Refusing to delete module odoo_sample_module_base because it has dirty git changes in source repo odoo_sample_module.',
+    );
+    await expect(
+      stat(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base')),
+    ).resolves.toBeTruthy();
+  });
+
   it('stages only target repo when deleteFiles=false and stage=true', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-no-delete-stage-'));
     const git = recordingGit();
