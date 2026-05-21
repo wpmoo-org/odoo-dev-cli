@@ -319,6 +319,108 @@ describe('analyzeModuleDirectory module quality v2 checks', () => {
     );
   });
 
+  it('flags missing manifest data and demo file references', async () => {
+    const target = await makeTarget('wpmoo-module-quality-missing-manifest-files-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      [
+        '{',
+        "  'name': 'Demo',",
+        "  'installable': True,",
+        "  'license': 'LGPL-3',",
+        "  'depends': ['base'],",
+        "  'data': ['security/ir.model.access.csv', 'views/missing_views.xml'],",
+        "  'demo': ['demo/missing_demo.xml'],",
+        '}',
+      ].join('\n'),
+    );
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing manifest data file: views/missing_views.xml',
+          severity: 'error',
+        }),
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing manifest demo file: demo/missing_demo.xml',
+          severity: 'warning',
+        }),
+      ]),
+    );
+  });
+
+  it('flags access CSV model IDs that do not match declared models', async () => {
+    const target = await makeTarget('wpmoo-module-quality-access-model-id-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(join(modulePath, '__manifest__.py'), buildManifest({ depends: ['base'] }));
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+    await writeText(join(modulePath, '__init__.py'), 'from . import models\n');
+    await writeText(join(modulePath, 'models', '__init__.py'), 'from . import demo_model\n');
+    await writeText(
+      join(modulePath, 'models', 'demo_model.py'),
+      "from odoo import models\n\nclass DemoModel(models.Model):\n    _name = 'demo.model'\n",
+    );
+    await writeText(
+      join(modulePath, 'security', 'ir.model.access.csv'),
+      [
+        'id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink',
+        'access_demo_wrong,demo wrong,model_wrong_model,base.group_user,1,0,0,0',
+        '',
+      ].join('\n'),
+    );
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'access CSV references unknown model id: model_wrong_model',
+          severity: 'error',
+        }),
+      ]),
+    );
+  });
+
+  it('flags menu items whose action points to a missing action record', async () => {
+    const target = await makeTarget('wpmoo-module-quality-menu-action-ref-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(join(modulePath, '__manifest__.py'), buildManifest({ depends: ['base'] }));
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+    await writeText(
+      join(modulePath, 'views', 'demo_module_menus.xml'),
+      [
+        '<odoo>',
+        '  <record id="action_demo_module" model="ir.actions.act_window"/>',
+        '  <menuitem id="menu_demo_module" action="action_missing"/>',
+        '</odoo>',
+        '',
+      ].join('\n'),
+    );
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'menu XML references missing action id: action_missing',
+          severity: 'error',
+        }),
+      ]),
+    );
+  });
+
   it('flags missing tests directory', async () => {
     const target = await makeTarget('wpmoo-module-quality-missing-tests-dir-');
     const modulePath = join(target, 'demo_module');

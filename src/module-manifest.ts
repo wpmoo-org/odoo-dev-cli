@@ -11,6 +11,7 @@ export type OdooManifest = {
   version?: string;
   depends?: string[];
   data?: string[];
+  demo?: string[];
   installable?: boolean;
   application?: boolean;
   license?: string;
@@ -314,12 +315,18 @@ function validateManifest(manifest: Record<string, unknown>): OdooManifest {
   if (manifest.data !== undefined && !Array.isArray(manifest.data)) {
     throw new Error('invalid manifest: data must be a list of strings');
   }
+  if (manifest.demo !== undefined && !Array.isArray(manifest.demo)) {
+    throw new Error('invalid manifest: demo must be a list of strings');
+  }
 
   if (Array.isArray(manifest.depends) && !manifest.depends.every((entry) => typeof entry === 'string')) {
     throw new Error('invalid manifest: depends must be a list of strings');
   }
   if (Array.isArray(manifest.data) && !manifest.data.every((entry) => typeof entry === 'string')) {
     throw new Error('invalid manifest: data must be a list of strings');
+  }
+  if (Array.isArray(manifest.demo) && !manifest.demo.every((entry) => typeof entry === 'string')) {
+    throw new Error('invalid manifest: demo must be a list of strings');
   }
 
   return manifest as OdooManifest;
