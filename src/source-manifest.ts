@@ -338,14 +338,14 @@ export async function listGitmoduleSources(target: string): Promise<SourceModule
     const lines = gitmodules.split(/\r?\n/);
     const locations: SourceModuleLocation[] = [];
 
-    const pathRegex = /^\s*path\s*=\s*odoo\/custom\/src\/(private|oca|external)\/(.+)\s*$/;
+    const pathRegex = /^\s*path\s*=\s*odoo\/custom\/src\/(?:(private|oca|external)\/)?([^/\s]+)\s*$/;
     const urlRegex = /^\s*url\s*=\s*(.+)\s*$/;
 
     let pending: SourceModuleLocation | undefined;
     for (const line of lines) {
       const parsedPath = line.match(pathRegex);
       if (parsedPath) {
-        const sourceType = parsedPath[1] as SourceRepoType;
+        const sourceType = (parsedPath[1] ?? 'private') as SourceRepoType;
         const repoPath = parsedPath[2]?.trim() ?? '';
         if (!repoPath || !isValidPathSegment(repoPath)) {
           pending = undefined;

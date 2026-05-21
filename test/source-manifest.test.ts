@@ -157,6 +157,28 @@ describe('source manifest', () => {
     ]);
   });
 
+  it('treats pre-category .gitmodules source paths as private sources', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-gitmodule-legacy-sources-'));
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/legacy_repo"]',
+        '\tpath = odoo/custom/src/legacy_repo',
+        '\turl = https://github.com/example/legacy_repo.git',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    await expect(listGitmoduleSources(target)).resolves.toEqual([
+      {
+        type: 'private',
+        path: 'legacy_repo',
+        url: 'https://github.com/example/legacy_repo.git',
+      },
+    ]);
+  });
+
   it('renders an empty source manifest', () => {
     expect(renderSourceManifest([])).toBe('sources: []\n');
   });

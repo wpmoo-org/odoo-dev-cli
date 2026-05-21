@@ -102,6 +102,26 @@ function sourceRepoPath(target: string, sourceType: SourceRepoType, repoPath: st
   return pathUnderBase(join(target, `odoo/custom/src/${sourceType}`), repoPath, 'repo path');
 }
 
+async function readableSourceRepoPath(target: string, sourceType: SourceRepoType, repoPath: string): Promise<string> {
+  const primary = sourceRepoPath(target, sourceType, repoPath);
+  try {
+    await readdir(primary);
+    return primary;
+  } catch {
+    if (sourceType !== 'private') {
+      return primary;
+    }
+  }
+
+  const legacy = pathUnderBase(join(target, 'odoo/custom/src'), repoPath, 'repo path');
+  try {
+    await readdir(legacy);
+    return legacy;
+  } catch {
+    return primary;
+  }
+}
+
 function modulePath(target: string, sourceType: SourceRepoType, repoPath: string, moduleName: string): string {
   return pathUnderBase(sourceRepoPath(target, sourceType, repoPath), moduleName, 'module name');
 }
@@ -607,14 +627,15 @@ export async function listModulesInSourceRepo(
   const safeRepoPath = validateRepoPath(repoPath);
   const resolvedSourceType = normalizeSourceType(sourceType);
   try {
-    const entries = await readdir(sourceRepoPath(target, resolvedSourceType, safeRepoPath), { withFileTypes: true });
+    const repoRoot = await readableSourceRepoPath(target, resolvedSourceType, safeRepoPath);
+    const entries = await readdir(repoRoot, { withFileTypes: true });
     const modules = await Promise.all(
       entries
         .filter((entry) => entry.isDirectory())
         .map(async (entry) => {
           try {
             await readFile(
-              join(sourceRepoPath(target, resolvedSourceType, safeRepoPath), entry.name, '__manifest__.py'),
+              join(repoRoot, entry.name, '__manifest__.py'),
               'utf8',
             );
             return entry.name;
