@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { dailyActionScripts } from '../src/daily-actions.js';
 import { getDoctorReport, runDoctor, type DoctorCommandRunner } from '../src/doctor.js';
+import { POSTGRES_DIAGNOSTICS_CONTRACT_VERSION } from '../src/postgres-diagnostics.js';
 import { markerPath } from '../src/environment.js';
 
 const metadata = {
@@ -223,7 +224,7 @@ describe('generated environment doctor matrix', () => {
     await expect(runDoctor(target, runner)).resolves.toContain('Doctor checks passed.');
   });
 
-  it('treats incomplete PostgreSQL diagnostic rows as unavailable in generated environments', async () => {
+  it('reports incomplete Train 7 PostgreSQL diagnostic rows as non-fatal and stable', async () => {
     const target = await makeGeneratedEnvironment({
       env: 'ODOO_VERSION=19.0\nHTTP_PORT=10019\nGEVENT_PORT=20019\n',
     });
@@ -240,22 +241,110 @@ describe('generated environment doctor matrix', () => {
     };
 
     const report = await getDoctorReport(target, runner, { postgres: true });
+    const diagnostics = report.postgres?.diagnostics as Record<string, unknown>;
 
     expect(report.ok).toBe(true);
     expect(report.postgres).toEqual({
       requested: true,
+      contractVersion: POSTGRES_DIAGNOSTICS_CONTRACT_VERSION,
       available: false,
       diagnostics: {
+        schemaVersion: POSTGRES_DIAGNOSTICS_CONTRACT_VERSION,
         databaseCount: 1,
         sharedBuffers: '128MB',
       },
       warning:
         'incomplete diagnostic rows: missing active_connections, connection_count, max_connections, total_database_size_bytes, slow_query_logging, pg_stat_statements',
     });
+    expect(diagnostics).toMatchObject({
+      databaseCount: 1,
+      sharedBuffers: '128MB',
+    });
     expect(report.warnings).toEqual([
       'PostgreSQL diagnostics unavailable: incomplete diagnostic rows: missing active_connections, connection_count, max_connections, total_database_size_bytes, slow_query_logging, pg_stat_statements',
     ]);
     expect(report.errors).toEqual([]);
+  });
+
+  it('accepts full Train 7 diagnostic rows with expanded structured output', async () => {
+    const target = await makeGeneratedEnvironment({
+      env: 'ODOO_VERSION=19.0\nHTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        return {
+          stdout: [
+            'database_count|4',
+            'active_connections|3',
+            'connection_count|12',
+            'max_connections|100',
+            'total_database_size_bytes|512000',
+            'largest_database_name|postgres',
+            'largest_database_size_bytes|10240',
+            'slow_query_logging|250ms',
+            'pg_stat_statements|installed',
+            'pg_stat_statements_available_version|1.10',
+            'pg_stat_statements_installed_version|1.10',
+            'shared_preload_libraries|pg_stat_statements',
+            'shared_buffers|128MB',
+            'long_transaction_count|2',
+            'oldest_long_transaction_age_seconds|420',
+            'idle_in_transaction_count|1',
+            'oldest_idle_in_transaction_age_seconds|240',
+            'table_health_risky_table_count|4',
+            'table_health_requires_vacuum_count|3',
+            'table_health_requires_analyze_count|1',
+            'table_health_top_risky_table|public.partner',
+            'table_health_top_risky_dead_tuple_ratio|0.37',
+            'table_health_top_risky_dead_tuple_count|512',
+            'unused_index_candidates_count|11',
+            'wal_level|logical',
+            'wal_archive_mode|on',
+            'wal_file_count|14',
+            'wal_directory_size_bytes|65536',
+            'default_tablespace_size_bytes|20480',
+            'database_write_activity_rows|300',
+          ].join('\n'),
+          stderr: '',
+        };
+      }
+
+      return fakeRunner()(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+    const diagnostics = report.postgres?.diagnostics as Record<string, unknown>;
+
+    expect(report.ok).toBe(true);
+    expect(report.postgres).toEqual(
+      expect.objectContaining({
+        requested: true,
+        available: true,
+      }),
+    );
+    expect(report.postgres?.warning).toBeUndefined();
+    expect(report.warnings).toEqual([]);
+    expect(report.errors).toEqual([]);
+    expect(diagnostics).toMatchObject({
+      schemaVersion: POSTGRES_DIAGNOSTICS_CONTRACT_VERSION,
+      databaseCount: 4,
+      activeConnections: 3,
+      connectionCount: 12,
+      maxConnections: 100,
+      connectionUtilizationPct: 12,
+      totalDatabaseSizeBytes: 512000,
+      largestDatabaseName: 'postgres',
+      largestDatabaseSizeBytes: 10240,
+      longTransactionCount: 2,
+      oldestLongTransactionAgeSeconds: 420,
+      tableHealthRiskyTableCount: 4,
+      tableHealthRequiresVacuumCount: 3,
+      tableHealthTopRiskyTable: 'public.partner',
+      unusedIndexCandidatesCount: 11,
+      defaultTablespaceSizeBytes: 20480,
+      databaseWriteActivityRows: 300,
+    });
   });
 
   it('fails when source submodule status reports an uninitialized repo', async () => {

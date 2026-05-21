@@ -8,6 +8,19 @@ import { dailyActionScripts } from './daily-actions.js';
 import { defaultPostgresVersion } from './external-templates.js';
 import { defaultOdooVersion, markerPath, replaceSourceRepos } from './environment.js';
 import {
+  POSTGRES_DIAGNOSTICS_CONTRACT_VERSION,
+  POSTGRES_DIAGNOSTICS_QUERY,
+  malformedPostgresDiagnosticKeys,
+  missingPostgresDiagnosticKeys,
+  parsePostgresDiagnostics,
+  postgresPostgresWarnings,
+  renderPostgresDiagnostics,
+  structuredPostgresDiagnostics,
+  unavailablePostgresDiagnosticsWarning,
+  type PostgresDiagnosticsReport,
+  type RawPostgresDiagnostics,
+} from './postgres-diagnostics.js';
+import {
   listGitmoduleSources,
   readSourceManifest,
   sourceReposFromManifest,
@@ -30,25 +43,11 @@ export type DoctorCommandOptions = {
   postgres?: boolean;
 };
 
-export type DoctorPostgresDiagnostics = {
-  databaseCount?: number;
-  activeConnections?: number;
-  connectionCount?: number;
-  maxConnections?: number;
-  connectionUtilizationPct?: number;
-  totalDatabaseSizeBytes?: number;
-  largestDatabaseName?: string;
-  largestDatabaseSizeBytes?: number;
-  slowQueryLogging?: string;
-  pgStatStatements?: string;
-  pgStatStatementsAvailableVersion?: string;
-  pgStatStatementsInstalledVersion?: string;
-  sharedPreloadLibraries?: string;
-  sharedBuffers?: string;
-};
+export type DoctorPostgresDiagnostics = Partial<PostgresDiagnosticsReport>;
 
 export type DoctorPostgresReport = {
   requested: true;
+  contractVersion: typeof POSTGRES_DIAGNOSTICS_CONTRACT_VERSION;
   available: boolean;
   diagnostics: DoctorPostgresDiagnostics;
   warning?: string;
@@ -114,132 +113,6 @@ function isMetadataError(message: string): boolean {
 }
 
 const incompatiblePostgres18MountTargets = ['/var/lib/postgresql/data', '/var/lib/postgresql/18/docker'];
-const postgresDiagnosticQuery = `
-WITH metrics(metric, value) AS (
-  SELECT 'database_count', count(*)::text
-    FROM pg_database
-    WHERE datistemplate = false
-  UNION ALL
-  SELECT 'active_connections', count(*)::text
-    FROM pg_stat_activity
-    WHERE datname IS NOT NULL
-      AND state = 'active'
-  UNION ALL
-  SELECT 'connection_count', count(*)::text
-    FROM pg_stat_activity
-    WHERE datname IS NOT NULL
-  UNION ALL
-  SELECT 'max_connections', COALESCE(
-    (SELECT setting FROM pg_settings WHERE name = 'max_connections'),
-    'unavailable'
-  )
-  UNION ALL
-  SELECT 'total_database_size_bytes', COALESCE(sum(pg_database_size(datname)), 0)::text
-    FROM pg_database
-    WHERE datistemplate = false
-  UNION ALL
-  SELECT 'largest_database_name', COALESCE(
-    (
-      SELECT datname
-      FROM pg_database
-      WHERE datistemplate = false
-      ORDER BY pg_database_size(datname) DESC, datname
-      LIMIT 1
-    ),
-    'unavailable'
-  )
-  UNION ALL
-  SELECT 'largest_database_size_bytes', COALESCE(
-    (
-      SELECT pg_database_size(datname)::text
-      FROM pg_database
-      WHERE datistemplate = false
-      ORDER BY pg_database_size(datname) DESC, datname
-      LIMIT 1
-    ),
-    '0'
-  )
-  UNION ALL
-  SELECT 'slow_query_logging', COALESCE(
-    (SELECT setting || unit FROM pg_settings WHERE name = 'log_min_duration_statement'),
-    'unavailable'
-  )
-  UNION ALL
-  SELECT 'pg_stat_statements',
-    CASE
-      WHEN EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements') THEN 'installed'
-      WHEN EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_stat_statements') THEN 'available'
-      ELSE 'unavailable'
-    END
-  UNION ALL
-  SELECT 'pg_stat_statements_available_version', COALESCE(
-    (SELECT default_version FROM pg_available_extensions WHERE name = 'pg_stat_statements'),
-    'unavailable'
-  )
-  UNION ALL
-  SELECT 'pg_stat_statements_installed_version', COALESCE(
-    (SELECT extversion FROM pg_extension WHERE extname = 'pg_stat_statements'),
-    ''
-  )
-  UNION ALL
-  SELECT 'shared_preload_libraries', COALESCE(
-    (SELECT setting FROM pg_settings WHERE name = 'shared_preload_libraries'),
-    'unavailable'
-  )
-  UNION ALL
-  SELECT 'shared_buffers', COALESCE(
-    (SELECT setting FROM pg_settings WHERE name = 'shared_buffers'),
-    'unavailable'
-  )
-)
-SELECT metric || '|' || value
-FROM metrics
-ORDER BY CASE metric
-  WHEN 'database_count' THEN 1
-  WHEN 'active_connections' THEN 2
-  WHEN 'connection_count' THEN 3
-  WHEN 'max_connections' THEN 4
-  WHEN 'total_database_size_bytes' THEN 5
-  WHEN 'largest_database_name' THEN 6
-  WHEN 'largest_database_size_bytes' THEN 7
-  WHEN 'slow_query_logging' THEN 8
-  WHEN 'pg_stat_statements' THEN 9
-  WHEN 'pg_stat_statements_available_version' THEN 10
-  WHEN 'pg_stat_statements_installed_version' THEN 11
-  WHEN 'shared_preload_libraries' THEN 12
-  WHEN 'shared_buffers' THEN 13
-  ELSE 99
-END;
-`.trim();
-
-const postgresDiagnosticKeys = [
-  'database_count',
-  'active_connections',
-  'connection_count',
-  'max_connections',
-  'total_database_size_bytes',
-  'largest_database_name',
-  'largest_database_size_bytes',
-  'slow_query_logging',
-  'pg_stat_statements',
-  'pg_stat_statements_available_version',
-  'pg_stat_statements_installed_version',
-  'shared_preload_libraries',
-  'shared_buffers',
-] as const;
-
-type PostgresDiagnosticKey = (typeof postgresDiagnosticKeys)[number];
-
-const requiredPostgresDiagnosticKeys: PostgresDiagnosticKey[] = [
-  'database_count',
-  'active_connections',
-  'connection_count',
-  'max_connections',
-  'total_database_size_bytes',
-  'slow_query_logging',
-  'pg_stat_statements',
-  'shared_buffers',
-];
 
 function parsePostgresMajorFromValue(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -251,161 +124,11 @@ function parsePostgresMajorFromValue(value: string | undefined): string | undefi
   return match?.[1];
 }
 
-function parsePostgresDiagnostics(output: string): Partial<Record<PostgresDiagnosticKey, string>> {
-  const diagnostics: Partial<Record<PostgresDiagnosticKey, string>> = {};
-  const allowedKeys = new Set<string>(postgresDiagnosticKeys);
-
-  for (const rawLine of output.split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    if (!line) continue;
-    const separatorIndex = line.indexOf('|');
-    if (separatorIndex === -1) continue;
-
-    const key = line.slice(0, separatorIndex).trim();
-    const value = line.slice(separatorIndex + 1).trim();
-    if (allowedKeys.has(key) && value) {
-      diagnostics[key as PostgresDiagnosticKey] = value;
-    }
-  }
-
-  return diagnostics;
-}
-
-function renderPostgresDiagnostics(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): string | undefined {
-  const connectionUtilizationPct = postgresConnectionUtilizationPct(diagnostics);
-  const parts = postgresDiagnosticKeys.flatMap((key) => {
-    const value = diagnostics[key];
-    const rendered = value ? [`${key}=${value}`] : [];
-    if (key === 'max_connections' && connectionUtilizationPct !== undefined) {
-      rendered.push(`connection_utilization_pct=${connectionUtilizationPct}`);
-    }
-    return rendered;
-  });
-
-  return parts.length > 0 ? `OK PostgreSQL diagnostics ${parts.join(' ')}` : undefined;
-}
-
-function missingPostgresDiagnosticKeys(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): PostgresDiagnosticKey[] {
-  return requiredPostgresDiagnosticKeys.filter((key) => !diagnostics[key]);
-}
-
-function unavailablePostgresDiagnosticsWarning(
-  diagnostics: Partial<Record<PostgresDiagnosticKey, string>>,
-  missingKeys: PostgresDiagnosticKey[],
-): string {
-  return Object.keys(diagnostics).length === 0
-    ? 'no diagnostic rows returned'
-    : `incomplete diagnostic rows: missing ${missingKeys.join(', ')}`;
-}
-
-function integerDiagnostic(value: string | undefined): number | undefined {
-  if (!value || !/^\d+$/u.test(value)) {
-    return undefined;
-  }
-
-  return Number.parseInt(value, 10);
-}
-
-function malformedPostgresDiagnosticKeys(
-  diagnostics: Partial<Record<PostgresDiagnosticKey, string>>,
-): PostgresDiagnosticKey[] {
-  const numericKeys: PostgresDiagnosticKey[] = [
-    'database_count',
-    'active_connections',
-    'connection_count',
-    'max_connections',
-    'total_database_size_bytes',
-    'largest_database_size_bytes',
-  ];
-  return numericKeys.filter((key) => diagnostics[key] !== undefined && integerDiagnostic(diagnostics[key]) === undefined);
-}
-
-function postgresConnectionUtilizationPct(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): number | undefined {
-  const connectionCount = integerDiagnostic(diagnostics.connection_count);
-  const maxConnections = integerDiagnostic(diagnostics.max_connections);
-  if (connectionCount === undefined || maxConnections === undefined || maxConnections <= 0) {
-    return undefined;
-  }
-
-  return Math.round((connectionCount / maxConnections) * 100);
-}
-
-function postgresConnectionUtilizationWarning(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): string | undefined {
-  const connectionCount = integerDiagnostic(diagnostics.connection_count);
-  const maxConnections = integerDiagnostic(diagnostics.max_connections);
-  const utilizationPct = postgresConnectionUtilizationPct(diagnostics);
-  if (
-    connectionCount === undefined ||
-    maxConnections === undefined ||
-    utilizationPct === undefined ||
-    utilizationPct < 80
-  ) {
-    return undefined;
-  }
-
-  return `PostgreSQL connection utilization is high: ${utilizationPct}% of max_connections used (${connectionCount}/${maxConnections}).`;
-}
-
-function postgresSlowQueryLoggingWarning(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): string | undefined {
-  const slowQueryLogging = diagnostics.slow_query_logging?.trim();
-  if (!slowQueryLogging || (!/^-1\s*(?:ms)?$/iu.test(slowQueryLogging) && !/^off$/iu.test(slowQueryLogging))) {
-    return undefined;
-  }
-
-  return `PostgreSQL slow-query logging is disabled (log_min_duration_statement=${slowQueryLogging}). Enable it before performance triage.`;
-}
-
-function postgresExtensionVisibilityWarning(diagnostics: Partial<Record<PostgresDiagnosticKey, string>>): string | undefined {
-  if (
-    diagnostics.pg_stat_statements === 'available' &&
-    diagnostics.pg_stat_statements_available_version &&
-    !diagnostics.pg_stat_statements_installed_version
-  ) {
-    return 'PostgreSQL pg_stat_statements is available but not installed. Install it before query-level performance triage.';
-  }
-
-  return undefined;
-}
-
-function structuredPostgresDiagnostics(
-  diagnostics: Partial<Record<PostgresDiagnosticKey, string>>,
-): DoctorPostgresDiagnostics {
-  const structured: DoctorPostgresDiagnostics = {};
-  const databaseCount = integerDiagnostic(diagnostics.database_count);
-  const activeConnections = integerDiagnostic(diagnostics.active_connections);
-  const connectionCount = integerDiagnostic(diagnostics.connection_count);
-  const maxConnections = integerDiagnostic(diagnostics.max_connections);
-  const connectionUtilizationPct = postgresConnectionUtilizationPct(diagnostics);
-  const totalDatabaseSizeBytes = integerDiagnostic(diagnostics.total_database_size_bytes);
-  const largestDatabaseSizeBytes = integerDiagnostic(diagnostics.largest_database_size_bytes);
-
-  if (databaseCount !== undefined) structured.databaseCount = databaseCount;
-  if (activeConnections !== undefined) structured.activeConnections = activeConnections;
-  if (connectionCount !== undefined) structured.connectionCount = connectionCount;
-  if (maxConnections !== undefined) structured.maxConnections = maxConnections;
-  if (connectionUtilizationPct !== undefined) structured.connectionUtilizationPct = connectionUtilizationPct;
-  if (totalDatabaseSizeBytes !== undefined) structured.totalDatabaseSizeBytes = totalDatabaseSizeBytes;
-  if (diagnostics.largest_database_name) structured.largestDatabaseName = diagnostics.largest_database_name;
-  if (largestDatabaseSizeBytes !== undefined) structured.largestDatabaseSizeBytes = largestDatabaseSizeBytes;
-  if (diagnostics.slow_query_logging) structured.slowQueryLogging = diagnostics.slow_query_logging;
-  if (diagnostics.pg_stat_statements) structured.pgStatStatements = diagnostics.pg_stat_statements;
-  if (diagnostics.pg_stat_statements_available_version) {
-    structured.pgStatStatementsAvailableVersion = diagnostics.pg_stat_statements_available_version;
-  }
-  if (diagnostics.pg_stat_statements_installed_version) {
-    structured.pgStatStatementsInstalledVersion = diagnostics.pg_stat_statements_installed_version;
-  }
-  if (diagnostics.shared_preload_libraries) structured.sharedPreloadLibraries = diagnostics.shared_preload_libraries;
-  if (diagnostics.shared_buffers) structured.sharedBuffers = diagnostics.shared_buffers;
-
-  return structured;
-}
-
 async function readPostgresDiagnostics(
   target: string,
   runner: DoctorCommandRunner,
-): Promise<Partial<Record<PostgresDiagnosticKey, string>>> {
-  const queryLiteral = JSON.stringify(postgresDiagnosticQuery);
+): Promise<RawPostgresDiagnostics> {
+  const queryLiteral = JSON.stringify(POSTGRES_DIAGNOSTICS_QUERY);
   const command = [
     `query=${queryLiteral}`,
     '. ./scripts/lib.sh >/dev/null',
@@ -884,21 +607,11 @@ export async function getDoctorReport(
         }
         report.postgres = {
           requested: true,
+          contractVersion: POSTGRES_DIAGNOSTICS_CONTRACT_VERSION,
           available: true,
           diagnostics: structuredPostgresDiagnostics(postgresDiagnostics),
         };
-        const connectionUtilizationWarning = postgresConnectionUtilizationWarning(postgresDiagnostics);
-        if (connectionUtilizationWarning) {
-          warnings.push(connectionUtilizationWarning);
-        }
-        const slowQueryLoggingWarning = postgresSlowQueryLoggingWarning(postgresDiagnostics);
-        if (slowQueryLoggingWarning) {
-          warnings.push(slowQueryLoggingWarning);
-        }
-        const extensionVisibilityWarning = postgresExtensionVisibilityWarning(postgresDiagnostics);
-        if (extensionVisibilityWarning) {
-          warnings.push(extensionVisibilityWarning);
-        }
+        warnings.push(...postgresPostgresWarnings(postgresDiagnostics));
       } else {
         const warning =
           malformedKeys.length > 0
@@ -907,6 +620,7 @@ export async function getDoctorReport(
         warnings.push(`PostgreSQL diagnostics unavailable: ${warning}`);
         report.postgres = {
           requested: true,
+          contractVersion: POSTGRES_DIAGNOSTICS_CONTRACT_VERSION,
           available: false,
           diagnostics: structuredPostgresDiagnostics(postgresDiagnostics),
           warning,
@@ -917,6 +631,7 @@ export async function getDoctorReport(
       warnings.push(`PostgreSQL diagnostics unavailable: ${warning}`);
       report.postgres = {
         requested: true,
+        contractVersion: POSTGRES_DIAGNOSTICS_CONTRACT_VERSION,
         available: false,
         diagnostics: {},
         warning,

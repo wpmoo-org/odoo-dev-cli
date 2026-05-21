@@ -23,7 +23,7 @@ not validate staging or production deployments.
 | Doctor checks | Metadata, compose files, scripts, source repo paths, and local tooling checks behave as expected. | `npx @wpmoo/toolkit doctor` or `./moo doctor` |
 | Doctor safe fixes | Safe file-level fixes are applied only with `--fix`, then doctor runs again and reports any remaining manual issues. | `npx @wpmoo/toolkit doctor --fix` |
 | Generated Postgres checks | For PostgreSQL 18 environments, doctor validates db mount targets avoid old PG image-specific paths and can normalize safe targets with `--fix`. | `npx @wpmoo/toolkit doctor`, `npx @wpmoo/toolkit doctor --fix` |
-| PostgreSQL diagnostics | Optional read-only database health/performance diagnostics report database count, sessions currently running queries with `pg_stat_activity.state = 'active'`, total database size, slow-query readiness, extension visibility, and selected settings without failing doctor when the database is unavailable. | `npx @wpmoo/toolkit doctor --postgres`, `npx @wpmoo/toolkit doctor --json --postgres` |
+| PostgreSQL diagnostics | Optional read-only, advisory-only database health and performance diagnostics (no automatic tuning), covering active/idle-in-transaction sessions, table health signals, WAL/capacity context, unused-index hints, and slow-query readiness. JSON mode emits a versioned PostgreSQL contract with optional fields when a metric is unavailable. | `npx @wpmoo/toolkit doctor --postgres`, `npx @wpmoo/toolkit doctor --json --postgres` |
 | Source repo add/remove | Source repository registration and submodule lifecycle behave correctly. | `npx @wpmoo/toolkit add-repo ...`, `npx @wpmoo/toolkit remove-repo ...` |
 | Source manifest sync | Source repo metadata, `.gitmodules`, and `odoo/custom/manifests/sources.yaml` stay aligned. | `npx @wpmoo/toolkit source list`, `npx @wpmoo/toolkit source sync` |
 | Module add/remove | Module skeleton files include manifest, model, access CSV, explicit view XML, action/menu XML, post-install test scaffold, and selected source repo registration. Existing scaffold files are not overwritten. | `npx @wpmoo/toolkit add-module ...`, `npx @wpmoo/toolkit remove-module ...` |
@@ -76,16 +76,16 @@ is involved, use PostgreSQL upgrade tooling first.
 
 Use `doctor --postgres` when the database container is running and you want
 read-only PostgreSQL diagnostics. The check uses fixed diagnostic queries for
-database count, sessions currently running queries where
-`pg_stat_activity.state` is `active`, aggregate database size, slow-query
-logging readiness,
-`pg_stat_statements` availability, and `shared_buffers`. If the database is
-unavailable, doctor reports a warning instead of failing the whole environment
-check.
-JSON output preserves `checks` and `warnings` while adding a structured
-`postgres` object when `--postgres` is requested.
-Incomplete or malformed PostgreSQL metric rows are reported as unavailable
-diagnostics.
+database count, sessions currently running queries where `pg_stat_activity.state`
+is `active`, long transactions / idle-in-transaction sessions, table health
+signals, unused index advisor signals, WAL and capacity visibility, and
+slow-query logging readiness (`log_min_duration_statement` and
+`pg_stat_statements` visibility). If the database is unavailable, doctor reports
+a warning instead of failing the whole environment check.
+
+`doctor --json --postgres` keeps output stable by exposing a versioned PostgreSQL
+diagnostics contract. The contract is intentionally permissive: fields are optional
+and omitted or marked unavailable when a running database does not expose them.
 
 ## Safe reset policy
 

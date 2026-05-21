@@ -591,8 +591,10 @@ describe('doctor', () => {
     );
     expect(report.postgres).toEqual({
       requested: true,
+      contractVersion: 2,
       available: true,
       diagnostics: {
+        schemaVersion: 2,
         databaseCount: 2,
         activeConnections: 3,
         connectionCount: 42,
@@ -827,6 +829,7 @@ describe('doctor', () => {
     expect(report.warnings).toEqual(['PostgreSQL diagnostics unavailable: database unavailable']);
     expect(report.postgres).toEqual({
       requested: true,
+      contractVersion: 2,
       available: false,
       diagnostics: {},
       warning: 'database unavailable',
@@ -864,8 +867,10 @@ describe('doctor', () => {
     ]);
     expect(report.postgres).toEqual({
       requested: true,
+      contractVersion: 2,
       available: false,
       diagnostics: {
+        schemaVersion: 2,
         databaseCount: 2,
         activeConnections: 3,
       },
@@ -911,8 +916,10 @@ describe('doctor', () => {
     ]);
     expect(report.postgres).toEqual({
       requested: true,
+      contractVersion: 2,
       available: false,
       diagnostics: {
+        schemaVersion: 2,
         activeConnections: 3,
         connectionCount: 42,
         totalDatabaseSizeBytes: 10485760,
