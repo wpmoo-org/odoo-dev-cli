@@ -7,6 +7,7 @@ import {
 } from './addons-yaml.js';
 import { readEnvironmentMetadata, replaceSourceRepos } from './environment.js';
 import { realGit, stageAll, type GitRunner } from './git.js';
+import { supportedOdooVersions, type SupportedOdooVersion } from './odoo-versions.js';
 import { pathUnderBase, validateModuleName, validateRepoPath } from './path-validation.js';
 import { listModuleRepos, readAddonsYaml, writeAddonsYaml } from './repo-actions.js';
 import { listSources } from './source-actions.js';
@@ -66,6 +67,17 @@ function deriveRepoSlug(repoUrl: string | undefined): string | undefined {
 
 function normalizeSourceType(value?: SourceRepoType): SourceRepoType {
   return validSourceTypes.includes(value as SourceRepoType) ? (value as SourceRepoType) : 'private';
+}
+
+function validateSupportedOdooVersion(value: string): SupportedOdooVersion {
+  const normalized = value.trim();
+  if (supportedOdooVersions.includes(normalized as SupportedOdooVersion)) {
+    return normalized as SupportedOdooVersion;
+  }
+
+  throw new Error(
+    `Unsupported Odoo version for generated module scaffolding: ${value}. Supported versions: ${supportedOdooVersions.join(', ')}.`,
+  );
 }
 
 function sourceRepoPath(target: string, sourceType: SourceRepoType, repoPath: string): string {
@@ -323,6 +335,7 @@ export async function addModuleToSourceRepo(
 ): Promise<void> {
   const repoPath = validateRepoPath(options.repoPath);
   const moduleName = validateModuleName(options.moduleName);
+  const odooVersion = validateSupportedOdooVersion(options.odooVersion);
   const sourceType = normalizeSourceType(options.sourceType);
   const destination = modulePath(options.target, sourceType, repoPath, moduleName);
   await mkdir(join(destination, 'models'), { recursive: true });
@@ -331,7 +344,7 @@ export async function addModuleToSourceRepo(
   await mkdir(join(destination, 'views'), { recursive: true });
 
   await writeIfMissing(join(destination, '__init__.py'), 'from . import models\n');
-  await writeIfMissing(join(destination, '__manifest__.py'), manifestContent(moduleName, options.odooVersion));
+  await writeIfMissing(join(destination, '__manifest__.py'), manifestContent(moduleName, odooVersion));
   await writeIfMissing(join(destination, 'models/__init__.py'), `from . import ${moduleName}\n`);
   await writeIfMissing(join(destination, `models/${moduleName}.py`), modelContent(moduleName));
   await writeIfMissing(join(destination, 'tests/__init__.py'), testInitContent(moduleName));
@@ -340,8 +353,8 @@ export async function addModuleToSourceRepo(
     join(destination, 'security/ir.model.access.csv'),
     accessCsvContent(moduleName),
   );
-  await writeIfMissing(join(destination, `views/${moduleName}_views.xml`), viewXmlContent(moduleName, options.odooVersion));
-  await writeIfMissing(join(destination, `views/${moduleName}_menus.xml`), menuXmlContent(moduleName, options.odooVersion));
+  await writeIfMissing(join(destination, `views/${moduleName}_views.xml`), viewXmlContent(moduleName, odooVersion));
+  await writeIfMissing(join(destination, `views/${moduleName}_menus.xml`), menuXmlContent(moduleName, odooVersion));
   await writeIfMissing(join(destination, 'views/.gitkeep'), '');
 
   if (sourceType === 'private' && (await usesAddonsYaml(options.target))) {

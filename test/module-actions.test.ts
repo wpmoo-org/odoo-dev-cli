@@ -173,6 +173,46 @@ class TestOdooSampleModuleBase(TransactionCase):
     expect(viewsXml).not.toContain('<list string=');
   });
 
+  it('rejects unsupported Odoo versions before writing generated module files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-unsupported-version-'));
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
+
+    await expect(
+      addModuleToSourceRepo({
+        target,
+        repoPath: 'odoo_sample_module',
+        moduleName: 'odoo_sample_module_base',
+        odooVersion: '20.0',
+        stage: false,
+      }),
+    ).rejects.toThrow(
+      'Unsupported Odoo version for generated module scaffolding: 20.0. Supported versions: 19.0, 18.0, 17.0, 16.0.',
+    );
+    await expect(stat(modulePath)).rejects.toThrow();
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
+  });
+
+  it('rejects malformed Odoo versions before writing generated module files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-malformed-version-'));
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
+
+    await expect(
+      addModuleToSourceRepo({
+        target,
+        repoPath: 'odoo_sample_module',
+        moduleName: 'odoo_sample_module_base',
+        odooVersion: '18.0-mocked',
+        stage: false,
+      }),
+    ).rejects.toThrow(
+      'Unsupported Odoo version for generated module scaffolding: 18.0-mocked. Supported versions: 19.0, 18.0, 17.0, 16.0.',
+    );
+    await expect(stat(modulePath)).rejects.toThrow();
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
+  });
+
   it('does not overwrite existing generated module test files', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-test-idempotent-'));
     const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
