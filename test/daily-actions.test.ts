@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   dailyActionPlan,
+  dailyActionSafetyPreview,
   isDailyActionCommand,
   renderDailyActionOutput,
   runDailyAction,
@@ -159,7 +160,7 @@ describe('daily actions', () => {
     });
     const allowedTarget = await makeEnvironment({
       scripts: ['resetdb.sh'],
-      env: 'WPMOO_ENV=stage\nWPMOO_ALLOW_DESTRUCTIVE=1\n',
+      env: 'WPMOO_ENV=stage\nWPMOO_ALLOW_DESTRUCTIVE=1\nWPMOO_ALLOW_NO_RECENT_SNAPSHOT=1\n',
     });
 
     await expect(dailyActionPlan('resetdb', ['devel'], stageTarget)).rejects.toThrow(
@@ -176,6 +177,56 @@ describe('daily actions', () => {
       scriptPath: join(allowedTarget, 'scripts/resetdb.sh'),
       args: ['devel'],
     });
+  });
+
+  it('requires a recent snapshot posture before approved destructive stage/prod commands', async () => {
+    const blockedTarget = await makeEnvironment({
+      scripts: ['resetdb.sh'],
+      env: 'WPMOO_ENV=stage\nWPMOO_ALLOW_DESTRUCTIVE=1\n',
+    });
+    const recentSnapshotTarget = await makeEnvironment({
+      scripts: ['resetdb.sh'],
+      env: 'WPMOO_ENV=stage\nWPMOO_ALLOW_DESTRUCTIVE=1\n',
+    });
+    await mkdir(join(recentSnapshotTarget, 'backups'), { recursive: true });
+    await writeFile(join(recentSnapshotTarget, 'backups', 'before-reset.dump'), 'snapshot');
+
+    await expect(dailyActionPlan('resetdb', ['devel'], blockedTarget)).rejects.toThrow(
+      "Refusing destructive command 'resetdb' in WPMOO_ENV=stage without a recent database snapshot. Create a snapshot first or set WPMOO_ALLOW_NO_RECENT_SNAPSHOT=1 to run it intentionally.",
+    );
+    await expect(dailyActionPlan('resetdb', ['devel'], recentSnapshotTarget)).resolves.toMatchObject({
+      scriptPath: join(recentSnapshotTarget, 'scripts/resetdb.sh'),
+      args: ['devel'],
+    });
+  });
+
+  it('returns a safety preview with backup warnings without converting them into policy refusals', async () => {
+    const target = await makeEnvironment({
+      scripts: ['resetdb.sh'],
+      env: 'WPMOO_ENV=stage\nWPMOO_ALLOW_DESTRUCTIVE=1\n',
+    });
+
+    const preview = await dailyActionSafetyPreview('resetdb', ['devel'], target);
+
+    expect(preview).toMatchObject({
+      command: 'resetdb',
+      environment: 'stage',
+      destructive: true,
+      allowed: true,
+      args: ['devel'],
+      snapshot: {
+        requiredRecent: true,
+        newestSnapshotAgeMs: null,
+      },
+    });
+    expect(preview.refusalMessage).toBeUndefined();
+    expect(preview.warnings).toEqual([
+      expect.objectContaining({
+        kind: 'no-recent-snapshot',
+        requiredFlag: 'WPMOO_ALLOW_NO_RECENT_SNAPSHOT',
+        blocking: true,
+      }),
+    ]);
   });
 
   it('blocks stage/prod module lifecycle changes without blocking stage tests or read-only maintenance', async () => {
@@ -253,6 +304,55 @@ describe('daily actions', () => {
       scriptPath: join(allowedProdTarget, 'scripts/test.sh'),
       args: ['sale'],
     });
+  });
+
+  it('requires explicit migration approval in stage/prod when module migration scripts are present', async () => {
+    const blockedTarget = await makeEnvironment({
+      scripts: ['install.sh'],
+      env: 'WPMOO_ENV=stage\nWPMOO_ALLOW_STAGE_LIFECYCLE=1\n',
+    });
+    await mkdir(join(blockedTarget, 'odoo/custom/src/private/acme/sale_extension/migrations/19.0.1.0'), {
+      recursive: true,
+    });
+    await writeFile(
+      join(blockedTarget, 'odoo/custom/src/private/acme/sale_extension/migrations/19.0.1.0/pre-migration.py'),
+      '# migration',
+    );
+
+    await expect(dailyActionPlan('install', ['sale_extension'], blockedTarget)).rejects.toThrow(
+      "Refusing migration-risk command 'install' in WPMOO_ENV=stage. Review detected migration scripts or set WPMOO_ALLOW_MIGRATIONS=1 to run it intentionally.",
+    );
+
+    await writeFile(
+      join(blockedTarget, '.env'),
+      'WPMOO_ENV=stage\nWPMOO_ALLOW_STAGE_LIFECYCLE=1\nWPMOO_ALLOW_MIGRATIONS=1\n',
+    );
+    await expect(dailyActionPlan('install', ['sale_extension'], blockedTarget)).resolves.toMatchObject({
+      scriptPath: join(blockedTarget, 'scripts/install.sh'),
+      args: ['sale_extension'],
+    });
+  });
+
+  it('writes an audit log for production-sensitive daily action attempts', async () => {
+    const target = await makeEnvironment({
+      scripts: ['install.sh'],
+      env: 'WPMOO_ENV=prod\n',
+    });
+
+    await expect(dailyActionPlan('install', ['sale'], target)).rejects.toThrow(
+      "Refusing production lifecycle command 'install' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally.",
+    );
+
+    const log = await readFile(join(target, '.wpmoo', 'audit.log'), 'utf8');
+    const entry = JSON.parse(log.trim()) as Record<string, unknown>;
+    expect(entry).toMatchObject({
+      command: 'install',
+      environment: 'prod',
+      dryRun: false,
+      approvedFlags: [],
+      args: ['sale'],
+    });
+    expect(typeof entry.timestamp).toBe('string');
   });
 
   it('prefers process environment production lifecycle flags over .env values', async () => {

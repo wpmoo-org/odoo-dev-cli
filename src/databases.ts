@@ -1,3 +1,5 @@
+import { type Dirent, readdirSync, statSync, type Stats } from 'node:fs';
+import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 
 export type DatabaseListOptions = {
@@ -9,6 +11,37 @@ export type DatabaseListResult =
   | { ok: false; databases: []; error?: string };
 
 export type DatabaseListResponse = string[] | DatabaseListResult;
+
+export const defaultDatabaseSnapshotMaxAgeMs = 24 * 60 * 60 * 1000;
+export const databaseSnapshotDirectoryNames = ['backups', 'backup', 'snapshots'] as const;
+export const databaseSnapshotExtensions = ['.dump', '.sql', '.sql.gz', '.zip', '.tar', '.tar.gz'] as const;
+
+export type DatabaseSnapshotFile = {
+  path: string;
+  mtimeMs: number;
+  ageMs: number;
+};
+
+export type DatabaseSnapshotScanOptions = {
+  snapshotDirectories?: readonly string[];
+  snapshotExtensions?: readonly string[];
+  nowMs?: number;
+};
+
+export type DatabaseSnapshotScanResult = {
+  snapshotPaths: string[];
+  newestSnapshotAgeMs: number | null;
+  snapshots: DatabaseSnapshotFile[];
+};
+
+export type DatabaseSnapshotRecentCheckOptions = DatabaseSnapshotScanOptions & {
+  maxAgeMs?: number;
+};
+
+function isDatabaseSnapshotFile(fileName: string, extensions: readonly string[]): boolean {
+  const normalized = fileName.toLowerCase();
+  return extensions.some((extension) => normalized.endsWith(extension));
+}
 
 const maintenanceDatabases = new Set(['postgres']);
 const databaseNamePattern = /^[A-Za-z0-9_.-]+$/u;
@@ -68,6 +101,70 @@ export function parseDatabaseListOutput(output: string, options: DatabaseListOpt
   }
 
   return databases;
+}
+
+export function findDatabaseSnapshots(targetDirectory: string, options: DatabaseSnapshotScanOptions = {}): DatabaseSnapshotScanResult {
+  const {
+    nowMs = Date.now(),
+    snapshotDirectories = [...databaseSnapshotDirectoryNames],
+    snapshotExtensions = [...databaseSnapshotExtensions],
+  } = options;
+  const snapshots: DatabaseSnapshotFile[] = [];
+
+  for (const directoryName of snapshotDirectories) {
+    const directory = join(targetDirectory, directoryName);
+    let entries: Dirent[];
+
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        continue;
+      }
+      throw error;
+    }
+
+    for (const entry of entries) {
+      if (!isDatabaseSnapshotFile(entry.name, snapshotExtensions)) {
+        continue;
+      }
+
+      const path = join(directory, entry.name);
+      let stats: Stats;
+
+      try {
+        stats = statSync(path);
+      } catch {
+        continue;
+      }
+
+      if (!stats.isFile()) {
+        continue;
+      }
+
+      const mtimeMs = stats.mtimeMs;
+      const ageMs = Math.max(0, nowMs - mtimeMs);
+      snapshots.push({ path, mtimeMs, ageMs });
+    }
+  }
+
+  snapshots.sort((a, b) => b.mtimeMs - a.mtimeMs || a.path.localeCompare(b.path));
+  const newestSnapshot = snapshots[0] ?? null;
+
+  return {
+    snapshots,
+    snapshotPaths: snapshots.map((snapshot) => snapshot.path),
+    newestSnapshotAgeMs: newestSnapshot ? newestSnapshot.ageMs : null,
+  };
+}
+
+export function hasRecentDatabaseSnapshot(
+  targetDirectory: string,
+  options: DatabaseSnapshotRecentCheckOptions = {},
+): boolean {
+  const { maxAgeMs = defaultDatabaseSnapshotMaxAgeMs, ...scanOptions } = options;
+  const result = findDatabaseSnapshots(targetDirectory, scanOptions);
+  return result.newestSnapshotAgeMs !== null && result.newestSnapshotAgeMs <= maxAgeMs;
 }
 
 export function normalizeDatabaseListResult(result: DatabaseListResponse): DatabaseListResult {

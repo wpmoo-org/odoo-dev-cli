@@ -647,6 +647,62 @@ allow_stage_lifecycle() {
   [[ "$value" == "1" ]]
 }
 
+allow_no_recent_snapshot() {
+  local value="\${WPMOO_ALLOW_NO_RECENT_SNAPSHOT:-$(env_file_value WPMOO_ALLOW_NO_RECENT_SNAPSHOT)}"
+  [[ "$value" == "1" ]]
+}
+
+allow_migrations() {
+  local value="\${WPMOO_ALLOW_MIGRATIONS:-$(env_file_value WPMOO_ALLOW_MIGRATIONS)}"
+  [[ "$value" == "1" ]]
+}
+
+has_recent_snapshot() {
+  local dir
+  for dir in backups backup snapshots; do
+    [[ -d "$dir" ]] || continue
+    if find "$dir" -type f \\( -name "*.dump" -o -name "*.sql" -o -name "*.sql.gz" -o -name "*.zip" -o -name "*.tar" -o -name "*.tar.gz" \\) -mtime -1 -print -quit 2>/dev/null | grep -q .; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+require_recent_snapshot_or_override() {
+  local command="$1"
+  local env_name
+  env_name="$(selected_env)"
+  if [[ "$env_name" == "stage" || "$env_name" == "prod" ]]; then
+    if ! allow_no_recent_snapshot && ! has_recent_snapshot; then
+      echo "Refusing destructive command '$command' in WPMOO_ENV=$env_name without a recent database snapshot. Create a snapshot first or set WPMOO_ALLOW_NO_RECENT_SNAPSHOT=1 to run it intentionally." >&2
+      exit 1
+    fi
+  fi
+}
+
+has_migration_risk() {
+  local base
+  for base in odoo/custom/src/private odoo/custom/src/oca odoo/custom/src/external; do
+    [[ -d "$base" ]] || continue
+    if find "$base" -type f \\( -path "*/migrations/*/pre-migration.py" -o -path "*/migrations/*/post-migration.py" -o -path "*/migrations/*/end-migration.py" -o -path "*/migration/*/pre-migration.py" -o -path "*/migration/*/post-migration.py" -o -path "*/migration/*/end-migration.py" -o -path "*/scripts/migrate.py" -o -path "*/scripts/migration.py" \\) -print -quit 2>/dev/null | grep -q .; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+require_migrations_allowed() {
+  local command="$1"
+  local env_name
+  env_name="$(selected_env)"
+  if [[ "$env_name" == "stage" || "$env_name" == "prod" ]]; then
+    if ! allow_migrations && has_migration_risk; then
+      echo "Refusing migration-risk command '$command' in WPMOO_ENV=$env_name. Review detected migration scripts or set WPMOO_ALLOW_MIGRATIONS=1 to run it intentionally." >&2
+      exit 1
+    fi
+  fi
+}
+
 require_stage_lifecycle_allowed() {
   local command="$1"
   local env_name
@@ -758,6 +814,7 @@ case "$command" in
     require_module_args "$command" "$@"
     require_stage_lifecycle_allowed "$command"
     require_prod_lifecycle_allowed "$command"
+    require_migrations_allowed "$command"
     run_script ./scripts/install.sh "$@"
     ;;
   "update")
@@ -765,18 +822,21 @@ case "$command" in
     require_module_args "$command" "$@"
     require_stage_lifecycle_allowed "$command"
     require_prod_lifecycle_allowed "$command"
+    require_migrations_allowed "$command"
     run_script ./scripts/update.sh "$@"
     ;;
   "test")
     shift
     validate_test_args "$@"
     require_prod_lifecycle_allowed "$command"
+    require_migrations_allowed "$command"
     run_script ./scripts/test.sh "$@"
     ;;
   "resetdb")
     shift
     positional_args "$command" 0 2 "$@"
     require_destructive_allowed "$command"
+    require_recent_snapshot_or_override "$command"
     run_script ./scripts/resetdb.sh "$@"
     ;;
   "snapshot")
@@ -795,6 +855,7 @@ case "$command" in
     restore_args+=("$@")
     if [[ "\${restore_args[0]:-}" != "--dry-run" ]]; then
       require_destructive_allowed "$command"
+      require_recent_snapshot_or_override "$command"
     fi
     run_script ./scripts/restore-snapshot.sh "\${restore_args[@]}"
     ;;

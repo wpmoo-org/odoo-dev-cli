@@ -271,11 +271,30 @@ exit 1
     expect(dryRunResult.exitCode).toBe(0);
     await expect(readFile(callsPath, 'utf8')).resolves.toBe('restore-snapshot.sh|--dry-run snap1 devel\n');
 
-    await writeFile(join(root, '.env'), 'WPMOO_ENV=prod\nWPMOO_ALLOW_DESTRUCTIVE=1\n');
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=prod\nWPMOO_ALLOW_DESTRUCTIVE=1\nWPMOO_ALLOW_NO_RECENT_SNAPSHOT=1\n');
     await execa(join(root, 'moo'), ['resetdb', 'devel'], { cwd: root, env });
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(
       'restore-snapshot.sh|--dry-run snap1 devel\nresetdb.sh|devel\n',
     );
+  }, 15000);
+
+  it('blocks approved generated destructive commands without a recent snapshot unless explicitly overridden', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\nWPMOO_ALLOW_DESTRUCTIVE=1\n');
+
+    const blocked = await execa(join(root, 'moo'), ['resetdb', 'devel'], { cwd: root, env, reject: false });
+
+    expect(blocked.exitCode).toBe(1);
+    expect(blocked.stderr).toContain(
+      "Refusing destructive command 'resetdb' in WPMOO_ENV=stage without a recent database snapshot. Create a snapshot first or set WPMOO_ALLOW_NO_RECENT_SNAPSHOT=1 to run it intentionally.",
+    );
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
+
+    await mkdir(join(root, 'backups'), { recursive: true });
+    await writeFile(join(root, 'backups', 'before-reset.dump'), 'snapshot');
+    await execa(join(root, 'moo'), ['resetdb', 'devel'], { cwd: root, env });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('resetdb.sh|devel\n');
   }, 15000);
 
   it('blocks production module lifecycle commands unless explicitly allowed', async () => {
@@ -333,6 +352,36 @@ exit 1
         '',
       ].join('\n'),
     );
+  }, 15000);
+
+  it('blocks generated migration-risk lifecycle commands in stage/prod unless explicitly approved', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    await mkdir(join(root, 'odoo/custom/src/private/acme/sale_extension/migrations/19.0.1.0'), { recursive: true });
+    await writeFile(
+      join(root, 'odoo/custom/src/private/acme/sale_extension/migrations/19.0.1.0/pre-migration.py'),
+      '# migration',
+    );
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\nWPMOO_ALLOW_STAGE_LIFECYCLE=1\n');
+
+    const blocked = await execa(join(root, 'moo'), ['install', 'sale_extension', 'devel'], {
+      cwd: root,
+      env,
+      reject: false,
+    });
+
+    expect(blocked.exitCode).toBe(1);
+    expect(blocked.stderr).toContain(
+      "Refusing migration-risk command 'install' in WPMOO_ENV=stage. Review detected migration scripts or set WPMOO_ALLOW_MIGRATIONS=1 to run it intentionally.",
+    );
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
+
+    await writeFile(
+      join(root, '.env'),
+      'WPMOO_ENV=stage\nWPMOO_ALLOW_STAGE_LIFECYCLE=1\nWPMOO_ALLOW_MIGRATIONS=1\n',
+    );
+    await execa(join(root, 'moo'), ['install', 'sale_extension', 'devel'], { cwd: root, env });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('install.sh|sale_extension devel\n');
   }, 15000);
 
   it('prefers process environment production lifecycle flags over .env values', async () => {

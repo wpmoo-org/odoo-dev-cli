@@ -2,9 +2,16 @@ import { spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { appendAuditLog } from './audit-log.js';
 import { readEnvFile, selectedComposeEnvironment } from './compose-layout.js';
-import { normalizeDatabaseName } from './databases.js';
+import { defaultDatabaseSnapshotMaxAgeMs, findDatabaseSnapshots, normalizeDatabaseName } from './databases.js';
+import {
+  evaluateDailyActionPolicy,
+  type EnvironmentKind,
+  type PolicyDeny,
+} from './environment-policy.js';
 import { markerPath } from './environment.js';
+import { scanMigrationRisks, type MigrationRiskResult } from './migrations.js';
 
 export const dailyActionCommands = [
   'start',
@@ -29,6 +36,35 @@ export type DailyActionPlan = {
   cwd: string;
   scriptPath: string;
   args: string[];
+};
+
+export type DailyActionSafetyWarningKind = 'no-recent-snapshot' | 'migration-risk';
+
+export type DailyActionSafetyWarning = {
+  kind: DailyActionSafetyWarningKind;
+  message: string;
+  requiredFlag: 'WPMOO_ALLOW_NO_RECENT_SNAPSHOT' | 'WPMOO_ALLOW_MIGRATIONS';
+  blocking: boolean;
+};
+
+export type DailyActionSafetyPreview = DailyActionPlan & {
+  command: DailyActionCommand;
+  environment: EnvironmentKind;
+  dryRun: boolean;
+  destructive: boolean;
+  auditWorthy: boolean;
+  allowed: boolean;
+  deny?: PolicyDeny & { message: string };
+  refusalMessage?: string;
+  requiredFlag?: string;
+  warnings: DailyActionSafetyWarning[];
+  snapshot?: {
+    requiredRecent: boolean;
+    newestSnapshotAgeMs: number | null;
+    snapshotPaths: string[];
+  };
+  migrations?: MigrationRiskResult;
+  approvedFlags: string[];
 };
 
 export type DailyActionRunner = (plan: DailyActionPlan) => Promise<void>;
@@ -192,84 +228,6 @@ function scriptArgs(command: DailyActionCommand, argv: string[]): string[] {
   return validateDatabaseArg(positionalArgs(command, argv, 1, 3), 1);
 }
 
-function isDestructiveCommand(command: DailyActionCommand, args: string[]): boolean {
-  if (command === 'resetdb') return true;
-  return command === 'restore-snapshot' && args[0] !== '--dry-run';
-}
-
-function isProductionLifecycleCommand(command: DailyActionCommand): boolean {
-  return command === 'install' || command === 'update' || command === 'test';
-}
-
-function isStageLifecycleCommand(command: DailyActionCommand): boolean {
-  return command === 'install' || command === 'update';
-}
-
-function destructiveCommandError(command: DailyActionCommand, envName: string): string {
-  return `Refusing destructive command '${command}' in WPMOO_ENV=${envName}. Set WPMOO_ALLOW_DESTRUCTIVE=1 to run it intentionally.`;
-}
-
-function stageLifecycleCommandError(command: DailyActionCommand): string {
-  return `Refusing stage lifecycle command '${command}' in WPMOO_ENV=stage. Set WPMOO_ALLOW_STAGE_LIFECYCLE=1 to run it intentionally.`;
-}
-
-function productionLifecycleCommandError(command: DailyActionCommand): string {
-  return `Refusing production lifecycle command '${command}' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally.`;
-}
-
-async function assertDestructiveCommandAllowed(command: DailyActionCommand, args: string[], cwd: string): Promise<void> {
-  if (!isDestructiveCommand(command, args)) {
-    return;
-  }
-
-  const env = await readEnvFile(cwd);
-  const envName = process.env.WPMOO_ENV?.trim() || selectedComposeEnvironment(env);
-  if (envName !== 'stage' && envName !== 'prod') {
-    return;
-  }
-
-  const allowDestructive = process.env.WPMOO_ALLOW_DESTRUCTIVE?.trim() || env?.get('WPMOO_ALLOW_DESTRUCTIVE')?.trim();
-  if (allowDestructive !== '1') {
-    throw new Error(destructiveCommandError(command, envName));
-  }
-}
-
-async function assertProductionLifecycleCommandAllowed(command: DailyActionCommand, cwd: string): Promise<void> {
-  if (!isProductionLifecycleCommand(command)) {
-    return;
-  }
-
-  const env = await readEnvFile(cwd);
-  const envName = process.env.WPMOO_ENV?.trim() || selectedComposeEnvironment(env);
-  if (envName !== 'prod') {
-    return;
-  }
-
-  const allowProdLifecycle =
-    process.env.WPMOO_ALLOW_PROD_LIFECYCLE?.trim() || env?.get('WPMOO_ALLOW_PROD_LIFECYCLE')?.trim();
-  if (allowProdLifecycle !== '1') {
-    throw new Error(productionLifecycleCommandError(command));
-  }
-}
-
-async function assertStageLifecycleCommandAllowed(command: DailyActionCommand, cwd: string): Promise<void> {
-  if (!isStageLifecycleCommand(command)) {
-    return;
-  }
-
-  const env = await readEnvFile(cwd);
-  const envName = process.env.WPMOO_ENV?.trim() || selectedComposeEnvironment(env);
-  if (envName !== 'stage') {
-    return;
-  }
-
-  const allowStageLifecycle =
-    process.env.WPMOO_ALLOW_STAGE_LIFECYCLE?.trim() || env?.get('WPMOO_ALLOW_STAGE_LIFECYCLE')?.trim();
-  if (allowStageLifecycle !== '1') {
-    throw new Error(stageLifecycleCommandError(command));
-  }
-}
-
 async function assertEnvironmentRoot(cwd: string): Promise<void> {
   try {
     await access(join(cwd, markerPath));
@@ -288,22 +246,146 @@ async function assertScriptExists(cwd: string, script: string): Promise<string> 
   return scriptPath;
 }
 
-export async function dailyActionPlan(
+function envValue(env: Map<string, string> | undefined, key: string): string | undefined {
+  return process.env[key]?.trim() || env?.get(key)?.trim();
+}
+
+function flagEnabled(env: Map<string, string> | undefined, key: string): boolean {
+  return envValue(env, key) === '1';
+}
+
+function approvedFlags(env: Map<string, string> | undefined): string[] {
+  return [
+    'WPMOO_ALLOW_DESTRUCTIVE',
+    'WPMOO_ALLOW_STAGE_LIFECYCLE',
+    'WPMOO_ALLOW_PROD_LIFECYCLE',
+    'WPMOO_ALLOW_NO_RECENT_SNAPSHOT',
+    'WPMOO_ALLOW_MIGRATIONS',
+  ].filter((key) => flagEnabled(env, key));
+}
+
+function requiresMigrationApproval(command: DailyActionCommand): boolean {
+  return command === 'install' || command === 'update' || command === 'test';
+}
+
+function noRecentSnapshotMessage(command: DailyActionCommand, environment: EnvironmentKind): string {
+  return `Refusing destructive command '${command}' in WPMOO_ENV=${environment} without a recent database snapshot. Create a snapshot first or set WPMOO_ALLOW_NO_RECENT_SNAPSHOT=1 to run it intentionally.`;
+}
+
+function migrationRiskMessage(command: DailyActionCommand, environment: EnvironmentKind): string {
+  return `Refusing migration-risk command '${command}' in WPMOO_ENV=${environment}. Review detected migration scripts or set WPMOO_ALLOW_MIGRATIONS=1 to run it intentionally.`;
+}
+
+async function auditDailyActionPreview(preview: DailyActionSafetyPreview): Promise<void> {
+  if (preview.environment !== 'prod' || !preview.auditWorthy) {
+    return;
+  }
+
+  await appendAuditLog({
+    environmentPath: preview.cwd,
+    command: preview.command,
+    environment: preview.environment,
+    dryRun: preview.dryRun,
+    args: preview.args,
+    approvedFlagNames: [],
+    approvedFlags: preview.approvedFlags,
+  });
+}
+
+export async function dailyActionSafetyPreview(
   command: DailyActionCommand,
   argv: string[],
   cwd = process.cwd(),
-): Promise<DailyActionPlan> {
+): Promise<DailyActionSafetyPreview> {
   await assertEnvironmentRoot(cwd);
   const scriptPath = await assertScriptExists(cwd, dailyActionScripts[command]);
   const args = scriptArgs(command, argv);
-  await assertStageLifecycleCommandAllowed(command, cwd);
-  await assertProductionLifecycleCommandAllowed(command, cwd);
-  await assertDestructiveCommandAllowed(command, args, cwd);
+  const env = await readEnvFile(cwd);
+  const envName = envValue(env, 'WPMOO_ENV') || selectedComposeEnvironment(env);
+  const policy = evaluateDailyActionPolicy(command, args, {
+    envName,
+    allowDestructive: envValue(env, 'WPMOO_ALLOW_DESTRUCTIVE'),
+    allowStageLifecycle: envValue(env, 'WPMOO_ALLOW_STAGE_LIFECYCLE'),
+    allowProdLifecycle: envValue(env, 'WPMOO_ALLOW_PROD_LIFECYCLE'),
+  });
+  const warnings: DailyActionSafetyWarning[] = [];
+  const snapshotRequired = policy.isDestructive && (policy.env === 'stage' || policy.env === 'prod');
+  const snapshot = snapshotRequired ? findDatabaseSnapshots(cwd) : undefined;
+  const noRecentSnapshot =
+    snapshotRequired &&
+    snapshot &&
+    (snapshot.newestSnapshotAgeMs === null || snapshot.newestSnapshotAgeMs > defaultDatabaseSnapshotMaxAgeMs) &&
+    !flagEnabled(env, 'WPMOO_ALLOW_NO_RECENT_SNAPSHOT');
+
+  if (noRecentSnapshot) {
+    warnings.push({
+      kind: 'no-recent-snapshot',
+      requiredFlag: 'WPMOO_ALLOW_NO_RECENT_SNAPSHOT',
+      blocking: true,
+      message: noRecentSnapshotMessage(command, policy.env),
+    });
+  }
+
+  const migrations =
+    requiresMigrationApproval(command) && (policy.env === 'stage' || policy.env === 'prod')
+      ? await scanMigrationRisks(cwd)
+      : undefined;
+  if (migrations?.risk && !flagEnabled(env, 'WPMOO_ALLOW_MIGRATIONS')) {
+    warnings.push({
+      kind: 'migration-risk',
+      requiredFlag: 'WPMOO_ALLOW_MIGRATIONS',
+      blocking: true,
+      message: migrationRiskMessage(command, policy.env),
+    });
+  }
 
   return {
     cwd,
     scriptPath,
     args,
+    command,
+    environment: policy.env,
+    dryRun: policy.isDryRunPreview,
+    destructive: policy.isDestructive,
+    auditWorthy: policy.isAuditWorthy,
+    allowed: policy.allowed,
+    deny: policy.allowed ? undefined : { ...policy.deny, message: policy.message },
+    refusalMessage: policy.allowed ? undefined : policy.message,
+    requiredFlag: policy.allowed ? undefined : policy.deny.requiredFlag,
+    warnings,
+    snapshot: snapshot
+      ? {
+          requiredRecent: true,
+          newestSnapshotAgeMs: snapshot.newestSnapshotAgeMs,
+          snapshotPaths: snapshot.snapshotPaths,
+        }
+      : undefined,
+    migrations,
+    approvedFlags: approvedFlags(env),
+  };
+}
+
+export async function dailyActionPlan(
+  command: DailyActionCommand,
+  argv: string[],
+  cwd = process.cwd(),
+): Promise<DailyActionPlan> {
+  const preview = await dailyActionSafetyPreview(command, argv, cwd);
+  await auditDailyActionPreview(preview);
+
+  if (!preview.allowed) {
+    throw new Error(preview.refusalMessage);
+  }
+
+  const blockingWarning = preview.warnings.find((warning) => warning.blocking);
+  if (blockingWarning) {
+    throw new Error(blockingWarning.message);
+  }
+
+  return {
+    cwd: preview.cwd,
+    scriptPath: preview.scriptPath,
+    args: preview.args,
   };
 }
 
