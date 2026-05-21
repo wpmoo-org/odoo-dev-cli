@@ -170,12 +170,31 @@ npx @wpmoo/toolkit doctor --json --postgres
 ```
 
 JSON output is optional; human-readable output remains the default.
-`doctor --postgres` adds read-only PostgreSQL health and performance diagnostics
-such as database size, sessions currently running queries with
-`pg_stat_activity.state = 'active'`, connection utilization against
-`max_connections`, slow-query readiness, extension visibility, and settings.
+`doctor --postgres` runs read-only PostgreSQL diagnostics as advisory checks only; it
+does not perform automatic tuning.
+Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics
+instead of being treated as successful checks.
+
+Current advisory checks include:
+
+- sessions currently running queries where `pg_stat_activity.state = 'active'`;
+- connection utilization against `max_connections`;
+- long transaction / idle-in-transaction warnings from `pg_stat_activity`;
+- table health visibility (for example table and index bloat signals, index scan
+  efficiency, and vacuum-related blockers);
+- optional unused index advisory output when index usage data is available;
+- WAL and capacity visibility including WAL activity and disk-level pressure context;
+- slow-query and query-plan readiness checks for common `log_min_duration_statement`
+  and `pg_stat_statements` prerequisites.
+
+`npx @wpmoo/toolkit doctor --postgres` and
+`npx @wpmoo/toolkit doctor --json --postgres` use the same checks, and the
+JSON variant exposes a versioned PostgreSQL diagnostics contract.
+
 `doctor --json --postgres` includes a structured `postgres` object for automation.
-Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics.
+`doctor --json --postgres` keeps the JSON contract stable by versioning the
+`postgres` payload; individual fields are optional so automation can safely handle
+environments where PostgreSQL does not expose a metric.
 
 ## Release Artifacts
 
