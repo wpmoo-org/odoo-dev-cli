@@ -1151,7 +1151,7 @@ async function removeModuleOptionsFromPrompts(
     message: menuPromptMessage('Delete module files too?', cancelAction),
     active: 'Y',
     inactive: 'n',
-    initialValue: false,
+    initialValue: cancelAction === 'back',
   });
   handleCancel(deleteFiles, cancelAction);
 
@@ -1625,7 +1625,7 @@ async function runSelectedModuleAction(action: ModuleActionId, module: ListedMod
       message: menuPromptMessage('Delete module files too?', 'back'),
       active: 'Y',
       inactive: 'n',
-      initialValue: false,
+      initialValue: true,
     });
     handleCancel(deleteFiles, 'back');
 

@@ -494,6 +494,7 @@ describe('cli menu environment routes', () => {
       1,
       expect.objectContaining({
         message: 'Delete module files too?',
+        initialValue: true,
       }),
     );
   });
@@ -761,6 +762,7 @@ describe('cli menu environment routes', () => {
       1,
       expect.objectContaining({
         message: 'Delete module files too?',
+        initialValue: true,
       }),
     );
   });

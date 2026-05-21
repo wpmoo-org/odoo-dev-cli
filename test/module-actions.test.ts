@@ -410,6 +410,63 @@ class TestOdooSampleModuleBase(TransactionCase):
     ).resolves.toBeTruthy();
   });
 
+  it('deletes newly scaffolded module files even when they are staged but not committed yet', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-new-staged-'));
+    const calls: Array<{ cwd: string; args: string[] }> = [];
+    const git: GitRunner = {
+      async run(cwd, args) {
+        calls.push({ cwd, args });
+        if (args[0] === 'status') {
+          return {
+            stdout:
+              'A  odoo_sample_module_base/__manifest__.py\n' +
+              'A  odoo_sample_module_base/models/odoo_sample_module_base.py\n' +
+              '?? odoo_sample_module_base/__pycache__/\n',
+            stderr: '',
+          };
+        }
+
+        return { stdout: '', stderr: '' };
+      },
+    };
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base/models'), {
+      recursive: true,
+    });
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base/__pycache__'), {
+      recursive: true,
+    });
+    await writeFile(
+      join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base/__manifest__.py'),
+      '{}\n',
+      'utf8',
+    );
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/addons.yaml'),
+      'private/odoo_sample_module:\n  - odoo_sample_module_base\n',
+      'utf8',
+    );
+
+    await removeModuleFromSourceRepo(
+      {
+        target,
+        repoPath: 'odoo_sample_module',
+        moduleName: 'odoo_sample_module_base',
+        deleteFiles: true,
+        stage: true,
+      },
+      git,
+    );
+
+    await expect(
+      stat(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base')),
+    ).rejects.toThrow();
+    expect(calls).toContainEqual({
+      cwd: join(target, 'odoo/custom/src/private/odoo_sample_module'),
+      args: ['ls-tree', '-r', '--name-only', 'HEAD', '--', 'odoo_sample_module_base'],
+    });
+  });
+
   it('stages only target repo when deleteFiles=false and stage=true', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-no-delete-stage-'));
     const git = recordingGit();

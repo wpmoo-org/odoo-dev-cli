@@ -525,7 +525,7 @@ async function assertModuleCleanBeforeDelete(
   const repoRoot = sourceRepoPath(target, sourceType, repoPath);
   try {
     const result = await git.run(repoRoot, ['status', '--short', '--', moduleName]);
-    if (result.stdout.trim()) {
+    if (result.stdout.trim() && (await moduleHasCommittedFiles(repoRoot, moduleName, git))) {
       throw new Error(
         `Refusing to delete module ${moduleName} because it has dirty git changes in source repo ${repoPath}.`,
       );
@@ -534,6 +534,15 @@ async function assertModuleCleanBeforeDelete(
     if (error instanceof Error && error.message.startsWith('Refusing to delete module ')) {
       throw error;
     }
+  }
+}
+
+async function moduleHasCommittedFiles(repoRoot: string, moduleName: string, git: GitRunner): Promise<boolean> {
+  try {
+    const result = await git.run(repoRoot, ['ls-tree', '-r', '--name-only', 'HEAD', '--', moduleName]);
+    return Boolean(result.stdout.trim());
+  } catch {
+    return false;
   }
 }
 
