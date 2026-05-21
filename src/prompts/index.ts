@@ -291,14 +291,35 @@ function hiddenSelectTheme<T>(
   navigationHelp: SelectNavigationHelp = 'exit',
   navigationWarning?: SelectNavigationWarning,
   hideMessage = true,
+  disabledReasonLabels: readonly string[] = [],
 ): InquirerSelectPromptConfig<T>['theme'] {
+  let activeDisabledReason: string | undefined;
   const keysHelpTip =
     navigationHelp === 'back'
       ? '↑↓ navigate • ⏎ select • Esc to go back'
       : '↑↓ navigate • ⏎ select • Ctrl+C exit';
+  const disabledLabelPattern = / \(disabled\)$/u;
+  const disabledReasonSuffixes = [...disabledReasonLabels]
+    .sort((left, right) => right.length - left.length)
+    .map((reason) => ` ${reason}`);
+  const cursor = '\u001B[38;2;226;184;96m❯\u001B[39m';
+  const disabledCursor = '-';
+
   const style: NonNullable<InquirerSelectPromptConfig<T>['theme']>['style'] = {
     highlight: (text: string) => text,
-    disabled: (text: string) => styleText('dim', text.replace(/ \(disabled\)$/u, ''), { validateStream: false }),
+    disabled: (text: string) => {
+      let renderedText = text.replace(disabledLabelPattern, '');
+      const reasonSuffix = disabledReasonSuffixes.find((suffix) => renderedText.endsWith(suffix));
+      if (reasonSuffix) {
+        renderedText = renderedText.slice(0, -reasonSuffix.length);
+      }
+
+      if (text.startsWith(`${cursor} `) || text.startsWith(`${disabledCursor} ${cursor} `)) {
+        activeDisabledReason = reasonSuffix?.trim();
+      }
+
+      return styleText('dim', renderedText, { validateStream: false });
+    },
     keysHelpTip: () => {
       const warning = renderedNavigationWarning(navigationWarning);
       return warning ? `${warning}\n${keysHelpTip}` : keysHelpTip;
@@ -312,11 +333,37 @@ function hiddenSelectTheme<T>(
   return {
     prefix: '',
     icon: {
-      cursor: '\u001B[38;2;226;184;96m❯\u001B[39m',
+      cursor,
     },
     style,
-    i18n: disabledError ? { disabledError } : undefined,
+    i18n: disabledError ? disabledErrorI18n(disabledError, () => activeDisabledReason) : undefined,
   };
+}
+
+function disabledErrorI18n(disabledError: string, activeReason: () => string | undefined): { disabledError: string } {
+  const i18n: { disabledError: string } = { disabledError };
+  Object.defineProperty(i18n, 'disabledError', {
+    get: () => {
+      const reason = activeReason();
+      return reason ? `${disabledError}\nReason: ${reason}` : disabledError;
+    },
+  });
+  return i18n;
+}
+
+function collectDisabledReasonLabels<T>(choices: readonly (T | PromptChoice<T> | PromptSeparator)[]): string[] {
+  const reasons = new Set<string>();
+  for (const choice of choices) {
+    if (
+      typeof choice === 'object' &&
+      choice !== null &&
+      'disabled' in choice &&
+      typeof choice.disabled === 'string'
+    ) {
+      reasons.add(choice.disabled);
+    }
+  }
+  return [...reasons];
 }
 
 function withHiddenSelectMessage<T>(config: HideableSelectPromptConfig<T>): InquirerSelectPromptConfig<T> {
@@ -341,7 +388,13 @@ function withHiddenSelectMessage<T>(config: HideableSelectPromptConfig<T>): Inqu
   return {
     ...inquirerConfig,
     message: config.hideMessage ? '' : inquirerConfig.message,
-    theme: hiddenSelectTheme<T>(disabledError, navigationHelp, navigationWarning, Boolean(config.hideMessage)),
+    theme: hiddenSelectTheme<T>(
+      disabledError,
+      navigationHelp,
+      navigationWarning,
+      Boolean(config.hideMessage),
+      collectDisabledReasonLabels(inquirerConfig.choices),
+    ),
   };
 }
 

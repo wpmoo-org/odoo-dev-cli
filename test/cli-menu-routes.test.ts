@@ -289,8 +289,7 @@ describe('cli menu environment routes', () => {
       topLevelPromptArgs.choices?.find((choice) => (choice.value as CockpitCommand | undefined)?.id === 'add-module')
         ?.disabled,
     ).toBeUndefined();
-    expect(topLevelPromptArgs.disabledError).toContain('Reason: Services stopped.');
-    expect(topLevelPromptArgs.disabledError).toContain('Reason: No modules found.');
+    expect(topLevelPromptArgs.disabledError).toBe('This option is disabled and cannot be selected.');
     const bannerOrder = mocks.renderBanner.mock.invocationCallOrder[0] ?? 0;
     const selectOrder = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER;
     expect(bannerOrder).toBeLessThan(selectOrder);

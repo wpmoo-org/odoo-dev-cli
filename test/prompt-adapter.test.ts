@@ -123,6 +123,52 @@ describe('prompt adapter', () => {
     expect(theme.i18n?.disabledError).toBe('This option is disabled and cannot be selected.\nReason: Services stopped.');
   });
 
+  it('hides disabled reason suffixes in rows and reports only the active disabled reason', async () => {
+    const select = vi.mocked(inquirerSelect);
+    select.mockResolvedValue('install');
+
+    const value = await selectPrompt({
+      message: '',
+      choices: [
+        {
+          value: 'start' as const,
+          name: 'Start services',
+          disabled: 'Already running.',
+        },
+        {
+          value: 'install' as const,
+          name: 'Install module',
+          disabled: 'No modules found.',
+        },
+      ],
+      hideMessage: true,
+      disabledError: 'This option is disabled and cannot be selected.',
+    });
+
+    expect(value).toBe('install');
+    const [promptArgs] = select.mock.calls[0];
+    const theme = promptArgs.theme as {
+      style?: {
+        disabled?: (text: string) => string;
+      };
+      icon?: {
+        cursor?: string;
+      };
+      i18n?: {
+        disabledError?: string;
+      };
+    };
+    const cursor = theme.icon?.cursor ?? '';
+
+    expect(theme.style?.disabled?.('- Start services Already running.')).toBe('\u001B[2m- Start services\u001B[22m');
+    expect(theme.style?.disabled?.(`${cursor} Install module No modules found.`)).toBe(
+      '\u001B[2m\u001B[38;2;226;184;96m❯\u001B[39m Install module\u001B[22m',
+    );
+    expect(theme.i18n?.disabledError).toBe(
+      'This option is disabled and cannot be selected.\nReason: No modules found.',
+    );
+  });
+
   it('renders back-navigation help text for hidden select prompts', async () => {
     const select = vi.mocked(inquirerSelect);
     select.mockResolvedValue('native');
