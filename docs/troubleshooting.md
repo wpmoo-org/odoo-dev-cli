@@ -151,6 +151,33 @@ Use the supported package path in automation:
 npx @wpmoo/toolkit --version
 ```
 
+## Published Smoke Is Not Reproducible
+
+Symptoms:
+
+- Smoke succeeds once and fails later, or output differs between runs.
+- The smoke step fails on one environment but not another with the same tag.
+
+Use an explicit package spec so each smoke run uses the same published package
+artifact:
+
+```bash
+VERSION="$(node -p "require('./package.json').version")"
+WPMOO_PUBLISHED_PACKAGE_SPEC="@wpmoo/toolkit@$VERSION" \
+  npm run smoke:published -- "$VERSION"
+```
+
+That script runs in temporary directories and uses a temporary npm cache when
+`NPM_CONFIG_CACHE` is not already set. Set a fixed cache path only when you need
+to reproduce with a shared cache.
+
+For `1.0.0`, include generated-environment acceptance smoke:
+
+```bash
+WPMOO_SMOKE_ENVIRONMENT=1 WPMOO_PUBLISHED_PACKAGE_SPEC="@wpmoo/toolkit@$VERSION" \
+  npm run smoke:published -- "$VERSION"
+```
+
 ## PostgreSQL Diagnostics Are Unavailable
 
 Symptoms:
@@ -222,4 +249,3 @@ WPMOO_ENV=stage WPMOO_ALLOW_DESTRUCTIVE=1 WPMOO_ALLOW_NO_RECENT_SNAPSHOT=1 ./moo
 Use the guard flag only when the command is intentional, reviewed, and has an
 appropriate rollback path. Migration-risk lifecycle commands may also require
 `WPMOO_ALLOW_MIGRATIONS=1`.
-

@@ -233,6 +233,16 @@ warning while keeping the scoped package release valid.
   packages are valid.
 - **Smoke expectation**: run `npm run smoke:published -- "$VERSION"` after the
   release tag workflow completes.
+- **Deterministic smoke target**: pin the target package explicitly so smoke checks
+  are reproducible across reruns:
+
+  ```bash
+  VERSION="$(node -p "require('./package.json').version")"
+  WPMOO_PUBLISHED_PACKAGE_SPEC="@wpmoo/toolkit@$VERSION" npm run smoke:published -- "$VERSION"
+  ```
+
+  Use one pinned command for each target artifact you validate; the workflow itself
+  remains valid only when required scoped artifacts pass.
 - **1.0 release smoke**: For `1.0.0`, generated-environment acceptance smoke is
   required before the release is considered final.
 

@@ -4,6 +4,13 @@ set -euo pipefail
 NODE_BIN="${WPMOO_NODE_BIN:-node}"
 NPX_BIN="${WPMOO_NPX_BIN:-npx}"
 GIT_BIN="${WPMOO_GIT_BIN:-git}"
+NPM_BIN="${WPMOO_NPM_BIN:-npm}"
+SMOKE_TIMEOUT_SECONDS="${WPMOO_SMOKE_CMD_TIMEOUT_SECONDS:-30}"
+
+if [[ ! "$SMOKE_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "WPMOO_SMOKE_CMD_TIMEOUT_SECONDS must be a positive integer, got: $SMOKE_TIMEOUT_SECONDS" >&2
+  exit 1
+fi
 
 if [[ "$#" -gt 1 ]]; then
   echo "Usage: npm run smoke:published -- [package-spec-or-version]" >&2
@@ -67,12 +74,38 @@ cleanup() {
 trap cleanup EXIT
 
 run_wpmoo() {
-  local output
-
-  if ! output="$("$NPX_BIN" --yes --package "$PACKAGE_SPEC" wpmoo "$@" 2>&1)"; then
-    echo "Published package smoke failed for wpmoo $* using $PACKAGE_SPEC:" >&2
-    echo "$output" >&2
-    exit 1
+  local output npx_status npm_status
+  local npx_timeout_reason="npx command timed out after ${SMOKE_TIMEOUT_SECONDS}s for wpmoo $* using $PACKAGE_SPEC."
+  if output="$(run_with_timeout "$NPX_BIN" --yes --package "$PACKAGE_SPEC" wpmoo "$@" 2>&1)"; then
+    :
+  else
+    npx_status=$?
+    if [[ "$npx_status" -eq 124 ]]; then
+      echo "$npx_timeout_reason" >&2
+    else
+      echo "npx command failed: status=$npx_status for wpmoo $* using $PACKAGE_SPEC." >&2
+    fi
+    if [[ -n "${output//[[:space:]]/}" ]]; then
+      echo "npx output:" >&2
+      echo "$output" >&2
+    fi
+    echo "Falling back to npm exec for this command." >&2
+    if output="$(run_with_timeout "$NPM_BIN" exec --yes --package "$PACKAGE_SPEC" -- wpmoo "$@" 2>&1)"; then
+      :
+    else
+      npm_status=$?
+      if [[ "$npm_status" -eq 124 ]]; then
+        echo "npm exec command timed out after ${SMOKE_TIMEOUT_SECONDS}s for wpmoo $* using $PACKAGE_SPEC." >&2
+      else
+        echo "npm exec command failed: status=$npm_status for wpmoo $* using $PACKAGE_SPEC." >&2
+      fi
+      if [[ -n "${output//[[:space:]]/}" ]]; then
+        echo "npm exec output:" >&2
+        echo "$output" >&2
+      fi
+      echo "Published package smoke failed for wpmoo $* using $PACKAGE_SPEC." >&2
+      exit 1
+    fi
   fi
 
   if [[ -z "${output//[[:space:]]/}" ]]; then
@@ -81,6 +114,44 @@ run_wpmoo() {
   fi
 
   printf '%s\n' "$output"
+}
+
+run_with_timeout() {
+  local output
+  local runner_pid output_file start_time=0 status=0
+  local runner="$1"
+  local timeout_seconds="$SMOKE_TIMEOUT_SECONDS"
+  shift
+
+  output_file="$(mktemp)"
+  (
+    "$runner" "$@"
+  ) >"$output_file" 2>&1 &
+  runner_pid=$!
+  start_time=$SECONDS
+
+  while kill -0 "$runner_pid" 2>/dev/null; do
+    if (( SECONDS - start_time >= timeout_seconds )); then
+      kill -s TERM "$runner_pid" 2>/dev/null || true
+      sleep 0.1
+      kill -s KILL "$runner_pid" 2>/dev/null || true
+      status=124
+      break
+    fi
+    sleep 0.1
+  done
+
+  if [[ $status -eq 0 ]]; then
+    wait "$runner_pid"
+    status=$?
+  else
+    wait "$runner_pid" 2>/dev/null || true
+  fi
+
+  output="$(cat "$output_file")"
+  rm -f "$output_file"
+  printf '%s\n' "$output"
+  return "$status"
 }
 
 is_truthy() {

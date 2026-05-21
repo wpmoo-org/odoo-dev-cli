@@ -33,6 +33,10 @@ The optional `wpmoo` short alias is warning-only. If npm returns `E404` or
 otherwise rejects that alias, the release remains valid when the required
 scoped packages publish and verify correctly.
 
+Smoke checks should be deterministic by always pinning the version you are
+verifying, and by using one pinned package entrypoint for each artifact you
+validate.
+
 Verify a tagged release with:
 
 ```bash
@@ -57,15 +61,23 @@ Optional short alias rule:
 Suggested smoke check:
 
 ```bash
-npm run smoke:published -- "$VERSION"
+WPMOO_PUBLISHED_PACKAGE_SPEC="@wpmoo/toolkit@$VERSION" \
+  npm run smoke:published -- "$VERSION"
 ```
+
+For full release reproducibility, keep the default package cache behavior and avoid
+pre-existing global `NPM_CONFIG_CACHE` state unless you intentionally reuse it.
+
+The smoke script checks `--version`, top-level `--help`, and critical command
+help output before optional generated-environment acceptance smoke.
 
 For a 1.0.0 tag, run generated-environment acceptance smoke with
 WPMOO_SMOKE_ENVIRONMENT=1. Treat the release as final only after that smoke
 passes:
 
 ```bash
-WPMOO_SMOKE_ENVIRONMENT=1 npm run smoke:published -- "$VERSION"
+WPMOO_SMOKE_ENVIRONMENT=1 WPMOO_PUBLISHED_PACKAGE_SPEC="@wpmoo/toolkit@$VERSION" \
+  npm run smoke:published -- "$VERSION"
 ```
 
 Current command standard:
