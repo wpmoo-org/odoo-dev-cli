@@ -27,6 +27,10 @@ function dim(value: string): string {
   return `\u001B[2m${value}\u001B[22m`;
 }
 
+function detailText(value: string): string {
+  return dim(value);
+}
+
 function joinList(values: readonly string[], empty = '(none)'): string {
   return values.length > 0 ? values.join(', ') : empty;
 }
@@ -126,6 +130,7 @@ function issueListText(values: readonly string[], severity: 'warning' | 'error',
 function moduleQualityText(status: Extract<EnvironmentStatus, { kind: 'environment' }>): string {
   const nonInstallable = status.moduleQuality.nonInstallableModules;
   const missingMenus = status.moduleQuality.modulesMissingMenuActions;
+  const installableText = detailText(`${status.moduleQuality.installableModules} installable`);
   const nonInstallableText =
     nonInstallable > 0
       ? orange(`${nonInstallable} non-installable`)
@@ -135,7 +140,7 @@ function moduleQualityText(status: Extract<EnvironmentStatus, { kind: 'environme
       ? orange(`${missingMenus} ${plural(missingMenus, 'missing menu', 'missing menus')}`)
       : dim(`${missingMenus} missing menus`);
 
-  return `${status.moduleQuality.installableModules} installable, ${nonInstallableText}, ${missingMenusText}`;
+  return `${installableText}, ${nonInstallableText}, ${missingMenusText}`;
 }
 
 function moduleIssuesText(status: Extract<EnvironmentStatus, { kind: 'environment' }>): string {
@@ -161,7 +166,7 @@ function statusRows(status: EnvironmentStatus): ResultRow[] {
     return [
       ['Summary', attentionText('No WPMoo environment detected.')],
       ['Metadata', attentionText(`missing ${status.metadataPath}`)],
-      ['Next', status.recommendedNextAction],
+      ['Next', detailText(status.recommendedNextAction)],
     ];
   }
 
@@ -170,7 +175,7 @@ function statusRows(status: EnvironmentStatus): ResultRow[] {
       ['Summary', red('Environment metadata is invalid.')],
       ['Metadata', red(`invalid ${status.metadataPath}`)],
       ['Error', red(status.metadataError)],
-      ['Next', status.recommendedNextAction],
+      ['Next', detailText(status.recommendedNextAction)],
     ];
   }
 
@@ -178,16 +183,16 @@ function statusRows(status: EnvironmentStatus): ResultRow[] {
 
   return [
     ['Summary', needsAttention ? attentionText('Environment needs attention.') : readyText('Environment ready.')],
-    ['Metadata', status.metadataPath],
-    ['Odoo', status.odooVersion],
-    ['Compose', status.composeFiles.length > 0 ? joinList(status.composeFiles) : dim('(missing)')],
+    ['Metadata', detailText(status.metadataPath)],
+    ['Odoo', detailText(status.odooVersion)],
+    ['Compose', status.composeFiles.length > 0 ? detailText(joinList(status.composeFiles)) : dim('(missing)')],
     ...(status.composeErrors.length > 0
       ? ([['Compose errors', issueListText(status.composeErrors, 'error')]] satisfies ResultRow[])
       : []),
-    ['Source repos', String(status.sourceRepoCount)],
-    ['Source paths', joinList(status.sourceRepoPaths, '(none configured)')],
+    ['Source repos', detailText(String(status.sourceRepoCount))],
+    ['Source paths', detailText(joinList(status.sourceRepoPaths, '(none configured)'))],
     ['Invalid paths', issueListText(status.invalidSourceRepoPaths, 'warning')],
-    ['Modules', String(status.moduleCandidateCount)],
+    ['Modules', detailText(String(status.moduleCandidateCount))],
     ['Module quality', moduleQualityText(status)],
     ...(status.moduleQuality.issues.length > 0
       ? ([['Module issues', moduleIssuesText(status)]] satisfies ResultRow[])
@@ -198,7 +203,7 @@ function statusRows(status: EnvironmentStatus): ResultRow[] {
         ? red(`missing ${status.missingCoreFiles.join(', ')}`)
         : dim('(none missing)'),
     ],
-    ['Next', status.recommendedNextAction],
+    ['Next', detailText(status.recommendedNextAction)],
   ];
 }
 

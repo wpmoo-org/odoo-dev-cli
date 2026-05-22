@@ -548,6 +548,16 @@ describe('prompt adapter', () => {
     spy.mockRestore();
   });
 
+  it('can render note bodies without a title line', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    notePrompt('Summary: ✓ Environment ready.', 'Environment status', { indent: false, showTitle: false });
+
+    expect(spy).not.toHaveBeenCalledWith('[Environment status]');
+    expect(spy).toHaveBeenCalledWith('Summary: ✓ Environment ready.');
+    spy.mockRestore();
+  });
+
   it('supports inputPrompt as a text alias', async () => {
     const input = vi.mocked(inquirerInput);
     input.mockResolvedValue('value');

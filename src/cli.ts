@@ -1608,9 +1608,18 @@ async function runEscBackDailyActionResultPage(
   return waitForModuleActionBack();
 }
 
-async function showCockpitResultPage(title: string, cwd: string, output: string, noteTitle = title): Promise<boolean> {
+async function showCockpitResultPage(
+  title: string,
+  cwd: string,
+  output: string,
+  noteTitle: string | false = title,
+): Promise<boolean> {
   await renderCockpitSubmenuPage(title, cwd);
-  notePrompt(output, noteTitle);
+  if (noteTitle === false) {
+    notePrompt(output, title, { indent: false, showTitle: false });
+  } else {
+    notePrompt(output, noteTitle, { indent: false });
+  }
   return waitForModuleActionBack();
 }
 
@@ -1836,6 +1845,7 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
       'Environment status',
       cwd,
       renderCockpitEnvironmentStatusResult(await getEnvironmentStatus(cwd)),
+      false,
     );
     return 'continue';
   }

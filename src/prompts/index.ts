@@ -73,6 +73,7 @@ export type SearchPromptOptions<T> = {
 };
 export type NotePromptOptions = {
   indent?: boolean;
+  showTitle?: boolean;
 };
 
 export type SearchPromptChoice<T> = {
@@ -487,7 +488,9 @@ export function introPrompt(title: string): void {
 export function notePrompt(message: string, title = 'Note', options: NotePromptOptions = {}): void {
   const lines = message.split('\n');
   const prefix = options.indent === false ? '' : '  ';
-  console.log(`[${title}]`);
+  if (options.showTitle !== false) {
+    console.log(`[${title}]`);
+  }
   for (const line of lines) {
     console.log(`${prefix}${line}`);
   }

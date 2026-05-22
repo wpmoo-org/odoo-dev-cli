@@ -747,6 +747,7 @@ describe('cli menu environment routes', () => {
     expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
       expect.stringContaining('Reason  Services stopped.'),
       'Action unavailable',
+      { indent: false },
     );
   });
 
@@ -829,10 +830,12 @@ describe('cli menu environment routes', () => {
     expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
       expect.not.stringContaining('Environment status'),
       'Environment status',
+      { indent: false, showTitle: false },
     );
     expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
       expect.not.stringContaining('Run doctor'),
       'Doctor',
+      { indent: false },
     );
     expect(mocks.renderBanner).toHaveBeenCalledWith(
       ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Status: ● Services stopped', 'Last: Environment status'],
@@ -1016,6 +1019,7 @@ describe('cli menu environment routes', () => {
     expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
       expect.not.stringContaining('Environment status'),
       'Environment status',
+      { indent: false, showTitle: false },
     );
   });
 
@@ -1027,7 +1031,9 @@ describe('cli menu environment routes', () => {
     await runCli([], '/tmp/environment');
 
     expect(mocks.getDoctorReport).toHaveBeenCalledWith('/tmp/environment');
-    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(expect.not.stringContaining('Run doctor'), 'Doctor');
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(expect.not.stringContaining('Run doctor'), 'Doctor', {
+      indent: false,
+    });
   });
 
   it.each([

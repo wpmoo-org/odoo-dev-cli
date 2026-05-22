@@ -43,6 +43,53 @@ describe('cockpit result views', () => {
     expect(output).not.toContain('+---');
   });
 
+  it('dims environment status detail values in interactive terminals', () => {
+    const originalIsTTY = process.stdout.isTTY;
+    const originalNoColor = process.env.NO_COLOR;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    delete process.env.NO_COLOR;
+    const status: EnvironmentStatus = {
+      kind: 'environment',
+      target: '/tmp/environment',
+      metadataPath: '.wpmoo/odoo.json',
+      recommendedNextAction: 'Run npx @wpmoo/toolkit add-repo ...',
+      odooVersion: '19.0',
+      sourceRepoCount: 0,
+      sourceRepoPaths: [],
+      invalidSourceRepoPaths: [],
+      moduleCandidateCount: 0,
+      moduleQuality: {
+        totalModules: 0,
+        installableModules: 0,
+        nonInstallableModules: 0,
+        modulesWithMenuActions: 0,
+        modulesMissingMenuActions: 0,
+        issues: [],
+      },
+      composeFiles: ['compose.yaml', 'compose/dev.yaml'],
+      composeErrors: [],
+      missingCoreFiles: [],
+    };
+
+    try {
+      const output = renderCockpitEnvironmentStatusResult(status);
+
+      expect(output).toContain('Summary:         \u001B[32m✓ Environment ready.\u001B[39m');
+      expect(output).toContain('Metadata:        \u001B[2m.wpmoo/odoo.json\u001B[22m');
+      expect(output).toContain('Odoo:            \u001B[2m19.0\u001B[22m');
+      expect(output).toContain('Compose:         \u001B[2mcompose.yaml, compose/dev.yaml\u001B[22m');
+      expect(output).toContain('Source repos:    \u001B[2m0\u001B[22m');
+      expect(output).toContain('Next:            \u001B[2mRun npx @wpmoo/toolkit add-repo ...\u001B[22m');
+    } finally {
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTTY });
+      if (originalNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = originalNoColor;
+      }
+    }
+  });
+
   it('colors environment status issues in interactive terminals', () => {
     const originalIsTTY = process.stdout.isTTY;
     const originalNoColor = process.env.NO_COLOR;
@@ -86,7 +133,7 @@ describe('cockpit result views', () => {
       expect(output).toContain('Compose errors:  \u001B[31mInvalid WPMOO_ENV in .env\u001B[39m');
       expect(output).toContain('Invalid paths:   \u001B[38;2;245;166;35m../bad\u001B[39m');
       expect(output).toContain(
-        'Module quality:  1 installable, \u001B[38;2;245;166;35m1 non-installable\u001B[39m, \u001B[38;2;245;166;35m1 missing menu\u001B[39m',
+        'Module quality:  \u001B[2m1 installable\u001B[22m, \u001B[38;2;245;166;35m1 non-installable\u001B[39m, \u001B[38;2;245;166;35m1 missing menu\u001B[39m',
       );
       expect(output).toContain('Module issues:   \u001B[31mbroken_module/__manifest__.py: invalid manifest syntax\u001B[39m');
       expect(output).toContain('Core files:      \u001B[31mmissing moo\u001B[39m');
