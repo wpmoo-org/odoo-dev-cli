@@ -47,7 +47,37 @@ resolve_package_spec() {
   printf '%s@%s\n' "$PACKAGE_NAME" "$value"
 }
 
+is_exact_semver() {
+  [[ "$1" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]
+}
+
+normalize_semver() {
+  local value="$1"
+  printf '%s\n' "${value#v}"
+}
+
+expected_version_from_override() {
+  local value="$1"
+  local suffix
+
+  if [[ -z "$value" ]]; then
+    printf '%s\n' "$PACKAGE_VERSION"
+    return
+  fi
+
+  if is_exact_semver "$value"; then
+    normalize_semver "$value"
+    return
+  fi
+
+  suffix="${value##*@}"
+  if [[ "$suffix" != "$value" ]] && is_exact_semver "$suffix"; then
+    normalize_semver "$suffix"
+  fi
+}
+
 PACKAGE_SPEC="$(resolve_package_spec "$PACKAGE_OVERRIDE")"
+EXPECTED_PACKAGE_VERSION="$(expected_version_from_override "$PACKAGE_OVERRIDE")"
 CREATED_NPM_CACHE=""
 CREATED_SMOKE_ROOT=""
 CREATED_CLI_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/wpmoo-published-smoke-cli.XXXXXX")"
@@ -215,7 +245,7 @@ STUB
 }
 
 run_environment_smoke() {
-  local smoke_root target source_repo dev_repo bin_dir source_list reset_preview doctor_report restore_preview
+  local smoke_root target source_repo dev_repo bin_dir source_list reset_preview doctor_report moo_status_report moo_doctor_report restore_preview
   smoke_root="$(mktemp -d "${TMPDIR:-/tmp}/wpmoo-published-env-smoke.XXXXXX")"
   target="$smoke_root/wpmoo_smoke_env"
   source_repo="$smoke_root/source_repo"
@@ -276,6 +306,24 @@ run_environment_smoke() {
       exit 1
     }
 
+  echo "- Checking generated ./moo status --json"
+  moo_status_report="$(PATH="$bin_dir:$PATH" DOCKER_STUB_LOG="$smoke_root/docker.log" "$target/moo" status --json)"
+  [[ "$moo_status_report" == *'"schemaVersion":1'* && "$moo_status_report" == *'"command":"status"'* ]] ||
+    {
+      echo "Expected ./moo status --json to emit status JSON, got:" >&2
+      echo "$moo_status_report" >&2
+      exit 1
+    }
+
+  echo "- Checking generated ./moo doctor"
+  moo_doctor_report="$(PATH="$bin_dir:$PATH" DOCKER_STUB_LOG="$smoke_root/docker.log" "$target/moo" doctor)"
+  [[ "$moo_doctor_report" == *"Doctor checks passed."* || "$moo_doctor_report" == *"Applied safe doctor fixes:"* ]] ||
+    {
+      echo "Expected ./moo doctor to pass, got:" >&2
+      echo "$moo_doctor_report" >&2
+      exit 1
+    }
+
   mkdir -p "$target/data/filestore/devel"
   printf 'attachment\n' >"$target/data/filestore/devel/attachment.txt"
   echo "- Checking snapshot"
@@ -296,8 +344,8 @@ run_environment_smoke() {
 echo "Checking $PACKAGE_SPEC with npm cache $NPM_CONFIG_CACHE"
 
 version_output="$(run_wpmoo_in "$CLI_RUN_ROOT" --version)"
-if [[ -z "$PACKAGE_OVERRIDE" && "$version_output" != *"$PACKAGE_VERSION"* ]]; then
-  echo "Expected wpmoo --version output to include $PACKAGE_VERSION, got:" >&2
+if [[ -n "$EXPECTED_PACKAGE_VERSION" && "$version_output" != *"$EXPECTED_PACKAGE_VERSION"* ]]; then
+  echo "Expected wpmoo --version output to include $EXPECTED_PACKAGE_VERSION, got:" >&2
   echo "$version_output" >&2
   exit 1
 fi

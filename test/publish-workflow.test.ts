@@ -40,6 +40,8 @@ describe('publish workflow', () => {
     expect(workflow).toContain('Publish @wpmoo/odoo alias to npm');
     expect(workflow).toContain('Publish @wpmoo/odoo-dev alias to npm');
     expect(workflow).toContain('Publish wpmoo short alias to npm');
+    expect(workflow).toContain('Verify required scoped artifacts');
+    expect(workflow).toContain('Required scoped artifacts did not verify after publish');
     expect(workflow).toContain('::warning title=Optional wpmoo alias not published::');
     expect(workflow).not.toContain('continue-on-error: true');
     expect(workflow).toContain('npm publish --access public ./packages/wpmoo');
@@ -52,6 +54,7 @@ describe('publish workflow', () => {
     expect(workflow).toContain('@wpmoo/toolkit@$VERSION');
     expect(workflow).toContain('@wpmoo/odoo@$VERSION');
     expect(workflow).toContain('@wpmoo/odoo-dev@$VERSION');
+    expect(workflow).not.toContain('[required] [warning]');
     expect(workflow).toContain('### Optional Short Alias (best-effort)');
     expect(workflow).toContain('### Smoke Check Command');
     expect(workflow).toContain('if [[ -z "${GITHUB_STEP_SUMMARY:-}" ]]');
