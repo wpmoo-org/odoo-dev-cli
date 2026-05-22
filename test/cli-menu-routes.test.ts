@@ -1307,14 +1307,13 @@ describe('cli menu environment routes', () => {
     expect(mocks.safeResetEnvironment).toHaveBeenCalledWith({ target: '/tmp/environment', stage: true });
   });
 
-  it('lets safe reset generated file rows be toggled before confirmation', async () => {
+  it('keeps safe reset confirmation menu limited to actions', async () => {
     const prompts = await import('../src/prompts/index.js');
     const originalStdinIsTTY = process.stdin.isTTY;
     Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
     mocks.safeResetSelectableGeneratedPaths.mockReturnValueOnce(['README.md', '.env.example']);
     vi.mocked(prompts.selectPrompt)
       .mockResolvedValueOnce(cockpitCommand('safe-reset'))
-      .mockResolvedValueOnce('toggle:README.md')
       .mockResolvedValueOnce('continue')
       .mockResolvedValueOnce('exit');
     vi.mocked(prompts.confirmPrompt).mockResolvedValueOnce(true);
@@ -1326,16 +1325,28 @@ describe('cli menu environment routes', () => {
       Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalStdinIsTTY });
     }
 
+    const actionPrompt = vi.mocked(prompts.selectPrompt).mock.calls[1]?.[0];
+    expect(actionPrompt).toEqual(
+      expect.objectContaining({
+        message: 'Actions',
+        choices: [
+          { value: 'continue', name: 'Continue to confirmation' },
+          { value: 'cancel', name: 'Cancel safe reset' },
+        ],
+      }),
+    );
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith('safe reset selected preview', 'Safe reset preview', {
+      showTitle: false,
+    });
     expect(mocks.renderSafeResetSelectedPreview).toHaveBeenCalledWith(
       '/tmp/environment',
       true,
       ['README.md', '.env.example'],
     );
-    expect(mocks.renderSafeResetSelectedPreview).toHaveBeenCalledWith('/tmp/environment', true, ['.env.example']);
     expect(mocks.safeResetEnvironment).toHaveBeenCalledWith({
       target: '/tmp/environment',
       stage: true,
-      includeGeneratedPaths: ['.env.example'],
+      includeGeneratedPaths: ['README.md', '.env.example'],
     });
   });
 

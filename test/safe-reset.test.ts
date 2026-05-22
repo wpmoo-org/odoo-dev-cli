@@ -56,22 +56,48 @@ function fakeCloneGit(fixtures: Record<string, string>, cloneCalls: string[][]):
 describe('safe reset', () => {
   it('explains what safe reset will change and not touch', () => {
     const preview = renderSafeResetPreview('/tmp/odoo_sample_module_dev', true);
-    expect(preview).toContain('Safe reset preview');
-    expect(preview).toContain('File / Path');
-    expect(preview).toContain('Change');
-    expect(preview).toContain('Keep');
+    expect(preview).not.toContain('Safe reset preview');
+    expect(preview).toContain('Summary:');
+    expect(preview).toContain('Target:');
+    expect(preview).toContain('Files to refresh');
+    expect(preview).toContain('Files kept unchanged');
     expect(preview).toContain('README.md');
-    expect(preview).toContain('✓');
+    expect(preview).toContain('- ↻ README.md');
     expect(preview).toContain('source repos');
-    expect(preview).toContain('locked');
-    expect(preview).toContain('- .env.example');
-    expect(preview).toContain('Preview only; no files changed yet.');
-    expect(preview).toContain('Generated changes will be staged with git add .');
+    expect(preview).toContain('- 🔒 source repos: none detected');
+    expect(preview).toContain('- ↻ .env.example');
+    expect(preview).not.toContain('File / Path');
+    expect(preview).not.toContain('Change  Keep');
+    expect(preview).not.toContain('locked');
     expect(preview).not.toContain('Warning:');
+    expect(preview).not.toContain('Preview only; no files changed yet.');
+    expect(preview).not.toContain('Generated changes will be staged with git add .');
+  });
+
+  it('colors safe reset section headings and refresh icons in interactive terminals', () => {
+    const originalIsTTY = process.stdout.isTTY;
+    const originalNoColor = process.env.NO_COLOR;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    delete process.env.NO_COLOR;
+
+    try {
+      const preview = renderSafeResetPreview('/tmp/odoo_sample_module_dev', true);
+
+      expect(preview).toContain('\u001B[1m\u001B[38;2;255;112;67mFiles to refresh\u001B[39m\u001B[22m');
+      expect(preview).toContain('- \u001B[38;2;255;112;67m↻\u001B[39m \u001B[2mREADME.md\u001B[22m');
+      expect(preview).toContain('\u001B[1m\u001B[32mFiles kept unchanged\u001B[39m\u001B[22m');
+    } finally {
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTTY });
+      if (originalNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = originalNoColor;
+      }
+    }
   });
 
   it('shows non-staging preview copy when stage=false', () => {
-    expect(renderSafeResetPreview('/tmp/odoo_sample_module_dev', false)).toContain(
+    expect(renderSafeResetPreview('/tmp/odoo_sample_module_dev', false)).not.toContain(
       'Generated changes will not be staged.',
     );
   });
@@ -80,9 +106,12 @@ describe('safe reset', () => {
     const preview = renderSafeResetSelectedPreview('/tmp/odoo_sample_module_dev', true, ['README.md']);
 
     expect(preview).toContain('README.md');
-    expect(preview).toContain('- README.md');
-    expect(preview).toMatch(/README\.md\s+✓/);
-    expect(preview).toMatch(/\.env\.example\s+\s+✓/);
+    expect(preview).toContain('Files to refresh');
+    expect(preview).toContain('- ↻ README.md');
+    expect(preview).toContain('Files kept unchanged');
+    expect(preview).toContain('- 🔒 .env.example');
+    expect(preview).not.toContain('File / Path');
+    expect(preview).not.toContain('Change  Keep');
   });
 
   it('reports which generated files would change and which source repos are untouched', async () => {
@@ -127,14 +156,14 @@ describe('safe reset', () => {
     await writeFile(join(target, 'README.md'), 'stale-readme\n', 'utf8');
 
     const preview = renderSafeResetPreview(target, true);
-    expect(preview).toContain('File / Path');
-    expect(preview).toContain('- README.md');
+    expect(preview).toContain('Files to refresh');
+    expect(preview).toContain('- ↻ README.md');
     expect(preview).toContain('external/library');
     expect(preview).toContain('private/main');
-    expect(preview).toContain('Generated changes will be staged with git add .');
+    expect(preview).not.toContain('Generated changes will be staged with git add .');
   });
 
-  it('warns when generated files are dirty and would be overwritten', async () => {
+  it('keeps dirty generated files in the refresh list without extra warning copy', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-dirty-'));
     execSync(`git -C ${target} init -q`);
     await mkdir(join(target, '.wpmoo'), { recursive: true });
@@ -157,8 +186,8 @@ describe('safe reset', () => {
     await writeFile(join(target, '.env.example'), 'STALE_ENV=true\n', 'utf8');
 
     const preview = renderSafeResetPreview(target, false);
-    expect(preview).toContain('Warning: the following generated files are dirty and may be overwritten by safe reset:');
-    expect(preview).toContain('- .env.example');
+    expect(preview).not.toContain('Warning: the following generated files are dirty and may be overwritten by safe reset:');
+    expect(preview).toContain('- ↻ .env.example');
   });
 
   it('refreshes generated overlay files without deleting module code', async () => {

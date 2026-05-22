@@ -915,60 +915,37 @@ async function addModuleOptionsFromPrompts(
   };
 }
 
-function padTableCell(value: string, width: number): string {
-  return value.length >= width ? value : value.padEnd(width);
-}
-
-function safeResetSelectionRow(path: string, selected: boolean, width: number): string {
-  return `${padTableCell(path, width)}  ${padTableCell(selected ? '✓' : '', 6)}  ${selected ? '' : '✓'}`.trimEnd();
-}
-
 async function collectSafeResetGeneratedPathSelection(options: SafeResetOptions): Promise<readonly string[] | undefined> {
   const candidates = safeResetSelectableGeneratedPaths(options.target);
   if (candidates.length === 0) {
-    notePrompt(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview');
+    notePrompt(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview', { showTitle: false });
     return undefined;
   }
   if (!process.stdin.isTTY) {
-    notePrompt(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview');
+    notePrompt(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview', { showTitle: false });
     return candidates;
   }
 
-  const selectedPaths = new Set(candidates);
-  const pathWidth = Math.min(42, Math.max('File / Path'.length, ...candidates.map((path) => path.length)));
   while (true) {
-    notePrompt(renderSafeResetSelectedPreview(options.target, options.stage, [...selectedPaths]), 'Safe reset preview');
+    notePrompt(renderSafeResetSelectedPreview(options.target, options.stage, candidates), 'Safe reset preview', {
+      showTitle: false,
+    });
     const choice = await selectPrompt<string>({
-      message: menuPromptMessage('Review generated file changes', 'back'),
+      message: menuPromptMessage('Actions', 'back'),
       choices: [
-        promptSeparator(`${padTableCell('File / Path', pathWidth)}  Change  Keep`),
-        ...candidates.map((path) => ({
-          value: `toggle:${path}`,
-          name: safeResetSelectionRow(path, selectedPaths.has(path), pathWidth),
-          short: path,
-        })),
-        promptSeparator('Actions'),
         { value: 'continue', name: 'Continue to confirmation' },
         { value: 'cancel', name: 'Cancel safe reset' },
       ],
-      pageSize: Math.min(Math.max(candidates.length + 4, 8), 18),
+      pageSize: 4,
       navigationHelp: 'back',
     });
     handleCancel(choice, 'back');
     const selectedAction = String(choice);
     if (selectedAction === 'continue') {
-      return [...selectedPaths];
+      return candidates;
     }
     if (selectedAction === 'cancel') {
       throw new MenuBackSignal();
-    }
-    if (selectedAction.startsWith('toggle:')) {
-      const path = selectedAction.slice('toggle:'.length);
-      if (selectedPaths.has(path)) {
-        selectedPaths.delete(path);
-      } else if (candidates.includes(path)) {
-        selectedPaths.add(path);
-      }
     }
   }
 }

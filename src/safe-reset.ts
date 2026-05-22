@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -250,73 +249,79 @@ function buildSafeResetSourceRepoLines(sourceRepos: SourceRepo[]): string[] {
   return lines.map((repo) => `- ${repo}`);
 }
 
-function detectDirtyGeneratedFiles(target: string, candidatePaths: readonly string[]): string[] {
-  try {
-    const status = execFileSync('git', ['status', '--porcelain'], {
-      cwd: target,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    if (!status.trim()) {
-      return [];
-    }
-
-    const dirty = new Set<string>();
-    const trackedCandidates = [...candidatePaths];
-    for (const entry of status.split(/\r?\n/)) {
-      if (!entry.trim()) {
-        continue;
-      }
-
-      const pathSection = entry.slice(3).trim();
-      const normalized = pathSection.includes(' -> ') ? pathSection.split(' -> ')[1] ?? '' : pathSection;
-      if (!normalized) {
-        continue;
-      }
-
-      if (
-        trackedCandidates.some((candidate) => normalized === candidate || normalized.startsWith(`${candidate}/`))
-      ) {
-        dirty.add(normalized);
-      }
-    }
-
-    return [...dirty].sort();
-  } catch {
-    return [];
-  }
-}
-
-function describeDirtyWarning(target: string, candidatePaths: readonly string[]): string[] {
-  const dirtyFiles = detectDirtyGeneratedFiles(target, candidatePaths);
-  if (dirtyFiles.length === 0) {
-    return [];
-  }
-
-  return [
-    'Warning: the following generated files are dirty and may be overwritten by safe reset:',
-    ...dirtyFiles.map((path) => `- ${path}`),
-  ];
-}
-
-type SafeResetPreviewRow = {
-  path: string;
-  change?: string;
-  keep?: string;
+type SafeResetPreviewLists = {
+  refreshPaths: string[];
+  keptPaths: string[];
 };
 
-function pad(value: string, width: number): string {
-  return value.length >= width ? value : value.padEnd(width);
+function supportsAnsi(): boolean {
+  return Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
 }
 
-function renderPreviewTable(rows: readonly SafeResetPreviewRow[]): string[] {
-  const pathWidth = Math.min(42, Math.max('File / Path'.length, ...rows.map((row) => row.path.length)));
-  const header = `${pad('File / Path', pathWidth)}  Change  Keep`;
-  const rule = `${'-'.repeat(pathWidth)}  ------  ----`;
+function orange(value: string): string {
+  if (!supportsAnsi()) return value;
+  return `\u001B[38;2;255;112;67m${value}\u001B[39m`;
+}
+
+function green(value: string): string {
+  if (!supportsAnsi()) return value;
+  return `\u001B[32m${value}\u001B[39m`;
+}
+
+function bold(value: string): string {
+  if (!supportsAnsi()) return value;
+  return `\u001B[1m${value}\u001B[22m`;
+}
+
+function dim(value: string): string {
+  if (!supportsAnsi()) return value;
+  return `\u001B[2m${value}\u001B[22m`;
+}
+
+function refreshIcon(): string {
+  return orange('↻');
+}
+
+function lockIcon(): string {
+  return dim('🔒');
+}
+
+function detailText(value: string): string {
+  return dim(value);
+}
+
+function refreshHeading(): string {
+  return bold(orange('Files to refresh'));
+}
+
+function keptHeading(): string {
+  return bold(green('Files kept unchanged'));
+}
+
+function renderSafeResetDetailRows(rows: readonly [string, string][]): string[] {
+  const keyWidth = Math.max(...rows.map(([key]) => key.length));
+  return rows.map(([key, value]) => `${key}:${' '.repeat(keyWidth - key.length + 2)}${detailText(value)}`);
+}
+
+function renderRefreshList(paths: readonly string[]): string[] {
+  if (paths.length === 0) {
+    return [`- ${detailText('(none)')}`];
+  }
+  return paths.map((path) => `- ${refreshIcon()} ${detailText(path)}`);
+}
+
+function renderKeptList(paths: readonly string[]): string[] {
+  return paths.map((path) => `- ${lockIcon()} ${detailText(path)}`);
+}
+
+function renderSafeResetLists(lists: SafeResetPreviewLists): string[] {
   return [
-    header,
-    rule,
-    ...rows.map((row) => `${pad(row.path, pathWidth)}  ${pad(row.change ?? '', 6)}  ${row.keep ?? ''}`.trimEnd()),
+    '',
+    refreshHeading(),
+    ...renderRefreshList(lists.refreshPaths),
+    '',
+    keptHeading(),
+    ...renderKeptList(lists.keptPaths),
   ];
 }
 
@@ -328,12 +333,12 @@ function readTextForPreview(target: string, path: string): string | undefined {
   }
 }
 
-export function renderSafeResetPreview(target: string, stage: boolean): string {
+export function renderSafeResetPreview(target: string, _stage: boolean): string {
   const options = inferOptionsForPreviewSync(target);
   const externalAssets = safeResetExternalAssetOptions(options);
   const changedPaths = safeResetTargetFileDiffs(options, target);
   const selectedGeneratedPaths = new Set(changedPaths);
-  return renderSafeResetPreviewFromPaths(target, stage, changedPaths, selectedGeneratedPaths, options, externalAssets);
+  return renderSafeResetPreviewFromPaths(target, changedPaths, selectedGeneratedPaths, options, externalAssets);
 }
 
 export function safeResetSelectableGeneratedPaths(target: string): string[] {
@@ -343,66 +348,57 @@ export function safeResetSelectableGeneratedPaths(target: string): string[] {
 
 export function renderSafeResetSelectedPreview(
   target: string,
-  stage: boolean,
+  _stage: boolean,
   selectedGeneratedPaths: readonly string[],
 ): string {
   const options = inferOptionsForPreviewSync(target);
   const externalAssets = safeResetExternalAssetOptions(options);
   const changedPaths = safeResetTargetFileDiffs(options, target);
-  return renderSafeResetPreviewFromPaths(target, stage, changedPaths, new Set(selectedGeneratedPaths), options, externalAssets);
+  return renderSafeResetPreviewFromPaths(target, changedPaths, new Set(selectedGeneratedPaths), options, externalAssets);
 }
 
 function renderSafeResetPreviewFromPaths(
   target: string,
-  stage: boolean,
   changedPaths: readonly string[],
   selectedGeneratedPaths: ReadonlySet<string>,
   options: ScaffoldOptions,
   externalAssets: readonly ExternalAssetOptions[],
 ): string {
-  const externalAssetRows: SafeResetPreviewRow[] = [];
+  const externalAssetPaths: string[] = [];
   if (externalAssets.some((asset) => asset.label === 'compose')) {
-    externalAssetRows.push({ path: '- External compose template assets', change: '✓' });
+    externalAssetPaths.push('External compose template assets');
   }
   if (externalAssets.some((asset) => asset.label === 'agent-skills')) {
-    externalAssetRows.push({ path: '- External agent skill assets when configured', change: '✓' });
+    externalAssetPaths.push('External agent skill assets when configured');
   }
 
-  const changeRows: SafeResetPreviewRow[] =
-    changedPaths.length > 0
-      ? changedPaths.map((file) => ({
-        path: `- ${file}`,
-        change: selectedGeneratedPaths.has(file) ? '✓' : '',
-        keep: selectedGeneratedPaths.has(file) ? '' : '✓',
-      }))
-      : [{ path: '- No generated files differ from rendered output.', keep: 'locked' }];
-  const sourceRepoRows = buildSafeResetSourceRepoLines(options.sourceRepos).map((line) => ({
-    path: line === '- (none detected)' ? 'source repos: none detected' : line.replace(/^- /u, ''),
-    keep: 'locked',
-  }));
-  const protectedRows: SafeResetPreviewRow[] = [
+  const selectedChangedPaths = changedPaths.filter((file) => selectedGeneratedPaths.has(file));
+  const unselectedChangedPaths = changedPaths.filter((file) => !selectedGeneratedPaths.has(file));
+  const sourceRepoRows = buildSafeResetSourceRepoLines(options.sourceRepos).map((line) =>
+    line === '- (none detected)' ? 'source repos: none detected' : line.replace(/^- /u, ''),
+  );
+  const protectedRows = [
     ...sourceRepoRows,
-    { path: '.env', keep: 'locked' },
-    { path: 'data/', keep: 'locked' },
-    { path: 'backups/', keep: 'locked' },
-    { path: 'Git history/remotes/branches', keep: 'locked' },
-    { path: 'source repo folders', keep: 'locked' },
-    { path: 'custom source layouts', keep: 'locked' },
+    '.env',
+    'data/',
+    'backups/',
+    'Git history/remotes/branches',
+    'source repo folders',
+    'custom source layouts',
   ];
+  const refreshPaths = [...selectedChangedPaths, ...externalAssetPaths];
+  const keptPaths =
+    changedPaths.length > 0
+      ? [...unselectedChangedPaths, ...protectedRows]
+      : ['No generated files differ from rendered output.', ...protectedRows];
 
   return [
-    'Safe reset preview',
-    '',
-    'Target:',
-    target,
-    '',
-    ...renderPreviewTable([...changeRows, ...externalAssetRows, ...protectedRows]),
-    '',
-    ...describeDirtyWarning(target, changedPaths),
-    '',
-    'Preview only; no files changed yet.',
-    '',
-    stage ? 'Generated changes will be staged with git add .' : 'Generated changes will not be staged.',
+    ...renderSafeResetDetailRows([
+      ['Summary', `${refreshPaths.length} ${refreshPaths.length === 1 ? 'file' : 'files'} will be refreshed`],
+      ['Target', target],
+      ['Mode', 'generated files only'],
+    ]),
+    ...renderSafeResetLists({ refreshPaths, keptPaths }),
   ].join('\n');
 }
 
