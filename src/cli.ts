@@ -22,6 +22,10 @@ import {
   renderDisabledActionAlert,
   selectCockpitTopLevelMenu,
 } from './cockpit/menu.js';
+import {
+  renderCockpitDoctorResult,
+  renderCockpitEnvironmentStatusResult,
+} from './cockpit/result-view.js';
 import { confirmCockpitCommandRisk } from './cockpit/safety.js';
 import { doctorOptionsFromArgs } from './cli-routes/doctor.js';
 import { booleanOption, jsonOption, optionalSourceTypeValue, printJson, stringOption } from './cli-routes/options.js';
@@ -300,10 +304,40 @@ function renderLastCommandError(command: CockpitCommand, error: unknown): string
   return `Last: ${command.label} ✗ Error: ${message}`;
 }
 
+const COCKPIT_ENTER_ALTERNATE_SCREEN = '\u001B[?1049h';
+const COCKPIT_EXIT_ALTERNATE_SCREEN = '\u001B[?1049l';
+const COCKPIT_CLEAR_SCREEN = '\u001B[H\u001B[2J\u001B[3J\u001B[H';
+
+function canControlCockpitScreen(): boolean {
+  return Boolean(process.stdout.isTTY);
+}
+
 function clearCockpitScreen(): void {
-  if (process.stdout.isTTY) {
-    process.stdout.write('\u001B[2J\u001B[H');
+  if (canControlCockpitScreen()) {
+    process.stdout.write(COCKPIT_CLEAR_SCREEN);
   }
+}
+
+function enterCockpitScreen(): () => void {
+  if (!canControlCockpitScreen()) {
+    return () => undefined;
+  }
+
+  let restored = false;
+  const restore = () => {
+    if (restored) {
+      return;
+    }
+
+    restored = true;
+    process.off('exit', restore);
+    process.stdout.write(COCKPIT_EXIT_ALTERNATE_SCREEN);
+  };
+
+  process.stdout.write(COCKPIT_ENTER_ALTERNATE_SCREEN);
+  clearCockpitScreen();
+  process.once('exit', restore);
+  return restore;
 }
 
 function clearPrerequisiteScreen(): void {
@@ -1489,33 +1523,22 @@ async function waitForModuleActionBack(): Promise<boolean> {
     return false;
   }
 
-  await new Promise<void>((resolve) => {
-    emitKeypressEvents(process.stdin);
-    const input = process.stdin;
-    const wasRaw = input.isRaw;
-    const listener = (_value: string, key: { ctrl?: boolean; name?: string; sequence?: string }) => {
-      if (key.ctrl && key.name === 'c') {
-        process.exit(1);
-      }
-      if (key.name === 'escape' || key.sequence === '\u001B') {
-        cleanup();
-        resolve();
-      }
-    };
-    const cleanup = () => {
-      input.off('keypress', listener);
-      if (typeof input.setRawMode === 'function') {
-        input.setRawMode(Boolean(wasRaw));
-      }
-      input.pause();
-    };
-
-    if (typeof input.setRawMode === 'function') {
-      input.setRawMode(true);
+  try {
+    const back = await selectPrompt({
+      message: 'Result',
+      options: [{ value: 'back', label: 'Back to menu' }],
+      initialValue: 'back',
+      pageSize: 1,
+      hideMessage: true,
+      navigationHelp: 'back',
+    });
+    handleCancel(back, 'back');
+  } catch (error) {
+    if (isMenuBackSignal(error)) {
+      return true;
     }
-    input.resume();
-    input.on('keypress', listener);
-  });
+    throw error;
+  }
 
   return true;
 }
@@ -1737,7 +1760,9 @@ async function runCockpitDailyCommand(command: CockpitCommand, cwd: string): Pro
   while (true) {
     let argv: string[];
     try {
-      await renderCockpitSubmenuPage(command.label, cwd);
+      if (dailyCommand !== 'lint') {
+        await renderCockpitSubmenuPage(command.label, cwd);
+      }
       argv = await collectDailyActionArgs(dailyCommand, cwd);
     } catch (error) {
       if (isMenuBackSignal(error)) {
@@ -1752,7 +1777,7 @@ async function runCockpitDailyCommand(command: CockpitCommand, cwd: string): Pro
     }
 
     const returnedByBack = await runDailyActionResultPage(dailyCommand, argv, cwd, command.label);
-    if (!returnedByBack) {
+    if (!returnedByBack || dailyCommand === 'lint') {
       return;
     }
   }
@@ -1807,12 +1832,16 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
   }
 
   if (command.id === 'status') {
-    await showCockpitResultPage('Environment status', cwd, await renderEnvironmentStatusForTarget(cwd));
+    await showCockpitResultPage(
+      'Environment status',
+      cwd,
+      renderCockpitEnvironmentStatusResult(await getEnvironmentStatus(cwd)),
+    );
     return 'continue';
   }
 
   if (command.id === 'doctor') {
-    await showCockpitResultPage('Run doctor', cwd, await runDoctor(cwd), 'Doctor');
+    await showCockpitResultPage('Run doctor', cwd, renderCockpitDoctorResult(await getDoctorReport(cwd)), 'Doctor');
     return 'continue';
   }
 
@@ -1899,85 +1928,90 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
       return;
     }
 
-    let lastStatus = 'Last: Ready';
-    let status = await getEnvironmentStatus(cwd);
-    let serviceStatus = await getServiceRuntimeStatus(cwd, status);
-    await showStartup(argv, skipUpdateCheck, () => renderCockpitStatusLines(status, serviceStatus, lastStatus));
-    const renderCockpitMenuShell = () => {
-      clearCockpitScreen();
-      console.log(renderBanner(renderCockpitStatusLines(status, serviceStatus, lastStatus), { version: startupVersionLine() }));
-      console.log();
-    };
-    while (true) {
-      try {
-        const menuModuleCount = status.kind === 'environment' ? status.moduleCandidateCount : undefined;
-        const menuSourceRepoCount = status.kind === 'environment' ? status.sourceRepoCount : undefined;
-        const menuSnapshotCount = status.kind === 'environment' ? findDatabaseSnapshots(cwd).snapshots.length : undefined;
-        const menuServiceStatus = legacyCockpitServiceStatus(serviceStatus);
-        const command = await selectCockpitCommandFromMenu(
-          serviceStatus,
-          menuModuleCount,
-          menuSourceRepoCount,
-          menuSnapshotCount,
-        );
-
-        if (command === 'exit') {
-          return;
-        }
-
-        const originalDisabledReason = cockpitCommandDisabledReason(
-          command,
-          menuServiceStatus,
-          menuModuleCount,
-          menuSourceRepoCount,
-          menuSnapshotCount,
-        );
-        status = await getEnvironmentStatus(cwd);
-        serviceStatus = await getServiceRuntimeStatus(cwd, status);
-        const refreshedModuleCount = status.kind === 'environment' ? status.moduleCandidateCount : undefined;
-        const refreshedSourceRepoCount = status.kind === 'environment' ? status.sourceRepoCount : undefined;
-        const refreshedSnapshotCount = status.kind === 'environment' ? findDatabaseSnapshots(cwd).snapshots.length : undefined;
-        const refreshedDisabledReason = cockpitCommandDisabledReason(
-          command,
-          legacyCockpitServiceStatus(serviceStatus),
-          refreshedModuleCount,
-          refreshedSourceRepoCount,
-          refreshedSnapshotCount,
-        );
-        if (refreshedDisabledReason && refreshedDisabledReason !== originalDisabledReason) {
-          await showCockpitResultPage('Action unavailable', cwd, renderDisabledActionAlert(refreshedDisabledReason));
-          lastStatus = `Last: ${command.label} unavailable`;
-          renderCockpitMenuShell();
-          continue;
-        }
-
-        let outcome: 'continue' | 'exit' = 'continue';
-        let commandFailed = false;
+    const restoreCockpitScreen = enterCockpitScreen();
+    try {
+      let lastStatus = 'Last: Ready';
+      let status = await getEnvironmentStatus(cwd);
+      let serviceStatus = await getServiceRuntimeStatus(cwd, status);
+      await showStartup(argv, skipUpdateCheck, () => renderCockpitStatusLines(status, serviceStatus, lastStatus));
+      const renderCockpitMenuShell = () => {
+        clearCockpitScreen();
+        console.log(renderBanner(renderCockpitStatusLines(status, serviceStatus, lastStatus), { version: startupVersionLine() }));
+        console.log();
+      };
+      while (true) {
         try {
-          outcome = await runCockpitCommand(command, cwd);
-        } catch (error) {
-          if (isMenuBackSignal(error)) {
+          const menuModuleCount = status.kind === 'environment' ? status.moduleCandidateCount : undefined;
+          const menuSourceRepoCount = status.kind === 'environment' ? status.sourceRepoCount : undefined;
+          const menuSnapshotCount = status.kind === 'environment' ? findDatabaseSnapshots(cwd).snapshots.length : undefined;
+          const menuServiceStatus = legacyCockpitServiceStatus(serviceStatus);
+          const command = await selectCockpitCommandFromMenu(
+            serviceStatus,
+            menuModuleCount,
+            menuSourceRepoCount,
+            menuSnapshotCount,
+          );
+
+          if (command === 'exit') {
+            return;
+          }
+
+          const originalDisabledReason = cockpitCommandDisabledReason(
+            command,
+            menuServiceStatus,
+            menuModuleCount,
+            menuSourceRepoCount,
+            menuSnapshotCount,
+          );
+          status = await getEnvironmentStatus(cwd);
+          serviceStatus = await getServiceRuntimeStatus(cwd, status);
+          const refreshedModuleCount = status.kind === 'environment' ? status.moduleCandidateCount : undefined;
+          const refreshedSourceRepoCount = status.kind === 'environment' ? status.sourceRepoCount : undefined;
+          const refreshedSnapshotCount = status.kind === 'environment' ? findDatabaseSnapshots(cwd).snapshots.length : undefined;
+          const refreshedDisabledReason = cockpitCommandDisabledReason(
+            command,
+            legacyCockpitServiceStatus(serviceStatus),
+            refreshedModuleCount,
+            refreshedSourceRepoCount,
+            refreshedSnapshotCount,
+          );
+          if (refreshedDisabledReason && refreshedDisabledReason !== originalDisabledReason) {
+            await showCockpitResultPage('Action unavailable', cwd, renderDisabledActionAlert(refreshedDisabledReason));
+            lastStatus = `Last: ${command.label} unavailable`;
             renderCockpitMenuShell();
             continue;
           }
-          commandFailed = true;
-          lastStatus = renderLastCommandError(command, error);
+
+          let outcome: 'continue' | 'exit' = 'continue';
+          let commandFailed = false;
+          try {
+            outcome = await runCockpitCommand(command, cwd);
+          } catch (error) {
+            if (isMenuBackSignal(error)) {
+              renderCockpitMenuShell();
+              continue;
+            }
+            commandFailed = true;
+            lastStatus = renderLastCommandError(command, error);
+          }
+          if (outcome === 'exit') {
+            return;
+          }
+          if (!commandFailed) {
+            lastStatus = renderLastCommandStatus(command);
+          }
+          status = await getEnvironmentStatus(cwd);
+          serviceStatus = await getServiceRuntimeStatus(cwd, status);
+          renderCockpitMenuShell();
+        } catch (error) {
+          if (isMenuBackSignal(error)) {
+            continue;
+          }
+          throw error;
         }
-        if (outcome === 'exit') {
-          return;
-        }
-        if (!commandFailed) {
-          lastStatus = renderLastCommandStatus(command);
-        }
-        status = await getEnvironmentStatus(cwd);
-        serviceStatus = await getServiceRuntimeStatus(cwd, status);
-        renderCockpitMenuShell();
-      } catch (error) {
-        if (isMenuBackSignal(error)) {
-          continue;
-        }
-        throw error;
       }
+    } finally {
+      restoreCockpitScreen();
     }
   }
 

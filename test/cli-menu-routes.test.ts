@@ -18,6 +18,25 @@ const mocks = vi.hoisted(() => ({
   listEnvironmentDatabases: vi.fn(async () => ['devel', 'postgres']),
   findDatabaseSnapshots: vi.fn(() => ({ snapshots: [], snapshotPaths: [], newestSnapshotAgeMs: null })),
   getServiceRuntimeStatus: vi.fn(async () => ({ kind: 'stopped' } as ServiceRuntimeStatus)),
+  getDoctorReport: vi.fn(async () => ({
+    schemaVersion: 1 as const,
+    command: 'doctor' as const,
+    ok: true,
+    target: '/tmp/environment',
+    checks: ['OK docker CLI'],
+    warnings: [],
+    errors: [],
+    appliedFixes: [],
+    sections: [
+      {
+        id: 'host-tools' as const,
+        title: 'Host tools',
+        checks: ['OK docker CLI'],
+        warnings: [],
+        errors: [],
+      },
+    ],
+  })),
   listSources: vi.fn(async () => [
     {
       type: 'private',
@@ -62,6 +81,14 @@ const mocks = vi.hoisted(() => ({
     composeFiles: ['compose.yaml'] as string[],
     composeErrors: [] as string[],
     missingCoreFiles: [] as string[],
+    moduleQuality: {
+      totalModules: 0,
+      installableModules: 0,
+      nonInstallableModules: 0,
+      modulesWithMenuActions: 0,
+      modulesMissingMenuActions: 0,
+      issues: [],
+    },
   })),
   safeResetEnvironment: vi.fn(async () => undefined),
 }));
@@ -225,6 +252,7 @@ vi.mock('../src/update-check.js', async (importOriginal) => {
 });
 
 vi.mock('../src/doctor.js', () => ({
+  getDoctorReport: mocks.getDoctorReport,
   runDoctor: mocks.runDoctor,
 }));
 
@@ -354,6 +382,14 @@ describe('cli menu environment routes', () => {
       composeFiles: ['compose.yaml'],
       composeErrors: [],
       missingCoreFiles: [],
+      moduleQuality: {
+        totalModules: 0,
+        installableModules: 0,
+        nonInstallableModules: 0,
+        modulesWithMenuActions: 0,
+        modulesMissingMenuActions: 0,
+        issues: [],
+      },
     });
     const { runCli } = await loadCli();
 
@@ -404,6 +440,25 @@ describe('cli menu environment routes', () => {
     expect(bannerOrder).toBeLessThan(selectOrder);
   });
 
+  it('uses an alternate terminal screen for the interactive cockpit', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    const originalIsTTY = process.stdout.isTTY;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as never);
+    vi.mocked(prompts.selectPrompt).mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    try {
+      await runCli([], '/tmp/environment');
+
+      expect(writeSpy).toHaveBeenCalledWith('\u001B[?1049h');
+      expect(writeSpy).toHaveBeenCalledWith('\u001B[?1049l');
+      expect(writeSpy.mock.calls.at(-1)?.[0]).toBe('\u001B[?1049l');
+    } finally {
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTTY });
+    }
+  });
+
   it('renders startup banner with service state and repository/module header line', async () => {
     const prompts = await import('../src/prompts/index.js');
     mocks.getServiceRuntimeStatus.mockResolvedValueOnce({ kind: 'running' });
@@ -422,6 +477,14 @@ describe('cli menu environment routes', () => {
       composeFiles: ['compose.yaml'],
       composeErrors: ['Missing overlay'],
       missingCoreFiles: ['README.md'],
+      moduleQuality: {
+        totalModules: 0,
+        installableModules: 0,
+        nonInstallableModules: 0,
+        modulesWithMenuActions: 0,
+        modulesMissingMenuActions: 0,
+        issues: [],
+      },
     });
 
     const { runCli } = await loadCli();
@@ -452,6 +515,14 @@ describe('cli menu environment routes', () => {
       composeFiles: ['compose.yaml'],
       composeErrors: [],
       missingCoreFiles: [],
+      moduleQuality: {
+        totalModules: 0,
+        installableModules: 0,
+        nonInstallableModules: 0,
+        modulesWithMenuActions: 0,
+        modulesMissingMenuActions: 0,
+        issues: [],
+      },
     });
 
     const { runCli } = await loadCli();
@@ -482,6 +553,14 @@ describe('cli menu environment routes', () => {
       composeFiles: ['compose.yaml'],
       composeErrors: [],
       missingCoreFiles: [],
+      moduleQuality: {
+        totalModules: 0,
+        installableModules: 0,
+        nonInstallableModules: 0,
+        modulesWithMenuActions: 0,
+        modulesMissingMenuActions: 0,
+        issues: [],
+      },
     });
 
     const { runCli } = await loadCli();
@@ -512,6 +591,14 @@ describe('cli menu environment routes', () => {
       composeFiles: ['compose.yaml'],
       composeErrors: [],
       missingCoreFiles: [],
+      moduleQuality: {
+        totalModules: 0,
+        installableModules: 0,
+        nonInstallableModules: 0,
+        modulesWithMenuActions: 0,
+        modulesMissingMenuActions: 0,
+        issues: [],
+      },
     });
 
     const { runCli } = await loadCli();
@@ -541,6 +628,14 @@ describe('cli menu environment routes', () => {
       composeFiles: ['compose.yaml'],
       composeErrors: ['Invalid WPMOO_ENV in .env: expected a simple compose overlay name, got ../stage'],
       missingCoreFiles: [],
+      moduleQuality: {
+        totalModules: 0,
+        installableModules: 0,
+        nonInstallableModules: 0,
+        modulesWithMenuActions: 0,
+        modulesMissingMenuActions: 0,
+        issues: [],
+      },
     });
 
     const { runCli } = await loadCli();
@@ -657,20 +752,67 @@ describe('cli menu environment routes', () => {
 
   it('runs environment lint in a readable result page instead of module selection', async () => {
     const prompts = await import('../src/prompts/index.js');
+    const originalIsTTY = process.stdout.isTTY;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as never);
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
     vi.mocked(prompts.selectPrompt)
       .mockResolvedValueOnce(cockpitCommand('lint'))
       .mockResolvedValueOnce('exit');
     const { runCli } = await loadCli();
 
-    await runCli([], '/tmp/environment');
+    try {
+      await runCli([], '/tmp/environment');
 
-    expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledWith(
-      'lint',
-      [],
-      '/tmp/environment',
-    );
-    expect(mocks.listModulesInEnvironment).not.toHaveBeenCalled();
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledWith(
+        'lint',
+        [],
+        '/tmp/environment',
+      );
+      expect(writeSpy).toHaveBeenCalledWith('\u001B[H\u001B[2J\u001B[3J\u001B[H');
+      expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith('Run environment lint');
+      expect(mocks.listModulesInEnvironment).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTTY });
+    }
+  });
+
+  it('uses the prompt cancel guard for result page back navigation', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    const originalIsTTY = process.stdin.isTTY;
+    const originalSetRawMode = process.stdin.setRawMode;
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as never);
+    Object.defineProperty(process.stdin, 'setRawMode', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    let menuCount = 0;
+    vi.mocked(prompts.selectPrompt).mockImplementation(async (options) => {
+      if (options.message === 'Result') {
+        return 'back';
+      }
+      menuCount += 1;
+      return menuCount === 1 ? cockpitCommand('lint') : 'exit';
+    });
+    const { runCli } = await loadCli();
+
+    try {
+      await runCli([], '/tmp/environment');
+
+      expect(vi.mocked(prompts.selectPrompt)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Result',
+          hideMessage: true,
+          navigationHelp: 'back',
+        }),
+      );
+    } finally {
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalIsTTY });
+      Object.defineProperty(process.stdin, 'setRawMode', { configurable: true, value: originalSetRawMode });
+    }
   });
 
   it('shows diagnostics in result pages before returning to the cockpit', async () => {
@@ -684,8 +826,14 @@ describe('cli menu environment routes', () => {
 
     await runCli([], '/tmp/environment');
 
-    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith('environment status report', 'Environment status');
-    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith('doctor report', 'Doctor');
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
+      expect.stringContaining('Environment summary'),
+      'Environment status',
+    );
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
+      expect.stringContaining('Doctor summary'),
+      'Doctor',
+    );
     expect(mocks.renderBanner).toHaveBeenCalledWith(
       ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Status: ● Services stopped', 'Last: Environment status'],
       { version: `v${packageVersion()}` },
@@ -864,8 +1012,11 @@ describe('cli menu environment routes', () => {
 
     await runCli([], '/tmp/environment');
 
-    expect(mocks.renderEnvironmentStatusForTarget).toHaveBeenCalledWith('/tmp/environment');
-    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith('environment status report', 'Environment status');
+    expect(mocks.getEnvironmentStatus).toHaveBeenCalledWith('/tmp/environment');
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
+      expect.stringContaining('Environment summary'),
+      'Environment status',
+    );
   });
 
   it('routes doctor menu selection to runDoctor and shows doctor output', async () => {
@@ -875,8 +1026,8 @@ describe('cli menu environment routes', () => {
 
     await runCli([], '/tmp/environment');
 
-    expect(mocks.runDoctor).toHaveBeenCalledWith('/tmp/environment');
-    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith('doctor report', 'Doctor');
+    expect(mocks.getDoctorReport).toHaveBeenCalledWith('/tmp/environment');
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(expect.stringContaining('Doctor summary'), 'Doctor');
   });
 
   it.each([
@@ -908,7 +1059,7 @@ describe('cli menu environment routes', () => {
       expect(mocks.listModulesInEnvironment).toHaveBeenCalledWith('/tmp/environment');
       expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith('List modules');
       expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith(title);
-      expect(writeSpy).toHaveBeenCalledWith('\u001B[2J\u001B[H');
+      expect(writeSpy).toHaveBeenCalledWith('\u001B[H\u001B[2J\u001B[3J\u001B[H');
       expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledWith(dailyAction, argv, '/tmp/environment');
       expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(expect.stringContaining('completed'), 'Done');
     } finally {
@@ -953,7 +1104,7 @@ describe('cli menu environment routes', () => {
         return options.message === 'Module: odoo_sample_module_base';
       });
       expect(actionMenuCalls).toHaveLength(2);
-      expect(writeSpy).toHaveBeenCalledWith('\u001B[2J\u001B[H');
+      expect(writeSpy).toHaveBeenCalledWith('\u001B[H\u001B[2J\u001B[3J\u001B[H');
       const actionMenuOrders = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder.filter((_, index) => {
         const options = vi.mocked(prompts.selectPrompt).mock.calls[index]?.[0] as { message?: string };
         return options.message === 'Module: odoo_sample_module_base';
@@ -1062,7 +1213,7 @@ describe('cli menu environment routes', () => {
       });
       expect(moduleSelectionCalls).toHaveLength(2);
       expect(vi.mocked(prompts.introPrompt)).toHaveBeenCalledWith(title);
-      expect(writeSpy).toHaveBeenCalledWith('\u001B[2J\u001B[H');
+      expect(writeSpy).toHaveBeenCalledWith('\u001B[H\u001B[2J\u001B[3J\u001B[H');
       const moduleSelectionOrders = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder.filter((_, index) => {
         const options = vi.mocked(prompts.selectPrompt).mock.calls[index]?.[0] as { choices?: Array<{ value?: { moduleName?: string } }> };
         return options.choices?.some((option) => option.value?.moduleName === 'odoo_sample_module_base');
@@ -1096,7 +1247,7 @@ describe('cli menu environment routes', () => {
       await runCli([], '/tmp/environment');
 
       expect(vi.mocked(prompts.selectPrompt)).toHaveBeenCalledTimes(1);
-      expect(writeSpy).not.toHaveBeenCalledWith('\u001B[2J\u001B[H');
+      expect(writeSpy).not.toHaveBeenCalledWith('\u001B[H\u001B[2J\u001B[3J\u001B[H');
     } finally {
       writeSpy.mockRestore();
     }
