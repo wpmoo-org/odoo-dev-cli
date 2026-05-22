@@ -344,8 +344,12 @@ async function moduleScaffoldChecks(
       label: 'tests',
       ok:
         (await fileContains(join(destination, 'tests/__init__.py'), `from . import test_${moduleName}`)) &&
-        (await fileContains(join(destination, `tests/test_${moduleName}.py`), '')),
-      details: 'missing generated test file',
+        (await fileContains(join(destination, `tests/test_${moduleName}.py`), 'TransactionCase')) &&
+        (await fileContains(join(destination, `tests/test_${moduleName}.py`), '@tagged("post_install", "-at_install")')) &&
+        (await fileContains(join(destination, `tests/test_${moduleName}.py`), `class Test${moduleClassName(moduleName)}(TransactionCase):`)) &&
+        (await fileContains(join(destination, `tests/test_${moduleName}.py`), 'def test_create_record(self):')) &&
+        (await fileContains(join(destination, `tests/test_${moduleName}.py`), `self.env["${technicalName}"]`)),
+      details: 'missing generated TransactionCase test markers',
     },
   ];
 

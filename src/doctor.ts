@@ -30,6 +30,11 @@ import {
   type SourceManifestEntry,
   type SourceModuleLocation,
 } from './source-manifest.js';
+import {
+  emptyModuleQualitySummary,
+  mergeModuleQualitySummaries,
+  scanModuleQuality,
+} from './module-quality.js';
 import type { SourceRepo } from './types.js';
 
 export type DoctorCommandRunner = (
@@ -57,6 +62,7 @@ export type DoctorSectionId =
   | 'generated-files'
   | 'compose'
   | 'source-repositories'
+  | 'module-quality'
   | 'postgresql'
   | 'host-tools';
 
@@ -369,11 +375,16 @@ const doctorSectionDefinitions: readonly { id: DoctorSectionId; title: string }[
   { id: 'generated-files', title: 'Generated files' },
   { id: 'compose', title: 'Compose' },
   { id: 'source-repositories', title: 'Source repositories' },
+  { id: 'module-quality', title: 'Module quality' },
   { id: 'postgresql', title: 'PostgreSQL' },
   { id: 'host-tools', title: 'Host tools' },
 ] as const;
 
 function doctorSectionForLine(line: string): DoctorSectionId {
+  if (line.startsWith('OK module quality') || line.startsWith('Module quality advisory:')) {
+    return 'module-quality';
+  }
+
   if (
     line.includes('PostgreSQL diagnostics') ||
     line.includes('PostgreSQL connection') ||
@@ -712,6 +723,17 @@ export async function getDoctorReport(
     errors.push(`Missing source repo path: ${relativePath}`);
   }
   checks.push(`OK source repos ${sourceRepos.length} checked`);
+
+  let moduleQuality = emptyModuleQualitySummary();
+  for (const repo of sourceRepos) {
+    const sourceType = normalizeSourceType(repo.sourceType);
+    const repoRoot = join(target, sourceRepoPath(sourceType, repo.path));
+    moduleQuality = mergeModuleQualitySummaries(moduleQuality, await scanModuleQuality(repoRoot, target));
+  }
+  checks.push(`OK module quality ${moduleQuality.totalModules} module${moduleQuality.totalModules === 1 ? '' : 's'} scanned`);
+  warnings.push(
+    ...moduleQuality.issues.map((issue) => `Module quality advisory: ${issue.path}: ${issue.issue}`),
+  );
 
   const manifestPath = join(target, sourceManifestPath);
   const hasManifest = await exists(manifestPath);

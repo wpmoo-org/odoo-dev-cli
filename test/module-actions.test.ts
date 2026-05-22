@@ -185,6 +185,27 @@ class TestOdooSampleModuleBase(TransactionCase):
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
   });
 
+  it('rejects placeholder test files before registering a generated module', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-bad-tests-'));
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
+    await mkdir(join(modulePath, 'tests'), { recursive: true });
+    await writeFile(join(modulePath, 'tests/__init__.py'), 'from . import test_odoo_sample_module_base\n', 'utf8');
+    await writeFile(join(modulePath, 'tests/test_odoo_sample_module_base.py'), '# TODO\n', 'utf8');
+
+    await expect(
+      addModuleToSourceRepo({
+        target,
+        repoPath: 'odoo_sample_module',
+        moduleName: 'odoo_sample_module_base',
+        odooVersion: '18.0',
+        stage: false,
+      }),
+    ).rejects.toThrow(
+      'Generated module scaffold validation failed for odoo_sample_module_base: tests missing generated TransactionCase test markers',
+    );
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
+  });
+
   it('uses tree views for generated modules targeting Odoo versions before 18', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-legacy-view-'));
     await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
@@ -249,7 +270,20 @@ class TestOdooSampleModuleBase(TransactionCase):
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-add-test-idempotent-'));
     const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
     await mkdir(join(modulePath, 'tests'), { recursive: true });
-    await writeFile(join(modulePath, 'tests/test_odoo_sample_module_base.py'), '# custom test\n', 'utf8');
+    const customTest = [
+      'from odoo.tests import tagged',
+      'from odoo.tests.common import TransactionCase',
+      '',
+      '',
+      '@tagged("post_install", "-at_install")',
+      'class TestOdooSampleModuleBase(TransactionCase):',
+      '',
+      '    def test_create_record(self):',
+      '        self.env["odoo.sample.module.base"]',
+      '        self.assertTrue(True)',
+      '',
+    ].join('\n');
+    await writeFile(join(modulePath, 'tests/test_odoo_sample_module_base.py'), customTest, 'utf8');
 
     await addModuleToSourceRepo({
       target,
@@ -260,7 +294,7 @@ class TestOdooSampleModuleBase(TransactionCase):
     });
 
     await expect(readFile(join(modulePath, 'tests/test_odoo_sample_module_base.py'), 'utf8')).resolves.toBe(
-      '# custom test\n',
+      customTest,
     );
   });
 
