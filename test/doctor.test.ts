@@ -134,6 +134,8 @@ describe('doctor', () => {
         'OK source repos 1 checked',
         'OK git submodules skipped (not a git checkout)',
         'OK GitHub CLI auth',
+        'Module quality',
+        'OK module quality 0 modules scanned',
         'Host tools',
         'OK docker CLI',
         'OK docker compose',
@@ -197,6 +199,39 @@ describe('doctor', () => {
 
     await expect(runDoctor(target, passingDockerRunner())).resolves.toContain(
       'WARN Legacy private source path in use: odoo/custom/src/legacy_repo; move it to odoo/custom/src/private/legacy_repo when ready.',
+    );
+  });
+
+  it('surfaces module quality findings as advisory warnings without failing doctor', async () => {
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/demo_module');
+    await mkdir(modulePath, { recursive: true });
+    await writeFile(
+      join(modulePath, '__manifest__.py'),
+      [
+        '{',
+        "  'name': 'Demo',",
+        "  'installable': True,",
+        "  'depends': ['base'],",
+        "  'data': [],",
+        '}',
+        '',
+      ].join('\n'),
+    );
+
+    const report = await getDoctorReport(target, passingDockerRunner());
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual(
+      expect.arrayContaining([
+        'Module quality advisory: odoo/custom/src/private/odoo_sample_module/demo_module: missing license in __manifest__.py',
+      ]),
+    );
+    expect(report.errors).toEqual([]);
+    expect(await runDoctor(target, passingDockerRunner())).toContain(
+      'WARN Module quality advisory: odoo/custom/src/private/odoo_sample_module/demo_module: missing license in __manifest__.py',
     );
   });
 
@@ -586,6 +621,13 @@ describe('doctor', () => {
           'OK git submodules skipped (not a git checkout)',
           'OK GitHub CLI auth',
         ],
+        warnings: [],
+        errors: [],
+      },
+      {
+        id: 'module-quality',
+        title: 'Module quality',
+        checks: ['OK module quality 0 modules scanned'],
         warnings: [],
         errors: [],
       },

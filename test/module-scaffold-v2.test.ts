@@ -110,7 +110,19 @@ class ${moduleName.split('_').map((part) => `${part[0].toUpperCase()}${part.slic
       '',
     ].join('\n');
     const userTestsInit = 'from . import test_sales_tracker\nfrom . import test_sales_tracker_old\n';
-    const userTests = 'from . import test_sales_tracker_old\n\n\ndef test_placeholder():\n    assert True\n';
+    const userTests = [
+      'from odoo.tests import tagged',
+      'from odoo.tests.common import TransactionCase',
+      '',
+      '',
+      '@tagged("post_install", "-at_install")',
+      'class TestSalesTracker(TransactionCase):',
+      '',
+      '    def test_create_record(self):',
+      `        self.env["${technicalModel}"]`,
+      '        self.assertTrue(True)',
+      '',
+    ].join('\n');
     const userViews = `<?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <record id="view_${moduleName}_list" model="ir.ui.view">

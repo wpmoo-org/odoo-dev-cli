@@ -219,6 +219,61 @@ function declaredModelIds(modelFileContents: readonly string[]): Set<string> {
   return modelIds;
 }
 
+function declaredModelNames(modelFileContents: readonly string[]): Set<string> {
+  const modelNames = new Set<string>();
+  for (const content of modelFileContents) {
+    for (const match of content.matchAll(/^\s*_name\s*=\s*["']([^"']+)["']/gmu)) {
+      const modelName = match[1]?.trim();
+      if (modelName) {
+        modelNames.add(modelName);
+      }
+    }
+    for (const match of content.matchAll(/^\s*_inherit\s*=\s*["']([^"']+)["']/gmu)) {
+      const modelName = match[1]?.trim();
+      if (modelName) {
+        modelNames.add(modelName);
+      }
+    }
+  }
+  return modelNames;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+function xmlRecordFieldValues(xmlFiles: readonly string[], recordModel: string, fieldName: string): string[] {
+  const values: string[] = [];
+  const recordPattern = new RegExp(
+    `<record\\b[^>]*\\bmodel=(["'])${escapeRegExp(recordModel)}\\1[^>]*>(.*?)</record>`,
+    'gsu',
+  );
+  const fieldPattern = new RegExp(
+    `<field\\b[^>]*\\bname=(["'])${escapeRegExp(fieldName)}\\1[^>]*>(.*?)</field>`,
+    'gsu',
+  );
+
+  for (const content of xmlFiles) {
+    let recordMatch: RegExpExecArray | null;
+    while ((recordMatch = recordPattern.exec(content))) {
+      const body = recordMatch[2] ?? '';
+      let fieldMatch: RegExpExecArray | null;
+      while ((fieldMatch = fieldPattern.exec(body))) {
+        const value = fieldMatch[2]?.replace(/<[^>]+>/gu, '').trim();
+        if (value) {
+          values.push(value);
+        }
+      }
+    }
+  }
+
+  return values;
+}
+
+function looksLikePlainModelName(value: string): boolean {
+  return /^[a-zA-Z_][\w]*(?:\.[a-zA-Z_][\w]*)+$/u.test(value);
+}
+
 function accessCsvModelIds(content: string | undefined): string[] {
   if (!content) return [];
   const lines = content
@@ -279,6 +334,7 @@ export async function analyzeModuleDirectory(
   const modelFiles = await readPythonModelFiles(modulePath);
   const viewFiles = await readViewXmlFiles(modulePath);
   const viewXml = await Promise.all(viewFiles.map(async (fileName) => (await readOptionalFile(join(modulePath, 'views', fileName))) ?? ''));
+  const allViewXml = [...viewXml, ...menuXml];
   const depends = manifestDepends(manifest);
   const data = manifestData(manifest);
   const demo = manifestDemo(manifest);
@@ -320,10 +376,24 @@ export async function analyzeModuleDirectory(
 
   const modelFileContents = await readModelFileContents(modulePath, modelFiles);
   const modelIds = declaredModelIds(modelFileContents);
+  const modelNames = declaredModelNames(modelFileContents);
   if (modelIds.size > 0) {
     for (const modelId of accessCsvModelIds(await readOptionalFile(join(modulePath, 'security/ir.model.access.csv')))) {
       if (!modelIds.has(modelId)) {
         issues.push(moduleQualityIssue(moduleName, relativePath, `access CSV references unknown model id: ${modelId}`, 'error'));
+      }
+    }
+  }
+
+  if (modelNames.size > 0) {
+    for (const modelName of new Set(xmlRecordFieldValues(viewXml, 'ir.ui.view', 'model'))) {
+      if (looksLikePlainModelName(modelName) && !modelNames.has(modelName)) {
+        issues.push(moduleQualityIssue(moduleName, relativePath, `view XML references unknown model name: ${modelName}`, 'error'));
+      }
+    }
+    for (const modelName of new Set(xmlRecordFieldValues(allViewXml, 'ir.actions.act_window', 'res_model'))) {
+      if (looksLikePlainModelName(modelName) && !modelNames.has(modelName)) {
+        issues.push(moduleQualityIssue(moduleName, relativePath, `action XML references unknown res_model: ${modelName}`, 'error'));
       }
     }
   }
@@ -340,7 +410,6 @@ export async function analyzeModuleDirectory(
     issues.push(moduleIssue(moduleName, relativePath, 'missing tests directory'));
   }
 
-  const allViewXml = [...viewXml, ...menuXml];
   const actionIds = declaredActionIds(allViewXml);
   for (const actionRef of menuActionReferences(menuXml)) {
     if (!actionIds.has(actionRef)) {

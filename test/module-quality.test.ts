@@ -391,6 +391,64 @@ describe('analyzeModuleDirectory module quality v2 checks', () => {
     );
   });
 
+  it('flags view and action model references that do not match declared Python models', async () => {
+    const target = await makeTarget('wpmoo-module-quality-xml-model-ref-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(join(modulePath, '__manifest__.py'), buildManifest({ depends: ['base'] }));
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+    await writeText(join(modulePath, '__init__.py'), 'from . import models\n');
+    await writeText(join(modulePath, 'models', '__init__.py'), 'from . import demo_model\n');
+    await writeText(
+      join(modulePath, 'models', 'demo_model.py'),
+      "from odoo import models\n\nclass DemoModel(models.Model):\n    _name = 'demo.model'\n",
+    );
+    await writeText(
+      join(modulePath, 'views', 'demo_views.xml'),
+      [
+        '<odoo>',
+        '  <record id="view_demo_model_form" model="ir.ui.view">',
+        '    <field name="name">demo.model.form</field>',
+        '    <field name="model">wrong.model</field>',
+        '    <field name="arch" type="xml"><form/></field>',
+        '  </record>',
+        '</odoo>',
+        '',
+      ].join('\n'),
+    );
+    await writeText(
+      join(modulePath, 'views', 'demo_module_menus.xml'),
+      [
+        '<odoo>',
+        '  <record id="action_demo_module" model="ir.actions.act_window">',
+        '    <field name="name">Demo</field>',
+        '    <field name="res_model">wrong.model</field>',
+        '  </record>',
+        '  <menuitem id="menu_demo_module" action="action_demo_module"/>',
+        '</odoo>',
+        '',
+      ].join('\n'),
+    );
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'view XML references unknown model name: wrong.model',
+          severity: 'error',
+        }),
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'action XML references unknown res_model: wrong.model',
+          severity: 'error',
+        }),
+      ]),
+    );
+  });
+
   it('flags menu items whose action points to a missing action record', async () => {
     const target = await makeTarget('wpmoo-module-quality-menu-action-ref-');
     const modulePath = join(target, 'demo_module');

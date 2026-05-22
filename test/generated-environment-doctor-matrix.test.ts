@@ -117,6 +117,8 @@ describe('generated environment doctor matrix', () => {
         'OK source repos 1 checked',
         'OK git submodules skipped (not a git checkout)',
         'OK GitHub CLI auth',
+        'Module quality',
+        'OK module quality 0 modules scanned',
         'Host tools',
         'OK docker CLI',
         'OK docker compose',
