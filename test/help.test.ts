@@ -116,13 +116,17 @@ describe('help', () => {
     const output = renderHelp();
 
     expect(output).toContain('Lifecycle command guards:');
-    expect(output).toContain('In WPMOO_ENV=stage, install/update require WPMOO_ALLOW_STAGE_LIFECYCLE=1.');
-    expect(output).toContain('In WPMOO_ENV=prod, install/update/test require WPMOO_ALLOW_PROD_LIFECYCLE=1.');
+    expect(output).toContain('In WPMOO_ENV=stage, install/update/stop/restart require WPMOO_ALLOW_STAGE_LIFECYCLE=1.');
+    expect(output).toContain('In WPMOO_ENV=prod, install/update/test/stop/restart require WPMOO_ALLOW_PROD_LIFECYCLE=1.');
     expect(output).toContain('resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage/prod.');
     expect(output).toContain('restore-snapshot --dry-run remains allowed for preview.');
     expect(output).toContain('Time-bounded local approvals may also be recorded in .wpmoo/approvals.jsonl.');
-    expect(readme).toContain('In `WPMOO_ENV=stage`, `install` and `update` require `WPMOO_ALLOW_STAGE_LIFECYCLE=1`.');
-    expect(readme).toContain('In `WPMOO_ENV=prod`, `install`, `update`, and `test` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.');
+    expect(readme).toContain(
+      'In `WPMOO_ENV=stage`, `install`, `update`, `stop`, and `restart` require `WPMOO_ALLOW_STAGE_LIFECYCLE=1`.',
+    );
+    expect(readme).toContain(
+      'In `WPMOO_ENV=prod`, `install`, `update`, `test`, `stop`, and `restart` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.',
+    );
     expect(readme).toContain('`restore-snapshot --dry-run` remains allowed for preview.');
     expect(readme).toContain('For short-lived local approvals, add JSONL entries to `.wpmoo/approvals.jsonl`');
   });

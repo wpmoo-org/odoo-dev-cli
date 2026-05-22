@@ -65,8 +65,9 @@ Ready:
 
 Ready:
 
-- Stage `install` and `update` require `WPMOO_ALLOW_STAGE_LIFECYCLE=1`.
-- Production `install`, `update`, and `test` require
+- Stage `install`, `update`, `stop`, and `restart` require
+  `WPMOO_ALLOW_STAGE_LIFECYCLE=1`.
+- Production `install`, `update`, `test`, `stop`, and `restart` require
   `WPMOO_ALLOW_PROD_LIFECYCLE=1`.
 - Destructive database commands require `WPMOO_ALLOW_DESTRUCTIVE=1` in stage
   and production.

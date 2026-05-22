@@ -548,6 +548,48 @@ done
     );
   }, 15000);
 
+  it('blocks generated stage/prod stop and restart unless lifecycle approval is explicit', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=prod\n');
+    await execa(join(root, 'moo'), ['start'], { cwd: root, env });
+    for (const command of ['stop', 'restart'] as const) {
+      const result = await execa(join(root, 'moo'), [command], { cwd: root, env, reject: false });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        `Refusing production lifecycle command '${command}' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally.`,
+      );
+    }
+
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\n');
+    for (const command of ['stop', 'restart'] as const) {
+      const result = await execa(join(root, 'moo'), [command], { cwd: root, env, reject: false });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        `Refusing stage lifecycle command '${command}' in WPMOO_ENV=stage. Set WPMOO_ALLOW_STAGE_LIFECYCLE=1 to run it intentionally.`,
+      );
+    }
+
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=stage\nWPMOO_ALLOW_STAGE_LIFECYCLE=1\n');
+    await execa(join(root, 'moo'), ['stop'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['restart'], { cwd: root, env });
+
+    await writeFile(join(root, '.env'), 'WPMOO_ENV=prod\nWPMOO_ALLOW_PROD_LIFECYCLE=1\n');
+    await execa(join(root, 'moo'), ['stop'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['restart'], { cwd: root, env });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(
+      [
+        'up.sh|',
+        'down.sh|',
+        'restart.sh|',
+        'down.sh|',
+        'restart.sh|',
+        '',
+      ].join('\n'),
+    );
+  }, 15000);
+
   it('blocks generated migration-risk lifecycle commands in stage/prod unless explicitly approved', async () => {
     const { callsPath, env, root } = await createMooFixture();
     await mkdir(join(root, 'odoo/custom/src/private/acme/sale_extension/migrations/19.0.1.0'), { recursive: true });

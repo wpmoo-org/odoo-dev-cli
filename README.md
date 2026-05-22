@@ -154,8 +154,8 @@ search so names, repositories, and source categories can be filtered quickly.
 ./moo restore-snapshot --dry-run before-update devel
 ```
 
-In `WPMOO_ENV=stage`, `install` and `update` require `WPMOO_ALLOW_STAGE_LIFECYCLE=1`.
-In `WPMOO_ENV=prod`, `install`, `update`, and `test` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.
+In `WPMOO_ENV=stage`, `install`, `update`, `stop`, and `restart` require `WPMOO_ALLOW_STAGE_LIFECYCLE=1`.
+In `WPMOO_ENV=prod`, `install`, `update`, `test`, `stop`, and `restart` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.
 `resetdb` and real `restore-snapshot` require `WPMOO_ALLOW_DESTRUCTIVE=1` in `stage` and `prod`.
 `restore-snapshot --dry-run` remains allowed for preview.
 For short-lived local approvals, add JSONL entries to `.wpmoo/approvals.jsonl`; generated `.gitignore` keeps that ledger out of Git.
