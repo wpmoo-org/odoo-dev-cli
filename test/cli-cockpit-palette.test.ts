@@ -16,6 +16,10 @@ describe('cockpit command palette search', () => {
 
   it('ranks slash term matches for key flows first', () => {
     expect(searchCockpitCommands('/module')[0]?.id).toBe('list-modules');
+    expect(searchCockpitCommands('/modules')[0]?.id).toBe('list-modules');
+    expect(searchCockpitCommands('/install-module')[0]?.id).toBe('install');
+    expect(searchCockpitCommands('/rm-module')[0]?.id).toBe('remove-module');
+    expect(searchCockpitCommands('/tests')[0]?.id).toBe('test');
     expect(searchCockpitCommands('/db')[0]?.id).toBe('psql');
     expect(searchCockpitCommands('/test')[0]?.id).toBe('test');
     expect(searchCockpitCommands('/snapshot')[0]?.id).toBe('snapshot');

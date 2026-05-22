@@ -6,7 +6,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   moduleBrowserChoices,
+  searchModuleBrowserChoices,
   selectModuleFromBrowser,
+  type ModuleBrowserSearchPrompt,
   type ModuleBrowserSelectPrompt,
 } from '../src/cockpit/module-browser.js';
 import type { ListedModule } from '../src/module-actions.js';
@@ -39,6 +41,22 @@ function moduleHeading(repoPath: string, repoContext: string, width: number): st
 }
 
 describe('cockpit module browser', () => {
+  it('filters large module lists by module, repo, and source terms', () => {
+    const modules: ListedModule[] = [
+      { moduleName: 'account_batch_payment', repoPath: 'account-payment', sourceType: 'oca', repoSlug: 'OCA/account-payment' },
+      { moduleName: 'moo_test', repoPath: 'custom_repo', sourceType: 'private', repoSlug: 'wpmoo-org/custom_repo' },
+      { moduleName: 'stock_connector', repoPath: 'vendor_tools', sourceType: 'external', repoUrl: 'https://example.org/vendor-tools.git' },
+    ];
+
+    expect(searchModuleBrowserChoices(modules, 'oca account').map((choice) => choice.value.moduleName)).toEqual([
+      'account_batch_payment',
+    ]);
+    expect(searchModuleBrowserChoices(modules, 'moo').map((choice) => choice.value.moduleName)).toEqual(['moo_test']);
+    expect(searchModuleBrowserChoices(modules, 'vendor').map((choice) => choice.value.moduleName)).toEqual([
+      'stock_connector',
+    ]);
+  });
+
   it('groups modules by source category with compact source context labels', () => {
     const modules: ListedModule[] = [
       {
@@ -116,5 +134,50 @@ describe('cockpit module browser', () => {
       repoPath: 'moo_olympiad',
       sourceType: 'private',
     });
+  });
+
+  it('uses searchable selection for large module lists', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-browser-search-'));
+    await mkdir(join(target, 'odoo/custom/manifests'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/manifests/sources.yaml'),
+      [
+        'sources:',
+        '  - type: "private"',
+        '    path: "custom_repo"',
+        '    url: "https://github.com/wpmoo-org/custom_repo.git"',
+        '    addons:',
+        ...Array.from({ length: 21 }, (_, index) => `      - "module_${index.toString().padStart(2, '0')}"`),
+        '      - "moo_test"',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    const moduleNames = [
+      ...Array.from({ length: 21 }, (_, index) => `module_${index.toString().padStart(2, '0')}`),
+      'moo_test',
+    ];
+    for (const moduleName of moduleNames) {
+      await mkdir(join(target, 'odoo/custom/src/private/custom_repo', moduleName), { recursive: true });
+      await writeFile(join(target, 'odoo/custom/src/private/custom_repo', moduleName, '__manifest__.py'), '{}\n', 'utf8');
+    }
+
+    const search: ModuleBrowserSearchPrompt = vi.fn(async (options) => {
+      const choices = (await options.source('moo', {
+        signal: new AbortController().signal,
+      })) as ReturnType<typeof searchModuleBrowserChoices>;
+      expect(options.message).toBe('Search modules');
+      expect(choices.map((choice) => choice.value.moduleName)).toEqual(['moo_test']);
+      return choices[0]?.value;
+    });
+    const select: ModuleBrowserSelectPrompt = vi.fn();
+
+    await expect(selectModuleFromBrowser(target, { search, select })).resolves.toMatchObject({
+      moduleName: 'moo_test',
+      repoPath: 'custom_repo',
+      sourceType: 'private',
+    });
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(select).not.toHaveBeenCalled();
   });
 });
