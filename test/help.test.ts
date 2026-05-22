@@ -64,6 +64,7 @@ describe('help', () => {
     expect(readinessText).toContain('`.wpmoo/approvals.jsonl` is additive and local-only.');
     expect(readinessText).toContain('Generated-environment acceptance smoke is mandatory for a 1.0.0 release candidate.');
     expect(handoffText).toContain('For a 1.0.0 tag, run generated-environment acceptance smoke with WPMOO_SMOKE_ENVIRONMENT=1.');
+    expect(handoffText).toContain('Smoke step:');
     expect(readmeText).toContain('For `1.0.0`, generated-environment acceptance smoke is required before the release is considered final.');
   });
 
