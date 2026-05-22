@@ -1023,6 +1023,10 @@ describe('doctor', () => {
     expect(report.postgres?.diagnostics.totalDatabaseSizeBytes).toBe(10485760);
     expect(report.postgres?.diagnostics.walFileCount).toBeUndefined();
     expect(report.postgres?.diagnostics.defaultTablespaceSizeBytes).toBeUndefined();
+    expect(report.postgres?.optionalProbeFailures).toEqual([
+      { id: 'wal-directory', warning: 'permission denied for function pg_ls_waldir' },
+      { id: 'default-tablespace', warning: 'permission denied for function pg_tablespace_size' },
+    ]);
     expect(postgresCommands[0]).not.toContain('pg_ls_waldir');
     expect(postgresCommands[0]).not.toContain('pg_tablespace_size');
     expect(postgresCommands.some((command) => command.includes('pg_ls_waldir'))).toBe(true);

@@ -202,6 +202,9 @@ describe('help', () => {
     expect(commandReference).toContain('Run `doctor --fix` first, then `doctor --json`');
     expect(commandReference).toContain('post-fix state.');
     expect(readme).toContain('Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics');
+    expect(readme).toContain('Optional PostgreSQL probe permission failures appear under');
+    expect(readme).toContain('`postgres.optionalProbeFailures`');
+    expect(commandReference).toContain('`postgres.optionalProbeFailures`');
     expect(readme).toContain('sessions currently running queries');
     expect(readme).toContain("`pg_stat_activity.state = 'active'`");
     expect(readme).toContain('connection utilization against');
