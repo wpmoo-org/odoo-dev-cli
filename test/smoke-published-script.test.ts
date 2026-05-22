@@ -6,11 +6,12 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-type SmokeCommandBehavior = 'default' | 'npx-version-fail' | 'npx-version-timeout';
+type SmokeCommandBehavior = 'default' | 'npx-version-fail' | 'npx-version-timeout' | 'version-mismatch';
 
 const scriptPath = new URL('../scripts/smoke-published.sh', import.meta.url);
 
 function buildSmokeStub(expectedSpec: string, behavior: SmokeCommandBehavior) {
+  const versionOutput = behavior === 'version-mismatch' ? '@wpmoo/toolkit@0.0.0' : expectedSpec;
   const failureBlock =
     behavior === 'npx-version-fail'
       ? `
@@ -38,7 +39,7 @@ if [[ "$1" == "exec" ]]; then
   if [[ "$2" == "--yes" && "$3" == "--package" && "$4" == "${expectedSpec}" && "$5" == "--" && "$6" == "wpmoo" ]]; then
     case "${'$'}{7}" in
       --version)
-        echo "${expectedSpec}"
+        echo "${versionOutput}"
         ;;
       --help)
         echo "Usage: wpmoo"
@@ -75,7 +76,7 @@ fi
 
 case "$*" in
   "--yes --package ${expectedSpec} wpmoo --version")
-    echo "${expectedSpec}"
+    echo "${versionOutput}"
     ;;
   "--yes --package ${expectedSpec} wpmoo --help")
     echo "Usage: wpmoo"
@@ -224,6 +225,14 @@ if [[ "$1" == "restore-snapshot" && "$2" == "--dry-run" ]]; then
   echo "Restore snapshot preview"
   exit 0
 fi
+if [[ "$1" == "status" && "$2" == "--json" ]]; then
+  echo '{"schemaVersion":1,"command":"status","ok":true}'
+  exit 0
+fi
+if [[ "$1" == "doctor" && "$#" -eq 1 ]]; then
+  echo "Doctor checks passed."
+  exit 0
+fi
 echo "unexpected moo command: $*" >&2
 exit 1
 MOO
@@ -322,6 +331,30 @@ describe('published package smoke script', () => {
     ]);
   });
 
+  it('fails when an exact positional version override does not match CLI output', async () => {
+    const { root, stubPath } = await createSmokeFixture(
+      '9.8.7',
+      '@wpmoo/toolkit@9.8.8',
+      'version-mismatch',
+    );
+
+    const result = spawnSync('bash', [scriptPath.pathname, '9.8.8'], {
+      cwd: root,
+      env: {
+        ...process.env,
+        WPMOO_SMOKE_ENVIRONMENT: '0',
+        WPMOO_NPX_BIN: stubPath,
+        WPMOO_NPM_BIN: stubPath,
+      },
+      encoding: 'utf8',
+    });
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain('Expected wpmoo --version output to include 9.8.8');
+    expect(output).toContain('@wpmoo/toolkit@0.0.0');
+  });
+
   it.each(['@wpmoo/odoo', '@wpmoo/odoo-dev'])('uses compatibility aliases (%s)', async (packageSpec) => {
     const { argsLogPath, root, stubPath, tmpRoot } = await createSmokeFixture('9.8.7', packageSpec);
 
@@ -403,6 +436,8 @@ describe('published package smoke script', () => {
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo source list');
     expect(commands.some((command) => command.includes(' wpmoo reset --dry-run '))).toBe(true);
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo doctor --fix');
+    expect(commands).toContain('moo:status --json');
+    expect(commands).toContain('moo:doctor');
     expect(commands).toContain('moo:snapshot devel smoke-before');
     expect(commands).toContain('moo:restore-snapshot --dry-run smoke-before devel');
   });

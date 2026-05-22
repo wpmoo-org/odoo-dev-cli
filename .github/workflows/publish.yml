@@ -127,6 +127,38 @@ jobs:
             echo "::warning title=Optional wpmoo alias not published::The wpmoo short alias could not be published. Scoped packages remain the supported release artifacts."
           fi
 
+      - name: Verify required scoped artifacts
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          required_specs=(
+            "@wpmoo/toolkit@$VERSION"
+            "@wpmoo/odoo@$VERSION"
+            "@wpmoo/odoo-dev@$VERSION"
+          )
+          missing_specs=()
+
+          for spec in "${required_specs[@]}"; do
+            verified=0
+            for attempt in {1..12}; do
+              if npm view "$spec" version >/dev/null 2>&1; then
+                echo "[required] [ok] $spec published"
+                verified=1
+                break
+              fi
+              echo "[required] $spec not visible yet; retry $attempt/12."
+              sleep 5
+            done
+
+            if [[ "$verified" -ne 1 ]]; then
+              missing_specs+=("$spec")
+            fi
+          done
+
+          if [[ "${#missing_specs[@]}" -gt 0 ]]; then
+            echo "::error title=Required scoped artifacts did not verify after publish::${missing_specs[*]}"
+            exit 1
+          fi
+
       - name: Add release candidate report
         run: |
           VERSION="$(node -p "require('./package.json').version")"
@@ -149,7 +181,7 @@ jobs:
               if npm view "$spec" version >/dev/null 2>&1; then
                 echo "- [required] [ok] $spec published"
               else
-                echo "- [required] [warning] $spec pending"
+                echo "- [required] [error] $spec missing after publish verification"
               fi
             done
             echo ""
