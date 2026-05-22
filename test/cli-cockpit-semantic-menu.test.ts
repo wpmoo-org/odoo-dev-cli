@@ -84,6 +84,7 @@ describe('cockpit top-level semantic menu', () => {
   const expectedCommandIds = expectedCategoryOrder.flatMap((category) =>
     nonExitCommands.filter((command) => command.category === category).map((command) => command.id),
   );
+  const runtimeCommandIds = ['install', 'update', 'test', 'pot', 'psql', 'snapshot', 'restore-snapshot', 'resetdb'];
 
   it('emits stable category order and command ids without ANSI labels', async () => {
     const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: MenuPromptConfig) => {
@@ -129,9 +130,17 @@ describe('cockpit top-level semantic menu', () => {
         restart: 'Services stopped.',
         logs: 'Services stopped.',
         shell: 'Services stopped.',
+        install: 'Services stopped.',
+        update: 'Services stopped.',
+        test: 'Services stopped.',
+        pot: 'Services stopped.',
+        psql: 'Services stopped.',
+        snapshot: 'Services stopped.',
+        'restore-snapshot': 'Services stopped.',
+        resetdb: 'Services stopped.',
       },
       enabled: expectedCommandIds.filter(
-        (id) => !['stop', 'restart', 'logs', 'shell'].includes(id),
+        (id) => !['stop', 'restart', 'logs', 'shell', ...runtimeCommandIds].includes(id),
       ),
     },
     {
@@ -144,8 +153,16 @@ describe('cockpit top-level semantic menu', () => {
         restart: 'Docker not running.',
         logs: 'Docker not running.',
         shell: 'Docker not running.',
+        install: 'Docker not running.',
+        update: 'Docker not running.',
+        test: 'Docker not running.',
+        pot: 'Docker not running.',
+        psql: 'Docker not running.',
+        snapshot: 'Docker not running.',
+        'restore-snapshot': 'Docker not running.',
+        resetdb: 'Docker not running.',
       },
-      enabled: expectedCommandIds.filter((id) => !['start', 'stop', 'restart', 'logs', 'shell'].includes(id)),
+      enabled: expectedCommandIds.filter((id) => !['start', 'stop', 'restart', 'logs', 'shell', ...runtimeCommandIds].includes(id)),
     },
     {
       description: 'no module candidates found',

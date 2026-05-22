@@ -11,6 +11,8 @@ Symptoms:
 - The create wizard stops before writing files.
 - `./moo start`, `./moo status`, or `./moo doctor` reports Docker or Docker
   Compose as unavailable.
+- The cockpit disables database or module runtime actions because Docker,
+  services, or the database are not ready.
 
 Check:
 
@@ -29,6 +31,9 @@ Next steps:
 The create wizard intentionally stops before setup questions when required
 runtime tools are missing. That protects the workspace from half-created
 environments.
+
+If Docker is running but the cockpit says the database is not ready, wait for
+PostgreSQL readiness or choose `Restart services`.
 
 ## No Modules Found
 

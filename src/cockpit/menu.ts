@@ -79,6 +79,16 @@ const topLevelCommands: readonly CockpitCommand[] = topLevelCategoryOrder.flatMa
 );
 const topLevelCommandLabelWidth = Math.max(...topLevelCommands.map((command) => command.label.length));
 const moduleDependentCommandIds = new Set(['list-modules', 'install', 'update', 'test', 'pot', 'remove-module']);
+const runningServicesRequiredCommandIds = new Set([
+  'install',
+  'update',
+  'test',
+  'pot',
+  'psql',
+  'snapshot',
+  'restore-snapshot',
+  'resetdb',
+]);
 
 function rgb(red: number, green: number, blue: number, value: string): string {
   return `\u001B[38;2;${red};${green};${blue}m${value}\u001B[39m`;
@@ -102,6 +112,7 @@ const disabledReasonNextStep: Record<string, string> = {
   'Services stopped.': 'Next: choose "Start services" first.',
   'Already running.': 'Next: choose "Stop services" or "Restart services".',
   'Docker not running.': 'Next: start Docker, then choose "Start services".',
+  'Database not ready.': 'Next: wait for the database or choose "Restart services".',
   'No source repos found.': 'Next: choose "Add source repo" first.',
 };
 
@@ -116,11 +127,20 @@ function disabledError(reason?: string): string {
 }
 
 function serviceDisabledReason(command: CockpitCommand, serviceStatus?: ServiceRuntimeStatus): string | undefined {
-  if (command.category !== 'services' || !serviceStatus) return undefined;
+  if (!serviceStatus) return undefined;
+  const requiresRunningServices = command.category === 'services' || runningServicesRequiredCommandIds.has(command.id);
+  if (!requiresRunningServices) return undefined;
+
   if (serviceStatus.kind === 'docker-not-running') return 'Docker not running.';
   if (serviceStatus.kind === 'running' && command.id === 'start') return 'Already running.';
-  if (serviceStatus.kind === 'stopped' && ['stop', 'restart', 'logs', 'shell'].includes(command.id)) {
+  if (
+    serviceStatus.kind === 'stopped' &&
+    (['stop', 'restart', 'logs', 'shell'].includes(command.id) || runningServicesRequiredCommandIds.has(command.id))
+  ) {
     return 'Services stopped.';
+  }
+  if (serviceStatus.kind === 'services-running' && runningServicesRequiredCommandIds.has(command.id)) {
+    return 'Database not ready.';
   }
   return undefined;
 }
@@ -145,10 +165,10 @@ function disabledReason(
   snapshotCount?: number,
 ): string | undefined {
   return (
-    serviceDisabledReason(command, serviceStatus) ??
     moduleDisabledReason(command, moduleCount) ??
     sourceRepoDisabledReason(command, sourceRepoCount) ??
-    snapshotDisabledReason(command, snapshotCount)
+    snapshotDisabledReason(command, snapshotCount) ??
+    serviceDisabledReason(command, serviceStatus)
   );
 }
 

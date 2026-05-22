@@ -7,6 +7,7 @@ import { renderHelp } from '../src/help.js';
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 const readmeText = readme.replace(/\s+/g, ' ');
 const commandReference = readFileSync(new URL('../docs/command-reference.md', import.meta.url), 'utf8');
+const troubleshooting = readFileSync(new URL('../docs/troubleshooting.md', import.meta.url), 'utf8');
 const handoff = readFileSync(new URL('../docs/handoff.md', import.meta.url), 'utf8');
 const readiness = readFileSync(new URL('../docs/1-0-readiness.md', import.meta.url), 'utf8');
 const commandReferenceText = commandReference.replace(/\s+/g, ' ');
@@ -221,6 +222,13 @@ describe('help', () => {
     expect(readmeText).toContain('npx @wpmoo/toolkit remove-module');
     expect(readmeText).toContain('--source-type oca');
     expect(readmeText).toContain('Default is `private`');
+  });
+
+  it('documents cockpit runtime disabled states', () => {
+    expect(readme).toContain('Runtime actions that need running services or a ready database are disabled in');
+    expect(commandReference).toContain('The cockpit disables runtime actions such as `psql`, `snapshot`, `resetdb`');
+    expect(troubleshooting).toContain('The cockpit disables database or module runtime actions because Docker,');
+    expect(troubleshooting).toContain('If Docker is running but the cockpit says the database is not ready');
   });
 
   it('documents local-only wizard setup and custom environment folder support', () => {
