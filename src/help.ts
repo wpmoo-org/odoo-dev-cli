@@ -161,6 +161,7 @@ Machine-readable JSON output:
     npx @wpmoo/toolkit source sync --json
     npx @wpmoo/toolkit doctor --json
     doctor --json --postgres includes a structured postgres object for automation.
+    doctor --json is read-only; run doctor --fix first, then doctor --json for post-fix state.
     Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics.
 
 JSON compatibility policy:

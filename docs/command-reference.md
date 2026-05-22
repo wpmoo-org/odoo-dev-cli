@@ -66,6 +66,9 @@ Current JSON contract notes:
 - `status --json` uses `schemaVersion: 1`.
 - `source list --json` and `source sync --json` use `schemaVersion: 1`.
 - `doctor --json` uses `schemaVersion: 1`.
+- `doctor --json --fix` is intentionally unsupported because `doctor --fix`
+  may mutate files. Run `doctor --fix` first, then `doctor --json` to inspect
+  post-fix state.
 - `doctor --json --postgres` adds `postgres.contractVersion` and a PostgreSQL
   diagnostics object with its own `schemaVersion`.
 - PostgreSQL fields are optional when a metric is unavailable.

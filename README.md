@@ -181,6 +181,9 @@ npx @wpmoo/toolkit doctor --json --postgres
 ```
 
 JSON output is optional; human-readable output remains the default.
+`doctor --json --fix` is intentionally unsupported because `doctor --fix` may
+write safe file-level repairs. Run `doctor --fix` first, then `doctor --json`
+to inspect the post-fix state.
 Human `doctor` output is grouped into stable sections (`Generated files`,
 `Compose`, `Source repositories`, `PostgreSQL`, and `Host tools`) so terminal
 operators can see which lifecycle layer needs attention first.
