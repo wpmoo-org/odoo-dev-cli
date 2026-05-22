@@ -565,6 +565,12 @@ describe('daily actions', () => {
     await expect(dailyActionPlan('snapshot', ['prod db'], target)).rejects.toThrow(
       'Invalid database name: whitespace is not allowed.',
     );
+    await expect(dailyActionPlan('snapshot', ['devel', '../before-update'], target)).rejects.toThrow(
+      'Invalid snapshot name: use letters, digits, underscores, dots, or hyphens without shell metacharacters or path characters.',
+    );
+    await expect(dailyActionPlan('restore-snapshot', ['before update', 'devel'], target)).rejects.toThrow(
+      'Invalid snapshot name: whitespace is not allowed.',
+    );
     await expect(dailyActionPlan('restore-snapshot', ['before-update', '../prod'], target)).rejects.toThrow(
       'Invalid database name: use letters, digits, underscores, dots, or hyphens without shell metacharacters or path characters.',
     );

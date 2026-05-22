@@ -64,6 +64,17 @@ describe('github helpers', () => {
     });
   });
 
+  it('rejects unsafe GitHub slug components before running gh commands', async () => {
+    expect(parseGitHubRepoUrl('https://github.com/example-org/../evil.git')).toBeUndefined();
+    expect(parseGitHubRepoUrl('git@github.com:-bad/odoo_sample_module.git')).toBeUndefined();
+
+    const runner = fakeRunner();
+    await expect(getGitHubRepositoryStatus(runner, 'https://github.com/example-org/../evil.git')).resolves.toEqual({
+      status: 'unsupported',
+    });
+    expect(runner.calls).toEqual([]);
+  });
+
   it('checks repository accessibility with gh repo view', async () => {
     const runner = fakeRunner();
 

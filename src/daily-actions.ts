@@ -9,6 +9,7 @@ import {
   defaultDatabaseSnapshotMaxAgeMs,
   findDatabaseSnapshots,
   normalizeDatabaseName,
+  normalizeSnapshotName,
   restoreSnapshotPreflight,
   type RestoreSnapshotPreflight,
 } from './databases.js';
@@ -195,7 +196,8 @@ function restoreSnapshotArgs(argv: string[]): string[] {
     throw new Error(usage('restore-snapshot'));
   }
 
-  const validatedArgs = args.length === 2 ? validateDatabaseArg(args, 1) : args;
+  const snapshotName = normalizeSnapshotName(args[0]!);
+  const validatedArgs = args.length === 2 ? validateDatabaseArg([snapshotName, args[1]!], 1) : [snapshotName];
   return dryRun ? ['--dry-run', ...validatedArgs] : validatedArgs;
 }
 
@@ -236,7 +238,8 @@ function scriptArgs(command: DailyActionCommand, argv: string[]): string[] {
   }
   if (command === 'snapshot') {
     rejectLeadingHyphenDatabaseArg(argv);
-    return validateDatabaseArg(positionalArgs(command, argv, 0, 2), 0);
+    const args = validateDatabaseArg(positionalArgs(command, argv, 0, 2), 0);
+    return args.length === 2 ? [args[0]!, normalizeSnapshotName(args[1]!)] : args;
   }
   if (command === 'restore-snapshot') return restoreSnapshotArgs(argv);
   if (command === 'lint') return ensureNoArgs(command, argv);

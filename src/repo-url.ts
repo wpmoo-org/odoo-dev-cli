@@ -1,5 +1,8 @@
 import { basename } from 'node:path';
 
+import { validateRepoPath } from './path-validation.js';
+import { parseGitHubRepoUrl } from './github.js';
+
 export function normalizeRepositoryUrl(repoUrl: string): string {
   const trimmed = repoUrl.trim();
   const withoutSuffix = trimmed.replace(/[?#].*$/, '').replace(/\/+$/, '').replace(/\.git$/, '');
@@ -21,14 +24,9 @@ export function inferRepoPath(repoUrl: string): string {
     throw new Error(`Cannot infer repository path from URL: ${repoUrl}`);
   }
 
-  return withoutGit;
+  return validateRepoPath(withoutGit);
 }
 
 export function inferGitHubOwner(repoUrl: string): string | undefined {
-  const normalized = normalizeRepositoryUrl(repoUrl);
-  const httpsMatch = normalized.match(/^https:\/\/github\.com\/([^/]+)\//);
-  if (httpsMatch) return httpsMatch[1];
-
-  const sshMatch = normalized.match(/^git@github\.com:([^/]+)\//);
-  return sshMatch?.[1];
+  return parseGitHubRepoUrl(normalizeRepositoryUrl(repoUrl))?.owner;
 }

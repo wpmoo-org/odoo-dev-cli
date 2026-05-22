@@ -28,15 +28,28 @@ export const realGitHub: GitHubRunner = {
   },
 };
 
+const githubSlugPartPattern = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/u;
+
+function isSafeGitHubSlugPart(value: string | undefined): value is string {
+  return Boolean(
+    value &&
+      githubSlugPartPattern.test(value) &&
+      value !== '.' &&
+      value !== '..' &&
+      !value.startsWith('-') &&
+      !value.includes('..'),
+  );
+}
+
 export function parseGitHubRepoUrl(repoUrl: string): GitHubRepo | undefined {
   const normalized = repoUrl.trim().replace(/[?#].*$/, '').replace(/\/+$/, '').replace(/\.git$/, '');
   const httpsMatch = normalized.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)$/);
-  if (httpsMatch) {
+  if (httpsMatch && isSafeGitHubSlugPart(httpsMatch[1]) && isSafeGitHubSlugPart(httpsMatch[2])) {
     return { owner: httpsMatch[1], name: httpsMatch[2] };
   }
 
   const sshMatch = normalized.match(/^git@github\.com:([^/]+)\/([^/]+)$/);
-  if (sshMatch) {
+  if (sshMatch && isSafeGitHubSlugPart(sshMatch[1]) && isSafeGitHubSlugPart(sshMatch[2])) {
     return { owner: sshMatch[1], name: sshMatch[2] };
   }
 
