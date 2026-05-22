@@ -157,12 +157,11 @@ describe('cockpit top-level semantic menu', () => {
         install: 'No modules found.',
         update: 'No modules found.',
         test: 'No modules found.',
-        lint: 'No modules found.',
         pot: 'No modules found.',
         'remove-module': 'No modules found.',
       },
       enabled: expectedCommandIds.filter(
-        (id) => !['list-modules', 'install', 'update', 'test', 'lint', 'pot', 'remove-module'].includes(id),
+        (id) => !['list-modules', 'install', 'update', 'test', 'pot', 'remove-module'].includes(id),
       ),
     },
     {

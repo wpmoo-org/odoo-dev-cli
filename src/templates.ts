@@ -771,6 +771,84 @@ list_snapshots() {
   fi
 }
 
+list_snapshots_json() {
+  node --input-type=module <<'NODE'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+const directories = ['backups/snapshots', 'backups', 'backup', 'snapshots'];
+const extensions = ['.dump', '.sql', '.sql.gz', '.zip', '.tar', '.tar.gz'];
+const now = Date.now();
+
+function snapshotStem(file) {
+  return file
+    .replace(/\\.filestore\\.tar\\.gz$/, '')
+    .replace(/\\.sql\\.gz$/, '')
+    .replace(/\\.tar\\.gz$/, '')
+    .replace(/\\.dump$/, '')
+    .replace(/\\.sql$/, '')
+    .replace(/\\.zip$/, '')
+    .replace(/\\.tar$/, '');
+}
+
+function hasSnapshotExtension(file) {
+  return extensions.some((extension) => file.endsWith(extension));
+}
+
+function readManifest(path) {
+  if (!existsSync(path)) return undefined;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
+function manifestString(manifest, key) {
+  return manifest && typeof manifest[key] === 'string' ? manifest[key] : undefined;
+}
+
+const snapshots = [];
+for (const directory of directories) {
+  if (!existsSync(directory)) continue;
+
+  for (const file of readdirSync(directory).sort()) {
+    if (file.endsWith('.filestore.tar.gz') || !hasSnapshotExtension(file)) continue;
+
+    const dumpPath = join(directory, file);
+    const stats = statSync(dumpPath);
+    if (!stats.isFile()) continue;
+
+    const name = snapshotStem(file);
+    const manifestPath = join(directory, name + '.json');
+    const manifest = readManifest(manifestPath);
+    const manifestDump = manifestString(manifest, 'dump');
+    const manifestFilestore = manifestString(manifest, 'filestore');
+    const filestorePath = join(directory, manifestFilestore || name + '.filestore.tar.gz');
+    const createdAtMs = Date.parse(manifestString(manifest, 'created_at') || '');
+    const effectiveCreatedAtMs = Number.isFinite(createdAtMs) ? createdAtMs : stats.mtimeMs;
+
+    snapshots.push({
+      name: manifestString(manifest, 'name') || name,
+      path: dumpPath,
+      dumpPath: manifestDump ? join(directory, manifestDump) : dumpPath,
+      ...(existsSync(manifestPath) ? { manifestPath } : {}),
+      ...(manifestString(manifest, 'database') ? { databaseName: manifestString(manifest, 'database') } : {}),
+      createdAtMs: effectiveCreatedAtMs,
+      createdAt: new Date(effectiveCreatedAtMs).toISOString(),
+      mtimeMs: stats.mtimeMs,
+      ageMs: Math.max(0, now - effectiveCreatedAtMs),
+      filestorePath,
+      filestoreStatus: existsSync(filestorePath) ? 'found' : 'missing',
+    });
+  }
+}
+
+snapshots.sort((left, right) => right.createdAtMs - left.createdAtMs || left.path.localeCompare(right.path));
+console.log(JSON.stringify({ schemaVersion: 1, command: 'snapshot list', ok: true, snapshots }, null, 2));
+NODE
+}
+
 require_recent_snapshot_or_override() {
   local command="$1"
   local env_name
@@ -944,10 +1022,32 @@ case "$command" in
     ;;
   "snapshot")
     shift
-    if [[ "\${1:-}" == "--list" ]]; then
-      shift
-      require_no_args "$command" "$@"
-      list_snapshots
+    if [[ "\${1:-}" == "--list" || "\${1:-}" == "--json" ]]; then
+      list_requested=0
+      json_requested=0
+      while [[ "$#" -gt 0 ]]; do
+        case "$1" in
+          "--list")
+            list_requested=1
+            shift
+            ;;
+          "--json")
+            json_requested=1
+            shift
+            ;;
+          *)
+            fail_usage "$command"
+            ;;
+        esac
+      done
+      if [[ "$list_requested" -ne 1 ]]; then
+        fail_usage "$command"
+      fi
+      if [[ "$json_requested" -eq 1 ]]; then
+        list_snapshots_json
+      else
+        list_snapshots
+      fi
       exit 0
     fi
     positional_args "$command" 0 2 "$@"

@@ -48,8 +48,14 @@ export function renderComposeEnvExample(options: ScaffoldOptions): string {
     '# Required only when intentionally running destructive database actions',
     '# such as resetdb or restore-snapshot with WPMOO_ENV=stage or WPMOO_ENV=prod.',
     '# WPMOO_ALLOW_DESTRUCTIVE=1',
+    '# Required only when intentionally running install/update in WPMOO_ENV=stage.',
+    '# WPMOO_ALLOW_STAGE_LIFECYCLE=1',
     '# Required only when intentionally running install/update/test in WPMOO_ENV=prod.',
     '# WPMOO_ALLOW_PROD_LIFECYCLE=1',
+    '# Required only when intentionally running a destructive stage/prod command without a recent snapshot.',
+    '# WPMOO_ALLOW_NO_RECENT_SNAPSHOT=1',
+    '# Required only when intentionally running migration-risk lifecycle commands in stage/prod.',
+    '# WPMOO_ALLOW_MIGRATIONS=1',
     '',
   ].join('\n');
 }
