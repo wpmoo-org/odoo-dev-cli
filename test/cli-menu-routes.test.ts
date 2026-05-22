@@ -827,11 +827,11 @@ describe('cli menu environment routes', () => {
     await runCli([], '/tmp/environment');
 
     expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
-      expect.stringContaining('Environment summary'),
+      expect.stringContaining('Environment status'),
       'Environment status',
     );
     expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
-      expect.stringContaining('Doctor summary'),
+      expect.not.stringContaining('Run doctor'),
       'Doctor',
     );
     expect(mocks.renderBanner).toHaveBeenCalledWith(
@@ -1014,7 +1014,7 @@ describe('cli menu environment routes', () => {
 
     expect(mocks.getEnvironmentStatus).toHaveBeenCalledWith('/tmp/environment');
     expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
-      expect.stringContaining('Environment summary'),
+      expect.stringContaining('Environment status'),
       'Environment status',
     );
   });
@@ -1027,7 +1027,7 @@ describe('cli menu environment routes', () => {
     await runCli([], '/tmp/environment');
 
     expect(mocks.getDoctorReport).toHaveBeenCalledWith('/tmp/environment');
-    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(expect.stringContaining('Doctor summary'), 'Doctor');
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(expect.not.stringContaining('Run doctor'), 'Doctor');
   });
 
   it.each([

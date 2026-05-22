@@ -1,70 +1,119 @@
 import type { DoctorReport, DoctorSection } from '../doctor.js';
 import type { EnvironmentStatus } from '../status.js';
 
-type KeyValueRow = readonly [string, string];
-type CountRow = readonly [string, number, number, number];
+type ResultRow = readonly [string, string];
 
-const keyWidth = 18;
-const valueWidth = 50;
-const sectionWidth = 24;
-const countWidth = 5;
-
-function truncate(value: string, width: number): string {
-  if (value.length <= width) return value;
-  if (width <= 3) return value.slice(0, width);
-  return `${value.slice(0, width - 3)}...`;
+function resultHeader(title: string): string[] {
+  return [title, '-'.repeat(title.length)];
 }
 
-function pad(value: string, width: number): string {
-  return truncate(value, width).padEnd(width, ' ');
+function supportsAnsi(): boolean {
+  return Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
 }
 
-function horizontal(widths: readonly number[]): string {
-  return `+${widths.map((width) => '-'.repeat(width + 2)).join('+')}+`;
+function green(value: string): string {
+  if (!supportsAnsi()) return value;
+  return `\u001B[32m${value}\u001B[39m`;
 }
 
-function renderRow(values: readonly string[], widths: readonly number[]): string {
-  return `| ${values.map((value, index) => pad(value, widths[index] ?? value.length)).join(' | ')} |`;
+function orange(value: string): string {
+  if (!supportsAnsi()) return value;
+  return `\u001B[38;2;245;166;35m${value}\u001B[39m`;
 }
 
-function renderKeyValueTable(title: string, rows: readonly KeyValueRow[]): string {
-  const widths = [keyWidth, valueWidth] as const;
-  return [
-    title,
-    horizontal(widths),
-    renderRow(['Field', 'Value'], widths),
-    horizontal(widths),
-    ...rows.map(([key, value]) => renderRow([key, value], widths)),
-    horizontal(widths),
-  ].join('\n');
+function red(value: string): string {
+  if (!supportsAnsi()) return value;
+  return `\u001B[31m${value}\u001B[39m`;
 }
 
-function renderSectionCountTable(sections: readonly DoctorSection[]): string {
-  const widths = [sectionWidth, countWidth, countWidth, countWidth] as const;
-  const rows: CountRow[] = sections.map((section) => [
-    section.title,
-    section.checks.length,
-    section.warnings.length,
-    section.errors.length,
-  ]);
-
-  return [
-    'Doctor sections',
-    horizontal(widths),
-    renderRow(['Section', 'OK', 'Warn', 'Error'], widths),
-    horizontal(widths),
-    ...rows.map(([section, checks, warnings, errors]) =>
-      renderRow([section, String(checks), String(warnings), String(errors)], widths),
-    ),
-    horizontal(widths),
-  ].join('\n');
+function dim(value: string): string {
+  if (!supportsAnsi()) return value;
+  return `\u001B[2m${value}\u001B[22m`;
 }
 
 function joinList(values: readonly string[], empty = '(none)'): string {
   return values.length > 0 ? values.join(', ') : empty;
 }
 
-function statusRows(status: EnvironmentStatus): KeyValueRow[] {
+function plural(value: number, singular: string, pluralValue = `${singular}s`): string {
+  return value === 1 ? singular : pluralValue;
+}
+
+function okToken(): string {
+  return green('✓ OK');
+}
+
+function warningText(count: number, options: { compact?: boolean } = {}): string {
+  const value = options.compact ? String(count) : `${count} ${plural(count, 'warning')}`;
+  return count > 0 ? orange(value) : dim(value);
+}
+
+function errorText(count: number, options: { compact?: boolean } = {}): string {
+  const value = options.compact ? String(count) : `${count} ${plural(count, 'error')}`;
+  return count > 0 ? red(value) : dim(value);
+}
+
+function renderStatusText(value: string): string {
+  if (value === 'OK') {
+    return okToken();
+  }
+
+  if (value.startsWith('OK ')) {
+    return `${okToken()} ${value.slice(3)}`;
+  }
+
+  return value;
+}
+
+function renderWarningText(value: string): string {
+  return `${orange('WARN')} ${value}`;
+}
+
+function renderErrorText(value: string): string {
+  return `${red('ERROR')} ${value}`;
+}
+
+function renderRows(rows: readonly ResultRow[], options: { alignValues?: boolean } = {}): string[] {
+  if (!options.alignValues) {
+    return rows.map(([label, value]) => `${label}: ${value}`);
+  }
+
+  const labelWidth = Math.max(...rows.map(([label]) => label.length));
+  return rows.map(([label, value]) => `${label}:${' '.repeat(labelWidth - label.length + 2)}${value}`);
+}
+
+function renderDetails(
+  title: string,
+  values: readonly string[],
+  options: { formatStatus?: boolean; severity?: 'warning' | 'error' } = {},
+): string[] {
+  if (values.length === 0) return [];
+  const formatValue = (value: string): string => {
+    if (options.formatStatus) return renderStatusText(value);
+    if (options.severity === 'warning') return renderWarningText(value);
+    if (options.severity === 'error') return renderErrorText(value);
+    return value;
+  };
+
+  return [
+    '',
+    title,
+    ...values.map((value) => `- ${formatValue(value)}`),
+  ];
+}
+
+function renderSectionSummaries(sections: readonly DoctorSection[]): string[] {
+  const titleWidth = Math.max(...sections.map((section) => section.title.length));
+  return sections.map((section) => renderSectionSummary(section, titleWidth));
+}
+
+function renderSectionSummary(section: DoctorSection, titleWidth: number): string {
+  const warnings = warningText(section.warnings.length);
+  const errors = errorText(section.errors.length);
+  return `- ${section.title}:${' '.repeat(titleWidth - section.title.length + 2)}${section.checks.length} ${okToken()}, ${warnings}, ${errors}`;
+}
+
+function statusRows(status: EnvironmentStatus): ResultRow[] {
   if (status.kind === 'no_environment') {
     return [
       ['Summary', 'No WPMoo environment detected.'],
@@ -106,32 +155,28 @@ function statusRows(status: EnvironmentStatus): KeyValueRow[] {
   ];
 }
 
-function renderDetails(title: string, values: readonly string[]): string[] {
-  if (values.length === 0) return [];
-  return [title, ...values.map((value) => `- ${value}`)];
-}
-
 export function renderCockpitEnvironmentStatusResult(status: EnvironmentStatus): string {
-  return renderKeyValueTable('Environment summary', statusRows(status));
+  return [
+    ...resultHeader('Environment status'),
+    ...renderRows(statusRows(status)),
+  ].join('\n');
 }
 
 export function renderCockpitDoctorResult(report: DoctorReport): string {
   const sections = report.sections ?? [];
   return [
-    renderKeyValueTable('Doctor summary', [
-      ['Result', report.ok ? 'OK' : 'Needs attention'],
+    ...renderRows([
+      ['Result', report.ok ? okToken() : 'Needs attention'],
       ['Target', report.target],
       ['Checks', String(report.checks.length)],
-      ['Warnings', String(report.warnings.length)],
-      ['Errors', String(report.errors.length)],
+      ['Warnings', warningText(report.warnings.length, { compact: true })],
+      ['Errors', errorText(report.errors.length, { compact: true })],
       ['Fixes', String(report.appliedFixes.length)],
-    ]),
-    sections.length > 0 ? renderSectionCountTable(sections) : undefined,
-    ...renderDetails('Errors', report.errors),
-    ...renderDetails('Warnings', report.warnings),
+    ], { alignValues: true }),
+    ...(sections.length > 0 ? ['', 'Sections', ...renderSectionSummaries(sections)] : []),
+    ...renderDetails('Errors', report.errors, { severity: 'error' }),
+    ...renderDetails('Warnings', report.warnings, { severity: 'warning' }),
     ...renderDetails('Applied fixes', report.appliedFixes),
-    ...renderDetails('Checks', report.checks),
-  ]
-    .filter((line): line is string => Boolean(line))
-    .join('\n\n');
+    ...renderDetails('Checks', report.checks, { formatStatus: true }),
+  ].join('\n');
 }

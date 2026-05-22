@@ -513,6 +513,28 @@ describe('prompt adapter', () => {
     spy.mockRestore();
   });
 
+  it('renders intro titles in bold in interactive terminals', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const originalIsTTY = process.stdout.isTTY;
+    const originalNoColor = process.env.NO_COLOR;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    delete process.env.NO_COLOR;
+
+    try {
+      introPrompt('Run doctor');
+
+      expect(spy).toHaveBeenCalledWith('\u001B[1mRun doctor\u001B[22m');
+    } finally {
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTTY });
+      if (originalNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = originalNoColor;
+      }
+      spy.mockRestore();
+    }
+  });
+
   it('can render note body lines without indentation', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 

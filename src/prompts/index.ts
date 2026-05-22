@@ -475,8 +475,12 @@ export async function searchPrompt<T>(
 
 export function introPrompt(title: string): void {
   const rule = '-'.repeat(Math.min(80, Math.max(title.length, 3)));
+  const renderedTitle =
+    Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined
+      ? `\u001B[1m${title}\u001B[22m`
+      : title;
   console.log('');
-  console.log(title);
+  console.log(renderedTitle);
   console.log(rule);
 }
 
