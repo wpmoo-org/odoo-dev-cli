@@ -44,6 +44,8 @@ export function renderComposeEnvExample(options: ScaffoldOptions): string {
     `ODOO_TEST_MODULE=${defaultTestModule(options)}`,
     'WPMOO_ENV=dev',
     'WPMOO_SNAPSHOT_RETENTION_COUNT=0',
+    'WPMOO_LOG_SERVICE=odoo',
+    'WPMOO_LOG_TAIL_LINES=200',
     '',
     '# Required only when intentionally running destructive database actions',
     '# such as resetdb or restore-snapshot with WPMOO_ENV=stage or WPMOO_ENV=prod.',

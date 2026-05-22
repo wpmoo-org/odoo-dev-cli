@@ -17,7 +17,11 @@ import { cockpitCommands, type CockpitCommand } from './cockpit/command-registry
 import { collectDailyActionArgs } from './cockpit/daily-prompts.js';
 import { selectModuleAction, type ModuleActionId } from './cockpit/module-action-menu.js';
 import { selectModuleFromBrowser } from './cockpit/module-browser.js';
-import { selectCockpitTopLevelMenu } from './cockpit/menu.js';
+import {
+  cockpitCommandDisabledReason,
+  renderDisabledActionAlert,
+  selectCockpitTopLevelMenu,
+} from './cockpit/menu.js';
 import { confirmCockpitCommandRisk } from './cockpit/safety.js';
 import { doctorOptionsFromArgs } from './cli-routes/doctor.js';
 import { booleanOption, jsonOption, optionalSourceTypeValue, printJson, stringOption } from './cli-routes/options.js';
@@ -58,7 +62,13 @@ import { renderRepositorySetupNote } from './prompt-copy.js';
 import { promptRepositoryUrl } from './prompt-repositories.js';
 import { inferGitHubOwner, inferRepoPath, normalizeRepositoryUrl } from './repo-url.js';
 import { addModuleRepo, listModuleRepos, removeModuleRepo, type AddModuleRepoOptions, type RemoveModuleRepoOptions } from './repo-actions.js';
-import { renderSafeResetPreview, safeResetEnvironment, type SafeResetOptions } from './safe-reset.js';
+import {
+  renderSafeResetPreview,
+  renderSafeResetSelectedPreview,
+  safeResetEnvironment,
+  safeResetSelectableGeneratedPaths,
+  type SafeResetOptions,
+} from './safe-reset.js';
 import {
   getServiceRuntimeStatus,
   renderServiceRuntimeStatusLine,
@@ -88,7 +98,7 @@ import {
   getSystemPrerequisiteStatus,
   renderSystemPrerequisiteGuidance,
 } from './system-prerequisites.js';
-import { confirmPrompt, introPrompt, isPromptCancel, notePrompt, outroPrompt, selectPrompt, textPrompt } from './prompts/index.js';
+import { confirmPrompt, introPrompt, isPromptCancel, notePrompt, outroPrompt, promptSeparator, selectPrompt, textPrompt } from './prompts/index.js';
 import { renderBanner } from './templates.js';
 import type { ScaffoldOptions, SourceRepo, SourceRepoType } from './types.js';
 import { checkForUpdate, isUpdateCheckSkipped, restartCli } from './update-check.js';
@@ -372,16 +382,8 @@ async function selectCockpitCommandFromMenu(
   sourceRepoCount?: number,
   snapshotCount?: number,
 ): Promise<CockpitCommand | 'exit'> {
-  const legacyServiceStatus: ServiceRuntimeStatus =
-    serviceStatus.kind === 'services-running' ||
-    serviceStatus.kind === 'db-ready' ||
-    serviceStatus.kind === 'odoo-not-ready' ||
-    serviceStatus.kind === 'fully-ready'
-      ? { kind: 'running' }
-      : serviceStatus;
-
   const selection = await selectCockpitTopLevelMenu({
-    serviceStatus: legacyServiceStatus,
+    serviceStatus: legacyCockpitServiceStatus(serviceStatus),
     moduleCount,
     sourceRepoCount,
     snapshotCount,
@@ -392,6 +394,15 @@ async function selectCockpitCommandFromMenu(
   }
 
   return selection.command;
+}
+
+function legacyCockpitServiceStatus(serviceStatus: ServiceRuntimeStatus): ServiceRuntimeStatus {
+  return serviceStatus.kind === 'services-running' ||
+    serviceStatus.kind === 'db-ready' ||
+    serviceStatus.kind === 'odoo-not-ready' ||
+    serviceStatus.kind === 'fully-ready'
+    ? { kind: 'running' }
+    : serviceStatus;
 }
 
 async function resolveEnvironmentTargetFromPrompts(
@@ -870,8 +881,69 @@ async function addModuleOptionsFromPrompts(
   };
 }
 
+function padTableCell(value: string, width: number): string {
+  return value.length >= width ? value : value.padEnd(width);
+}
+
+function safeResetSelectionRow(path: string, selected: boolean, width: number): string {
+  return `${padTableCell(path, width)}  ${padTableCell(selected ? '✓' : '', 6)}  ${selected ? '' : '✓'}`.trimEnd();
+}
+
+async function collectSafeResetGeneratedPathSelection(options: SafeResetOptions): Promise<readonly string[] | undefined> {
+  const candidates = safeResetSelectableGeneratedPaths(options.target);
+  if (candidates.length === 0) {
+    notePrompt(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview');
+    return undefined;
+  }
+  if (!process.stdin.isTTY) {
+    notePrompt(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview');
+    return candidates;
+  }
+
+  const selectedPaths = new Set(candidates);
+  const pathWidth = Math.min(42, Math.max('File / Path'.length, ...candidates.map((path) => path.length)));
+  while (true) {
+    notePrompt(renderSafeResetSelectedPreview(options.target, options.stage, [...selectedPaths]), 'Safe reset preview');
+    const choice = await selectPrompt<string>({
+      message: menuPromptMessage('Review generated file changes', 'back'),
+      choices: [
+        promptSeparator(`${padTableCell('File / Path', pathWidth)}  Change  Keep`),
+        ...candidates.map((path) => ({
+          value: `toggle:${path}`,
+          name: safeResetSelectionRow(path, selectedPaths.has(path), pathWidth),
+          short: path,
+        })),
+        promptSeparator('Actions'),
+        { value: 'continue', name: 'Continue to confirmation' },
+        { value: 'cancel', name: 'Cancel safe reset' },
+      ],
+      pageSize: Math.min(Math.max(candidates.length + 4, 8), 18),
+      navigationHelp: 'back',
+    });
+    handleCancel(choice, 'back');
+    const selectedAction = String(choice);
+    if (selectedAction === 'continue') {
+      return [...selectedPaths];
+    }
+    if (selectedAction === 'cancel') {
+      throw new MenuBackSignal();
+    }
+    if (selectedAction.startsWith('toggle:')) {
+      const path = selectedAction.slice('toggle:'.length);
+      if (selectedPaths.has(path)) {
+        selectedPaths.delete(path);
+      } else if (candidates.includes(path)) {
+        selectedPaths.add(path);
+      }
+    }
+  }
+}
+
 async function confirmSafeResetFromMenu(options: SafeResetOptions): Promise<void> {
-  notePrompt(renderSafeResetPreview(options.target, options.stage), 'Safe reset preview');
+  const selectedGeneratedPaths = await collectSafeResetGeneratedPathSelection(options);
+  if (selectedGeneratedPaths !== undefined) {
+    options.includeGeneratedPaths = selectedGeneratedPaths;
+  }
   const confirmed = await confirmPrompt({
     message: menuPromptMessage('Continue with safe reset?', 'back'),
     active: 'Yes',
@@ -1259,11 +1331,11 @@ function commandCompletedLabel(command: DailyActionCommand): string {
 }
 
 function shouldReturnToDailySelection(command: DailyActionCommand): boolean {
-  return ['install', 'update', 'test', 'pot'].includes(command);
+  return ['install', 'update', 'test', 'lint', 'pot'].includes(command);
 }
 
 function shouldUseModuleBrowserForDailySelection(command: DailyActionCommand): boolean {
-  return ['update', 'test', 'lint', 'pot'].includes(command);
+  return ['update', 'test', 'pot'].includes(command);
 }
 
 function dailyActionSelectedLabel(command: DailyActionCommand, argv: readonly string[]): string | undefined {
@@ -1448,6 +1520,77 @@ async function waitForModuleActionBack(): Promise<boolean> {
   return true;
 }
 
+function installEscAbortController(controller: AbortController): () => void {
+  if (!process.stdin.isTTY) {
+    return () => undefined;
+  }
+
+  emitKeypressEvents(process.stdin);
+  const input = process.stdin;
+  const wasRaw = input.isRaw;
+  const listener = (_value: string, key: { ctrl?: boolean; name?: string; sequence?: string }) => {
+    if (key.ctrl && key.name === 'c') {
+      process.exit(1);
+    }
+    if (key.name === 'escape' || key.sequence === '\u001B') {
+      controller.abort();
+    }
+  };
+
+  if (typeof input.setRawMode === 'function') {
+    input.setRawMode(true);
+  }
+  input.resume();
+  input.on('keypress', listener);
+  return () => {
+    input.off('keypress', listener);
+    if (typeof input.setRawMode === 'function') {
+      input.setRawMode(Boolean(wasRaw));
+    }
+    input.pause();
+  };
+}
+
+async function runEscBackDailyActionResultPage(
+  command: DailyActionCommand,
+  argv: string[],
+  cwd: string,
+  title = commandActionTitle(command),
+  selectedLabel = dailyActionSelectedLabel(command, argv),
+  completedLabel = commandCompletedLabel(command),
+): Promise<boolean> {
+  await renderDailyActionResultPageHeader(title, selectedLabel, cwd);
+  console.log(renderBackHelp());
+  const controller = new AbortController();
+  const cleanup = installEscAbortController(controller);
+  try {
+    await runDailyActionWithStyledOutput(command, argv, cwd, (chunk) => process.stdout.write(chunk), {
+      signal: controller.signal,
+      treatAbortAsSuccess: true,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    notePrompt(message, 'Error');
+    await waitForModuleActionBack();
+    throw error;
+  } finally {
+    cleanup();
+  }
+
+  if (controller.signal.aborted) {
+    return true;
+  }
+
+  notePrompt(renderCompletedText(completedLabel), 'Done');
+  return waitForModuleActionBack();
+}
+
+async function showCockpitResultPage(title: string, cwd: string, output: string, noteTitle = title): Promise<boolean> {
+  await renderCockpitSubmenuPage(title, cwd);
+  notePrompt(output, noteTitle);
+  return waitForModuleActionBack();
+}
+
 async function runDailyActionResultPage(
   command: DailyActionCommand,
   argv: string[],
@@ -1568,6 +1711,17 @@ async function runCockpitDailyCommand(command: CockpitCommand, cwd: string): Pro
     return;
   }
 
+  if (dailyCommand === 'logs') {
+    const argv = await collectDailyActionArgs(dailyCommand, cwd);
+    if (!(await confirmCockpitCommandRisk(command))) {
+      notePrompt(`${command.slashAlias} was not run.`, 'Action skipped');
+      return;
+    }
+
+    await runEscBackDailyActionResultPage(dailyCommand, argv, cwd, command.label);
+    return;
+  }
+
   if (!shouldReturnToDailySelection(dailyCommand)) {
     const argv = await collectDailyActionArgs(dailyCommand, cwd);
     if (!(await confirmCockpitCommandRisk(command))) {
@@ -1653,12 +1807,12 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
   }
 
   if (command.id === 'status') {
-    notePrompt(await renderEnvironmentStatusForTarget(cwd), 'Environment status');
+    await showCockpitResultPage('Environment status', cwd, await renderEnvironmentStatusForTarget(cwd));
     return 'continue';
   }
 
   if (command.id === 'doctor') {
-    notePrompt(await runDoctor(cwd), 'Doctor');
+    await showCockpitResultPage('Run doctor', cwd, await runDoctor(cwd), 'Doctor');
     return 'continue';
   }
 
@@ -1756,15 +1910,45 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     };
     while (true) {
       try {
+        const menuModuleCount = status.kind === 'environment' ? status.moduleCandidateCount : undefined;
+        const menuSourceRepoCount = status.kind === 'environment' ? status.sourceRepoCount : undefined;
+        const menuSnapshotCount = status.kind === 'environment' ? findDatabaseSnapshots(cwd).snapshots.length : undefined;
+        const menuServiceStatus = legacyCockpitServiceStatus(serviceStatus);
         const command = await selectCockpitCommandFromMenu(
           serviceStatus,
-          status.kind === 'environment' ? status.moduleCandidateCount : undefined,
-          status.kind === 'environment' ? status.sourceRepoCount : undefined,
-          status.kind === 'environment' ? findDatabaseSnapshots(cwd).snapshots.length : undefined,
+          menuModuleCount,
+          menuSourceRepoCount,
+          menuSnapshotCount,
         );
 
         if (command === 'exit') {
           return;
+        }
+
+        const originalDisabledReason = cockpitCommandDisabledReason(
+          command,
+          menuServiceStatus,
+          menuModuleCount,
+          menuSourceRepoCount,
+          menuSnapshotCount,
+        );
+        status = await getEnvironmentStatus(cwd);
+        serviceStatus = await getServiceRuntimeStatus(cwd, status);
+        const refreshedModuleCount = status.kind === 'environment' ? status.moduleCandidateCount : undefined;
+        const refreshedSourceRepoCount = status.kind === 'environment' ? status.sourceRepoCount : undefined;
+        const refreshedSnapshotCount = status.kind === 'environment' ? findDatabaseSnapshots(cwd).snapshots.length : undefined;
+        const refreshedDisabledReason = cockpitCommandDisabledReason(
+          command,
+          legacyCockpitServiceStatus(serviceStatus),
+          refreshedModuleCount,
+          refreshedSourceRepoCount,
+          refreshedSnapshotCount,
+        );
+        if (refreshedDisabledReason && refreshedDisabledReason !== originalDisabledReason) {
+          await showCockpitResultPage('Action unavailable', cwd, renderDisabledActionAlert(refreshedDisabledReason));
+          lastStatus = `Last: ${command.label} unavailable`;
+          renderCockpitMenuShell();
+          continue;
         }
 
         let outcome: 'continue' | 'exit' = 'continue';

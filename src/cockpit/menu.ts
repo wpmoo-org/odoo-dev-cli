@@ -78,6 +78,7 @@ const topLevelCommands: readonly CockpitCommand[] = topLevelCategoryOrder.flatMa
   cockpitCommands.filter((command) => command.category === category && command.id !== 'exit'),
 );
 const topLevelCommandLabelWidth = Math.max(...topLevelCommands.map((command) => command.label.length));
+const cockpitRowMaxWidth = 72;
 const moduleDependentCommandIds = new Set(['list-modules', 'install', 'update', 'test', 'pot', 'remove-module']);
 const runningServicesRequiredCommandIds = new Set([
   'install',
@@ -98,12 +99,32 @@ function dim(value: string): string {
   return styleText('dim', value, { validateStream: false });
 }
 
+function visibleLength(value: string): number {
+  return value.replace(/\u001B\[[0-9;]*m/gu, '').length;
+}
+
+function truncateToVisibleWidth(value: string, maxWidth: number): string {
+  if (value.length <= maxWidth) {
+    return value;
+  }
+
+  if (maxWidth <= 1) {
+    return value.slice(0, Math.max(0, maxWidth));
+  }
+
+  return `${value.slice(0, maxWidth - 1)}…`;
+}
+
 function categoryHeading(category: CockpitCommandCategory): string {
   return `\u001B[1D${rgb(143, 211, 255, categoryLabels[category])}`;
 }
 
 function commandName(command: CockpitCommand): string {
-  return `${rgb(226, 184, 96, ` ${command.label.padEnd(topLevelCommandLabelWidth)}`)}${dim(`  ${command.description}`)}`;
+  const label = ` ${command.label.padEnd(topLevelCommandLabelWidth)}`;
+  const descriptionPrefix = '  ';
+  const availableDescriptionWidth = Math.max(0, cockpitRowMaxWidth - visibleLength(label) - descriptionPrefix.length);
+  const description = truncateToVisibleWidth(command.description, availableDescriptionWidth);
+  return `${rgb(226, 184, 96, label)}${dim(`${descriptionPrefix}${description}`)}`;
 }
 
 const disabledReasonNextStep: Record<string, string> = {
@@ -116,17 +137,26 @@ const disabledReasonNextStep: Record<string, string> = {
   'No source repos found.': 'Next: choose "Add source repo" first.',
 };
 
-function disabledError(reason?: string): string {
-  const base = 'This option is disabled and cannot be selected.';
+export function renderDisabledActionAlert(reason?: string): string {
+  const title = 'Action unavailable';
   if (!reason) {
-    return base;
+    return title;
   }
 
-  const nextStep = disabledReasonNextStep[reason];
-  return nextStep ? `${base}\nReason: ${reason}\n${nextStep}` : `${base}\nReason: ${reason}`;
+  const nextStep = disabledReasonNextStep[reason]?.replace(/^Next:\s*/u, '');
+  const rows = [`Reason  ${reason}`];
+  if (nextStep) {
+    rows.push(`Next    ${nextStep}`);
+  }
+  rows.push('Esc clear · Enter select · ↑/↓ navigate');
+  return [title, ...rows].join('\n');
 }
 
-function serviceDisabledReason(command: CockpitCommand, serviceStatus?: ServiceRuntimeStatus): string | undefined {
+function disabledError(reason?: string): string {
+  return renderDisabledActionAlert(reason);
+}
+
+export function serviceDisabledReason(command: CockpitCommand, serviceStatus?: ServiceRuntimeStatus): string | undefined {
   if (!serviceStatus) return undefined;
   const requiresRunningServices = command.category === 'services' || runningServicesRequiredCommandIds.has(command.id);
   if (!requiresRunningServices) return undefined;
@@ -157,7 +187,7 @@ function snapshotDisabledReason(command: CockpitCommand, snapshotCount?: number)
   return snapshotCount === 0 && command.id === 'restore-snapshot' ? 'No snapshots found.' : undefined;
 }
 
-function disabledReason(
+export function cockpitCommandDisabledReason(
   command: CockpitCommand,
   serviceStatus?: ServiceRuntimeStatus,
   moduleCount?: number,
@@ -197,7 +227,7 @@ function categoryChoices(
           value: command,
           name: commandName(command),
           short: command.label,
-          disabled: commandDisabledValue(disabledReason(command, serviceStatus, moduleCount, sourceRepoCount, snapshotCount)),
+          disabled: commandDisabledValue(cockpitCommandDisabledReason(command, serviceStatus, moduleCount, sourceRepoCount, snapshotCount)),
         };
       }),
   ];

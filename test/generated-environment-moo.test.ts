@@ -114,8 +114,8 @@ describe('generated environment moo delegation matrix', () => {
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(
       [
         'up.sh|',
-        'logs.sh|odoo',
-        'logs.sh|db',
+        'logs.sh|odoo 200',
+        'logs.sh|db 200',
         'logs.sh|odoo 200',
         'test.sh|sale --db devel --mode update --tags /sale',
         'restore-snapshot.sh|snap1 devel',

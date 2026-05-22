@@ -16,6 +16,7 @@ import type { ScaffoldOptions, SourceRepo, SourceRepoType } from './types.js';
 export type SafeResetOptions = {
   target: string;
   stage: boolean;
+  includeGeneratedPaths?: readonly string[];
 };
 
 const safeResetProtectedPaths = [
@@ -249,7 +250,7 @@ function buildSafeResetSourceRepoLines(sourceRepos: SourceRepo[]): string[] {
   return lines.map((repo) => `- ${repo}`);
 }
 
-function detectDirtyGeneratedFiles(target: string, candidatePaths: string[]): string[] {
+function detectDirtyGeneratedFiles(target: string, candidatePaths: readonly string[]): string[] {
   try {
     const status = execFileSync('git', ['status', '--porcelain'], {
       cwd: target,
@@ -286,7 +287,7 @@ function detectDirtyGeneratedFiles(target: string, candidatePaths: string[]): st
   }
 }
 
-function describeDirtyWarning(target: string, candidatePaths: string[]): string[] {
+function describeDirtyWarning(target: string, candidatePaths: readonly string[]): string[] {
   const dirtyFiles = detectDirtyGeneratedFiles(target, candidatePaths);
   if (dirtyFiles.length === 0) {
     return [];
@@ -295,6 +296,27 @@ function describeDirtyWarning(target: string, candidatePaths: string[]): string[
   return [
     'Warning: the following generated files are dirty and may be overwritten by safe reset:',
     ...dirtyFiles.map((path) => `- ${path}`),
+  ];
+}
+
+type SafeResetPreviewRow = {
+  path: string;
+  change?: string;
+  keep?: string;
+};
+
+function pad(value: string, width: number): string {
+  return value.length >= width ? value : value.padEnd(width);
+}
+
+function renderPreviewTable(rows: readonly SafeResetPreviewRow[]): string[] {
+  const pathWidth = Math.min(42, Math.max('File / Path'.length, ...rows.map((row) => row.path.length)));
+  const header = `${pad('File / Path', pathWidth)}  Change  Keep`;
+  const rule = `${'-'.repeat(pathWidth)}  ------  ----`;
+  return [
+    header,
+    rule,
+    ...rows.map((row) => `${pad(row.path, pathWidth)}  ${pad(row.change ?? '', 6)}  ${row.keep ?? ''}`.trimEnd()),
   ];
 }
 
@@ -310,41 +332,75 @@ export function renderSafeResetPreview(target: string, stage: boolean): string {
   const options = inferOptionsForPreviewSync(target);
   const externalAssets = safeResetExternalAssetOptions(options);
   const changedPaths = safeResetTargetFileDiffs(options, target);
-  const externalAssetLines: string[] = [];
+  const selectedGeneratedPaths = new Set(changedPaths);
+  return renderSafeResetPreviewFromPaths(target, stage, changedPaths, selectedGeneratedPaths, options, externalAssets);
+}
+
+export function safeResetSelectableGeneratedPaths(target: string): string[] {
+  const options = inferOptionsForPreviewSync(target);
+  return safeResetTargetFileDiffs(options, target);
+}
+
+export function renderSafeResetSelectedPreview(
+  target: string,
+  stage: boolean,
+  selectedGeneratedPaths: readonly string[],
+): string {
+  const options = inferOptionsForPreviewSync(target);
+  const externalAssets = safeResetExternalAssetOptions(options);
+  const changedPaths = safeResetTargetFileDiffs(options, target);
+  return renderSafeResetPreviewFromPaths(target, stage, changedPaths, new Set(selectedGeneratedPaths), options, externalAssets);
+}
+
+function renderSafeResetPreviewFromPaths(
+  target: string,
+  stage: boolean,
+  changedPaths: readonly string[],
+  selectedGeneratedPaths: ReadonlySet<string>,
+  options: ScaffoldOptions,
+  externalAssets: readonly ExternalAssetOptions[],
+): string {
+  const externalAssetRows: SafeResetPreviewRow[] = [];
   if (externalAssets.some((asset) => asset.label === 'compose')) {
-    externalAssetLines.push('- External compose template assets');
+    externalAssetRows.push({ path: '- External compose template assets', change: '✓' });
   }
   if (externalAssets.some((asset) => asset.label === 'agent-skills')) {
-    externalAssetLines.push('- External agent skill assets when configured');
+    externalAssetRows.push({ path: '- External agent skill assets when configured', change: '✓' });
   }
 
-  const generatedSection = changedPaths.length
-    ? ['Generated files that would change:', ...changedPaths.map((file) => `- ${file}`)]
-    : ['Generated files that would change:', '- No generated files differ from the rendered safe-reset output.'];
+  const changeRows: SafeResetPreviewRow[] =
+    changedPaths.length > 0
+      ? changedPaths.map((file) => ({
+        path: `- ${file}`,
+        change: selectedGeneratedPaths.has(file) ? '✓' : '',
+        keep: selectedGeneratedPaths.has(file) ? '' : '✓',
+      }))
+      : [{ path: '- No generated files differ from rendered output.', keep: 'locked' }];
+  const sourceRepoRows = buildSafeResetSourceRepoLines(options.sourceRepos).map((line) => ({
+    path: line === '- (none detected)' ? 'source repos: none detected' : line.replace(/^- /u, ''),
+    keep: 'locked',
+  }));
+  const protectedRows: SafeResetPreviewRow[] = [
+    ...sourceRepoRows,
+    { path: '.env', keep: 'locked' },
+    { path: 'data/', keep: 'locked' },
+    { path: 'backups/', keep: 'locked' },
+    { path: 'Git history/remotes/branches', keep: 'locked' },
+    { path: 'source repo folders', keep: 'locked' },
+    { path: 'custom source layouts', keep: 'locked' },
+  ];
 
   return [
-    'Safe reset preview (dry-run): generated WPMoo files and source repo protections are listed.',
+    'Safe reset preview',
     '',
     'Target:',
     target,
     '',
-    ...generatedSection,
-    ...externalAssetLines,
-    '',
-    'Source repositories that will remain untouched:',
-    ...buildSafeResetSourceRepoLines(options.sourceRepos),
-    '',
-    'Will not touch:',
-    '- source repo folders under odoo/custom/src/private',
-    '- module source code',
-    '- Git history, remotes, or branches',
-    '- .env, data, and backups',
-    '- custom source layout directories (oca, external, patches, manifests)',
-    '- Legacy compose template files may remain until manually removed: docs/assets/, test/, .github/',
+    ...renderPreviewTable([...changeRows, ...externalAssetRows, ...protectedRows]),
     '',
     ...describeDirtyWarning(target, changedPaths),
     '',
-    'Preview-only output; files are not changed until reset is executed.',
+    'Preview only; no files changed yet.',
     '',
     stage ? 'Generated changes will be staged with git add .' : 'Generated changes will not be staged.',
   ].join('\n');
@@ -485,9 +541,15 @@ export async function safeResetEnvironment(
   const scaffoldOptions = await inferOptions(options.target);
   const files = generatedFiles(scaffoldOptions);
   const externalAssets = safeResetExternalAssetOptions(scaffoldOptions);
+  const selectedGeneratedPaths = options.includeGeneratedPaths ? new Set(options.includeGeneratedPaths) : undefined;
+  const shouldWriteGeneratedPath = (path: string): boolean => !selectedGeneratedPaths || selectedGeneratedPaths.has(path);
 
   for (const file of files) {
     if (file.path === '.wpmoo/odoo.json') {
+      continue;
+    }
+
+    if (!shouldWriteGeneratedPath(file.path)) {
       continue;
     }
 
@@ -510,8 +572,12 @@ export async function safeResetEnvironment(
   for (const assetOptions of externalAssets) {
     await applyExternalAsset(assetOptions, git);
   }
-  await writeTextFile(join(options.target, '.wpmoo/odoo.json'), mergeEnvironmentMetadataSync(options.target, scaffoldOptions));
-  await writeTextFile(join(options.target, '.env.example'), renderComposeEnvExample(scaffoldOptions));
+  if (shouldWriteGeneratedPath('.wpmoo/odoo.json')) {
+    await writeTextFile(join(options.target, '.wpmoo/odoo.json'), mergeEnvironmentMetadataSync(options.target, scaffoldOptions));
+  }
+  if (shouldWriteGeneratedPath('.env.example')) {
+    await writeTextFile(join(options.target, '.env.example'), renderComposeEnvExample(scaffoldOptions));
+  }
 
   if (options.stage) {
     await stageAll(git, options.target);

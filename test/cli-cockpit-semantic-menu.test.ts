@@ -89,7 +89,7 @@ describe('cockpit top-level semantic menu', () => {
   it('emits stable category order and command ids without ANSI labels', async () => {
     const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: MenuPromptConfig) => {
       const snapshot = extractSemanticSnapshot(options);
-      expect(renderDisabledError(options.disabledError)).toBe('This option is disabled and cannot be selected.');
+      expect(renderDisabledError(options.disabledError)).toBe('Action unavailable');
       expect(options.escapeBehavior).toBe('ignore');
       expect(snapshot.commandIds).toEqual(expectedCommandIds);
       expect(snapshot.categories).toEqual(expectedCategoryOrder);

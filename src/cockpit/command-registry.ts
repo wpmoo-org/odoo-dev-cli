@@ -79,7 +79,7 @@ export const cockpitCommands = [
   dailyCommand('restart', 'services', 'Restart services', 'Restart Odoo services.', ['reload']),
   dailyCommand('logs', 'services', 'View logs', 'Tail service logs.', ['log', 'tail']),
   dailyCommand('shell', 'services', 'Open shell', 'Open a service shell.', ['bash', 'terminal']),
-  internalCommand('list-modules', 'modules', 'List modules', 'Browse detected Odoo modules by source category.', [
+  internalCommand('list-modules', 'modules', 'List modules', 'Browse Odoo modules.', [
     'modules list',
     'browse modules',
     '/module',
@@ -106,7 +106,7 @@ export const cockpitCommands = [
     ['restore', 'snapshot restore'],
   ),
   dailyCommand('resetdb', 'database', 'Reset database', 'Reset the environment database.', ['reset db', 'database reset']),
-  internalCommand('status', 'diagnostics', 'Environment status', 'Show a summary of the current environment state.', [
+  internalCommand('status', 'diagnostics', 'Environment status', 'Show environment state.', [
     'state',
     'summary',
   ]),
@@ -127,7 +127,7 @@ export const cockpitCommands = [
     'remove-module',
     'modules',
     'Remove module',
-    'Remove a module from a source repository.',
+    'Remove a module.',
     ['module remove', '/remove-module', '/rm-module'],
   ),
   internalCommand(

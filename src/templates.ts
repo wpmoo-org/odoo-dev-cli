@@ -969,7 +969,8 @@ case "$command" in
     if [[ "$#" -gt 2 || "\${1:-}" == -* || "\${2:-}" == -* ]]; then
       fail_usage "$command"
     fi
-    service="\${1:-odoo}"
+    service="\${1:-\${WPMOO_LOG_SERVICE:-$(env_file_value WPMOO_LOG_SERVICE)}}"
+    service="\${service:-odoo}"
     if [[ "$#" -eq 2 ]]; then
       if [[ ! "$2" =~ ^[1-9][0-9]*$ ]]; then
         echo "Invalid logs tail count: expected a positive integer." >&2
@@ -977,7 +978,13 @@ case "$command" in
       fi
       run_script ./scripts/logs.sh "$service" "$2"
     fi
-    run_script ./scripts/logs.sh "$service"
+    tail_lines="\${WPMOO_LOG_TAIL_LINES:-$(env_file_value WPMOO_LOG_TAIL_LINES)}"
+    tail_lines="\${tail_lines:-200}"
+    if [[ ! "$tail_lines" =~ ^[1-9][0-9]*$ ]]; then
+      echo "Invalid logs tail count: expected a positive integer." >&2
+      exit 2
+    fi
+    run_script ./scripts/logs.sh "$service" "$tail_lines"
     ;;
   "restart")
     shift

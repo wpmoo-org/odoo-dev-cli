@@ -1,4 +1,5 @@
 import type { DailyActionCommand } from '../daily-actions.js';
+import { readEnvFile } from '../compose-layout.js';
 import {
   listEnvironmentDatabases,
   findDatabaseSnapshots,
@@ -46,6 +47,8 @@ export type DailyActionPromptDeps = {
 const manualModuleValue = '__wpmoo_manual_module_entry__';
 const manualDatabaseValue = '__wpmoo_manual_database_entry__';
 const manualSnapshotValue = '__wpmoo_manual_snapshot_entry__';
+const defaultLogService = 'odoo';
+const defaultLogTailLines = '200';
 
 function defaultCancelHandler(value: unknown, action: DailyActionPromptCancelAction): void {
   handlePromptCancel(isPromptCancel(value), action);
@@ -156,21 +159,20 @@ async function optionalTextArg(
   );
 }
 
-async function optionalTextArgOrUndefined(
-  deps: Required<DailyActionPromptDeps>,
-  message: string,
-  placeholder: string,
-): Promise<string | undefined> {
-  const value = await deps.text({
-    message: menuPromptMessage(message, 'back'),
-    placeholder,
-  });
-  deps.handleCancel(value, 'back');
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? undefined : trimmed;
+function envValue(env: Map<string, string> | undefined, key: string): string | undefined {
+  return process.env[key]?.trim() || env?.get(key)?.trim() || undefined;
+}
+
+function validPositiveInteger(value: string | undefined): value is string {
+  return Boolean(value && /^[1-9][0-9]*$/u.test(value));
+}
+
+async function logsDefaults(cwd: string): Promise<string[]> {
+  const env = await readEnvFile(cwd);
+  const service = envValue(env, 'WPMOO_LOG_SERVICE') || defaultLogService;
+  const configuredTail = envValue(env, 'WPMOO_LOG_TAIL_LINES');
+  const tail = validPositiveInteger(configuredTail) ? configuredTail : defaultLogTailLines;
+  return [service, tail];
 }
 
 async function databaseArg(
@@ -259,9 +261,7 @@ export async function collectDailyActionArgs(
     return [];
   }
   if (command === 'logs') {
-    const service = await optionalTextArg(deps, 'Service', 'odoo');
-    const tail = await optionalTextArgOrUndefined(deps, 'Tail line count (optional)', '100');
-    return tail ? [service, tail] : [service];
+    return logsDefaults(cwd);
   }
   if (command === 'psql') {
     return [await databaseArg(cwd, deps, 'Database', 'postgres', { includeMaintenance: true })];
