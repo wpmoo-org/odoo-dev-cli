@@ -7,7 +7,16 @@ const mocks = vi.hoisted(() => ({
   addModuleRepo: vi.fn(async () => undefined),
   removeModuleRepo: vi.fn(async () => undefined),
   addModuleToSourceRepo: vi.fn(async () => undefined),
-  removeModuleFromSourceRepo: vi.fn(async () => undefined),
+  removeModuleFromSourceRepo: vi.fn(async (options: { moduleName: string; repoPath: string; dryRun?: boolean; deleteFiles: boolean; sourceType?: string; target: string }) => ({
+    moduleName: options.moduleName,
+    repoPath: options.repoPath,
+    sourceType: options.sourceType ?? 'private',
+    path: `${options.target}/odoo/custom/src/${options.sourceType ?? 'private'}/${options.repoPath}/${options.moduleName}`,
+    deleteFiles: options.deleteFiles,
+    dryRun: Boolean(options.dryRun),
+    ...(options.deleteFiles ? { wouldDeletePath: `${options.target}/odoo/custom/src/${options.sourceType ?? 'private'}/${options.repoPath}/${options.moduleName}` } : {}),
+    summary: `Previewed removal of module ${options.moduleName} from source repo ${options.repoPath}.`,
+  })),
   listModulesInEnvironment: vi.fn(async () => [] as unknown[]),
   safeResetEnvironment: vi.fn(async () => undefined),
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
@@ -25,6 +34,21 @@ const mocks = vi.hoisted(() => ({
     ok: true,
     target,
     sources,
+  })),
+  renderSourceSyncPlan: vi.fn(() => 'mock source sync preview'),
+  sourceSyncPlan: vi.fn(async (target: string) => ({
+    target,
+    sources: [] as unknown[],
+    changes: [] as unknown[],
+  })),
+  sourceSyncPlanJson: vi.fn((plan: { target: string; sources: unknown[]; changes: unknown[] }) => ({
+    schemaVersion: 1,
+    command: 'source sync preview',
+    ok: true,
+    target: plan.target,
+    dryRun: true,
+    sources: plan.sources,
+    changes: plan.changes,
   })),
   syncSources: vi.fn(async () => [] as unknown[]),
   runDoctor: vi.fn(async () => 'doctor report'),
@@ -97,7 +121,10 @@ vi.mock('../src/safe-reset.js', async (importOriginal) => {
 vi.mock('../src/source-actions.js', () => ({
   listSources: mocks.listSources,
   renderSourceList: mocks.renderSourceList,
+  renderSourceSyncPlan: mocks.renderSourceSyncPlan,
   sourceListJson: mocks.sourceListJson,
+  sourceSyncPlan: mocks.sourceSyncPlan,
+  sourceSyncPlanJson: mocks.sourceSyncPlanJson,
   sourceSyncJson: mocks.sourceSyncJson,
   syncSources: mocks.syncSources,
 }));
@@ -342,6 +369,50 @@ describe('cli direct command routes', () => {
     expect(promptMocks.outro).toHaveBeenCalledWith(`Synced source manifest in ${target}.`);
   });
 
+  it('routes source sync --dry-run to preview drift without mutating source state', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-source-sync-dry-run');
+
+    await runCli(['source', 'sync', '--target', target, '--stage=false', '--dry-run'], '/tmp/ignored-cwd');
+
+    expect(mocks.sourceSyncPlan).toHaveBeenCalledWith(target);
+    expect(mocks.syncSources).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith('mock source sync preview');
+    expect(promptMocks.outro).not.toHaveBeenCalled();
+  });
+
+  it('routes source sync --dry-run --json to a machine-readable preview', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-source-sync-dry-run-json');
+    const plan = {
+      target,
+      sources: [{ type: 'private', path: 'product', url: '', branch: '19.0', addons: [] }],
+      changes: [{ file: 'odoo/custom/manifests/sources.yaml', kind: 'add', source: 'private/product' }],
+    };
+    mocks.sourceSyncPlan.mockResolvedValueOnce(plan);
+
+    await runCli(['source', 'sync', '--target', target, '--dry-run', '--json'], '/tmp/ignored-cwd');
+
+    expect(mocks.sourceSyncPlan).toHaveBeenCalledWith(target);
+    expect(mocks.sourceSyncPlanJson).toHaveBeenCalledWith(plan);
+    expect(mocks.syncSources).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      JSON.stringify({
+        schemaVersion: 1,
+        command: 'source sync preview',
+        ok: true,
+        target,
+        dryRun: true,
+        sources: plan.sources,
+        changes: plan.changes,
+      }),
+    );
+  });
+
   it('routes source sync --json to machine-readable sync output without banner or outro', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const { runCli } = await loadCli();
@@ -552,6 +623,7 @@ describe('cli direct command routes', () => {
       repoPath: 'odoo_sample_module',
       moduleName: 'sale_demo',
       deleteFiles: true,
+      dryRun: false,
       stage: false,
     });
     expect(logSpy).toHaveBeenCalledWith('mock banner');
@@ -585,8 +657,42 @@ describe('cli direct command routes', () => {
       sourceType: 'external',
       moduleName: 'sale_demo',
       deleteFiles: false,
+      dryRun: false,
       stage: false,
     });
+  });
+
+  it('routes remove-module --dry-run to a removal preview without changing success wording', async () => {
+    const { runCli } = await loadCli();
+    const target = resolve('/tmp/worker-a-remove-module-dry-run');
+
+    await runCli(
+      [
+        'remove-module',
+        '--repo',
+        'odoo_sample_module',
+        '--module',
+        'sale_demo',
+        '--target',
+        target,
+        '--delete-files=true',
+        '--dry-run',
+        '--stage=false',
+      ],
+      '/tmp/ignored-cwd',
+    );
+
+    expect(mocks.removeModuleFromSourceRepo).toHaveBeenCalledWith({
+      target,
+      repoPath: 'odoo_sample_module',
+      moduleName: 'sale_demo',
+      deleteFiles: true,
+      dryRun: true,
+      stage: false,
+    });
+    expect(promptMocks.outro).toHaveBeenCalledWith(
+      'Previewed removal of module sale_demo from source repo odoo_sample_module.',
+    );
   });
 
   it('throws doctor usage error when doctor is called with unexpected argv', async () => {

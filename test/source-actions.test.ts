@@ -9,7 +9,10 @@ import { markerPath, renderEnvironmentMetadata } from '../src/environment.js';
 import {
   listSources,
   renderSourceList,
+  renderSourceSyncPlan,
   sourceListJson,
+  sourceSyncPlan,
+  sourceSyncPlanJson,
   sourceSyncJson,
   syncSources,
 } from '../src/source-actions.js';
@@ -68,6 +71,90 @@ describe('source actions', () => {
       '    url: "https://github.com/OCA/server-tools.git"',
     );
     await expect(readFile(join(target, markerPath), 'utf8')).resolves.toContain('"sourceType": "oca"');
+  });
+
+  it('previews source sync drift without writing manifest or metadata files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-source-actions-preview-'));
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await mkdir(join(target, 'odoo/custom/manifests'), { recursive: true });
+    await writeFile(join(target, markerPath), renderEnvironmentMetadata(options(target)), 'utf8');
+    await writeFile(
+      join(target, sourceManifestPath),
+      [
+        'sources:',
+        '  - type: "oca"',
+        '    path: "server-tools"',
+        '    url: "https://github.com/example/server-tools.git"',
+        '    branch: "18.0"',
+        '    addons:',
+        '      - "queue_job"',
+        '  - type: "external"',
+        '    path: "stale-tools"',
+        '    url: "https://github.com/example/stale-tools.git"',
+        '    branch: "18.0"',
+        '    addons: []',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    await writeFile(
+      join(target, '.gitmodules'),
+      [
+        '[submodule "odoo/custom/src/oca/server-tools"]',
+        '\tpath = odoo/custom/src/oca/server-tools',
+        '\turl = https://github.com/OCA/server-tools.git',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const plan = await sourceSyncPlan(target);
+
+    expect(plan.sources).toEqual([
+      {
+        type: 'oca',
+        path: 'server-tools',
+        url: 'https://github.com/OCA/server-tools.git',
+        branch: '19.0',
+        addons: ['queue_job'],
+      },
+    ]);
+    expect(plan.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          file: sourceManifestPath,
+          kind: 'update',
+          source: 'oca/server-tools',
+          field: 'url',
+          before: 'https://github.com/example/server-tools.git',
+          after: 'https://github.com/OCA/server-tools.git',
+        }),
+        expect.objectContaining({
+          file: sourceManifestPath,
+          kind: 'update',
+          source: 'oca/server-tools',
+          field: 'branch',
+          before: '18.0',
+          after: '19.0',
+        }),
+        expect.objectContaining({
+          file: sourceManifestPath,
+          kind: 'remove',
+          source: 'external/stale-tools',
+        }),
+      ]),
+    );
+    expect(renderSourceSyncPlan(plan)).toContain(
+      'source manifest update oca/server-tools url: "https://github.com/example/server-tools.git" -> "https://github.com/OCA/server-tools.git"',
+    );
+    expect(sourceSyncPlanJson(plan)).toMatchObject({
+      schemaVersion: 1,
+      command: 'source sync preview',
+      ok: true,
+      target,
+      dryRun: true,
+    });
+    await expect(readFile(join(target, sourceManifestPath), 'utf8')).resolves.toContain('stale-tools');
   });
 
   it('lists manifest sources before falling back to metadata', async () => {

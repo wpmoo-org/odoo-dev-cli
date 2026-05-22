@@ -25,6 +25,13 @@ describe('cli route boundary helpers', () => {
       target,
       stage: false,
       json: true,
+      dryRun: false,
+    });
+    expect(sourceSyncOptionsFromArgs(['--target', target, '--dry-run'])).toEqual({
+      target,
+      stage: true,
+      json: false,
+      dryRun: true,
     });
     expect(removeRepoOptionsFromArgs(['--repo', 'server-tools', '--source-type', 'oca', '--target', target])).toEqual({
       target,

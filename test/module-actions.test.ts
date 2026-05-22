@@ -444,7 +444,7 @@ class TestOdooSampleModuleBase(TransactionCase):
     ).resolves.toBeTruthy();
   });
 
-  it('deletes newly scaffolded module files even when they are staged but not committed yet', async () => {
+  it('refuses to delete module files when git reports staged or untracked module changes', async () => {
     const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-new-staged-'));
     const calls: Array<{ cwd: string; args: string[] }> = [];
     const git: GitRunner = {
@@ -481,24 +481,94 @@ class TestOdooSampleModuleBase(TransactionCase):
       'utf8',
     );
 
-    await removeModuleFromSourceRepo(
+    await expect(
+      removeModuleFromSourceRepo(
+        {
+          target,
+          repoPath: 'odoo_sample_module',
+          moduleName: 'odoo_sample_module_base',
+          deleteFiles: true,
+          stage: true,
+        },
+        git,
+      ),
+    ).rejects.toThrow(
+      'Refusing to delete module odoo_sample_module_base because it has uncommitted git changes in source repo odoo_sample_module.',
+    );
+
+    await expect(
+      stat(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base')),
+    ).resolves.toBeTruthy();
+    expect(calls).toContainEqual({
+      cwd: join(target, 'odoo/custom/src/private/odoo_sample_module'),
+      args: ['status', '--short', '--', 'odoo_sample_module_base'],
+    });
+  });
+
+  it('previews module file removal without updating registrations or deleting files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-dry-run-'));
+    const git = recordingGit();
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
+    await mkdir(modulePath, { recursive: true });
+    await writeFile(join(modulePath, '__manifest__.py'), '{}\n', 'utf8');
+    await mkdir(join(target, 'odoo/custom/src'), { recursive: true });
+    await writeFile(
+      join(target, 'odoo/custom/src/addons.yaml'),
+      'private/odoo_sample_module:\n  - odoo_sample_module_base\n',
+      'utf8',
+    );
+
+    const report = await removeModuleFromSourceRepo(
       {
         target,
         repoPath: 'odoo_sample_module',
         moduleName: 'odoo_sample_module_base',
         deleteFiles: true,
+        dryRun: true,
         stage: true,
       },
       git,
     );
 
-    await expect(
-      stat(join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base')),
-    ).rejects.toThrow();
-    expect(calls).toContainEqual({
-      cwd: join(target, 'odoo/custom/src/private/odoo_sample_module'),
-      args: ['ls-tree', '-r', '--name-only', 'HEAD', '--', 'odoo_sample_module_base'],
+    expect(report).toMatchObject({
+      dryRun: true,
+      deleteFiles: true,
+      wouldDeletePath: modulePath,
+      summary: 'Previewed removal of module odoo_sample_module_base from source repo odoo_sample_module.',
     });
+    await expect(stat(modulePath)).resolves.toBeTruthy();
+    await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
+      '  - odoo_sample_module_base',
+    );
+    expect(git.calls).toEqual([]);
+  });
+
+  it('refuses destructive module deletion when git status cannot be verified', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-remove-git-unknown-'));
+    const git: GitRunner = {
+      async run() {
+        throw new Error('not a git repository');
+      },
+    };
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/odoo_sample_module_base');
+    await mkdir(modulePath, { recursive: true });
+    await writeFile(join(modulePath, '__manifest__.py'), '{}\n', 'utf8');
+
+    await expect(
+      removeModuleFromSourceRepo(
+        {
+          target,
+          repoPath: 'odoo_sample_module',
+          moduleName: 'odoo_sample_module_base',
+          deleteFiles: true,
+          stage: false,
+        },
+        git,
+      ),
+    ).rejects.toThrow(
+      'Refusing to delete module odoo_sample_module_base because git status could not be verified in source repo odoo_sample_module.',
+    );
+    await expect(stat(modulePath)).resolves.toBeTruthy();
   });
 
   it('stages only target repo when deleteFiles=false and stage=true', async () => {
