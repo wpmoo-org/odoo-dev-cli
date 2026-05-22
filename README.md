@@ -108,7 +108,7 @@ The cockpit is the daily workspace. It starts with environment status and then s
 ```text
 WPMoo Cockpit
 |-- Command palette /
-|   |-- search commands such as /test, /logs, /doctor, /safe-reset
+|   |-- search commands such as /test, /modules, /install-module, /doctor, /safe-reset
 |-- Services
 |   |-- start
 |   |-- stop
@@ -140,6 +140,9 @@ WPMoo Cockpit
 ```
 
 Every cockpit action maps to a direct command, so the same workflow can be used interactively or scripted:
+
+When an environment has many module candidates, module selection switches to
+search so names, repositories, and source categories can be filtered quickly.
 
 ```bash
 ./moo start

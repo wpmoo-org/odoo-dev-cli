@@ -93,7 +93,8 @@ describe('help', () => {
 
     expect(output).toContain('Cockpit:');
     expect(output).toContain('Run npx @wpmoo/toolkit inside a generated environment to open the cockpit.');
-    expect(output).toContain('Use Command palette / to search slash commands');
+    expect(output).toContain('Use Command palette / to search slash commands such as /test, /modules');
+    expect(output).toContain('Large module lists switch to searchable selection by module, repo, or source type.');
     expect(output).toContain('Direct commands such as npx @wpmoo/toolkit status');
   });
 

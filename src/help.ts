@@ -95,8 +95,9 @@ Lifecycle command guards:
 
 Cockpit:
   Run npx @wpmoo/toolkit inside a generated environment to open the cockpit.
-  Use Command palette / to search slash commands across services, modules, database,
-  diagnostics, repositories, and maintenance categories.
+  Use Command palette / to search slash commands such as /test, /modules,
+  /install-module, /doctor, and /safe-reset.
+  Large module lists switch to searchable selection by module, repo, or source type.
   Direct commands such as npx @wpmoo/toolkit status and npx @wpmoo/toolkit test remain available.
 
 Wizard local-only path:
