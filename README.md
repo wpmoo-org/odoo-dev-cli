@@ -251,7 +251,9 @@ warning while keeping the scoped package release valid.
   rejects it, the release still succeeds as long as the three required scoped
   packages are valid.
 - **Smoke expectation**: run `npm run smoke:published -- "$VERSION"` after the
-  release tag workflow completes.
+  release tag workflow completes. The script prints `Smoke step:` progress lines
+  before each published CLI check so slow registry-backed `npx` resolution is
+  visible.
 - **Deterministic smoke target**: pin the target package explicitly so smoke checks
   are reproducible across reruns:
 

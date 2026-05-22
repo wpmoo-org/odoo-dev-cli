@@ -200,6 +200,10 @@ run_wpmoo_in() {
   )
 }
 
+smoke_step() {
+  echo "Smoke step: wpmoo $* using $PACKAGE_SPEC" >&2
+}
+
 git_in() {
   local cwd="$1"
   shift
@@ -343,6 +347,7 @@ run_environment_smoke() {
 
 echo "Checking $PACKAGE_SPEC with npm cache $NPM_CONFIG_CACHE"
 
+smoke_step --version
 version_output="$(run_wpmoo_in "$CLI_RUN_ROOT" --version)"
 if [[ -n "$EXPECTED_PACKAGE_VERSION" && "$version_output" != *"$EXPECTED_PACKAGE_VERSION"* ]]; then
   echo "Expected wpmoo --version output to include $EXPECTED_PACKAGE_VERSION, got:" >&2
@@ -350,6 +355,7 @@ if [[ -n "$EXPECTED_PACKAGE_VERSION" && "$version_output" != *"$EXPECTED_PACKAGE
   exit 1
 fi
 
+smoke_step --help
 help_output="$(run_wpmoo_in "$CLI_RUN_ROOT" --help)"
 if [[ "$help_output" != *"Usage:"* && "$help_output" != *"wpmoo"* ]]; then
   echo "Expected wpmoo --help output to include usage text, got:" >&2
@@ -357,6 +363,7 @@ if [[ "$help_output" != *"Usage:"* && "$help_output" != *"wpmoo"* ]]; then
   exit 1
 fi
 
+smoke_step create --help
 create_help_output="$(run_wpmoo_in "$CLI_RUN_ROOT" create --help)"
 if [[ "$create_help_output" != *"Usage:"* && "$create_help_output" != *"wpmoo create"* ]]; then
   echo "Expected wpmoo create --help output to include usage text, got:" >&2
@@ -364,6 +371,7 @@ if [[ "$create_help_output" != *"Usage:"* && "$create_help_output" != *"wpmoo cr
   exit 1
 fi
 
+smoke_step doctor --help
 doctor_help_output="$(run_wpmoo_in "$CLI_RUN_ROOT" doctor --help)"
 if [[ "$doctor_help_output" != *"Usage:"* && "$doctor_help_output" != *"wpmoo doctor"* ]]; then
   echo "Expected wpmoo doctor --help output to include usage text, got:" >&2
@@ -371,6 +379,7 @@ if [[ "$doctor_help_output" != *"Usage:"* && "$doctor_help_output" != *"wpmoo do
   exit 1
 fi
 
+smoke_step status --help
 status_help_output="$(run_wpmoo_in "$CLI_RUN_ROOT" status --help)"
 if [[ "$status_help_output" != *"Usage:"* && "$status_help_output" != *"wpmoo status"* ]]; then
   echo "Expected wpmoo status --help output to include usage text, got:" >&2

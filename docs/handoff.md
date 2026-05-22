@@ -70,6 +70,9 @@ pre-existing global `NPM_CONFIG_CACHE` state unless you intentionally reuse it.
 
 The smoke script checks `--version`, top-level `--help`, and critical command
 help output before optional generated-environment acceptance smoke.
+Long registry-backed smoke runs print `Smoke step:` progress lines before each
+published CLI check, so a slow `npx` or `npm exec` resolution is visible in the
+terminal instead of appearing stuck.
 
 For a 1.0.0 tag, run generated-environment acceptance smoke with
 WPMOO_SMOKE_ENVIRONMENT=1. Treat the release as final only after that smoke

@@ -288,7 +288,7 @@ describe('published package smoke script', () => {
       '@wpmoo/toolkit@9.8.7',
     );
 
-    runSmoke(root, stubPath, [], { TMPDIR: tmpRoot });
+    const output = runSmoke(root, stubPath, [], { TMPDIR: tmpRoot });
 
     expect(readFileSync(argsLogPath, 'utf8').trim().split('\n')).toEqual([
       '--yes --package @wpmoo/toolkit@9.8.7 wpmoo --version',
@@ -301,6 +301,8 @@ describe('published package smoke script', () => {
     expect(cachePaths).toHaveLength(5);
     expect(cachePaths[0]).toBe(cachePaths[1]);
     expect(cachePaths[0].startsWith(`${tmpRoot}/wpmoo-published-smoke-npm-cache.`)).toBe(true);
+    expect(output).toContain('Smoke step: wpmoo --version using @wpmoo/toolkit@9.8.7');
+    expect(output).toContain('Smoke step: wpmoo doctor --help using @wpmoo/toolkit@9.8.7');
   });
 
   it('uses an environment package spec override', async () => {
