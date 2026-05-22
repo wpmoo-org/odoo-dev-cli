@@ -12,7 +12,7 @@ npm run typecheck
 npm test
 npm run build
 VERSION="$(node -p "require('./package.json').version")"
-git tag -a "v$VERSION" -m "Release v$VERSION"
+git tag "v$VERSION"
 git push origin "v$VERSION"
 ```
 

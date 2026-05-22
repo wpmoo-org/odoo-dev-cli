@@ -99,38 +99,29 @@ Last updated: 2026-05-22.
 
 Completed checks:
 
-- Full local gate through Train 19 passed on 2026-05-22:
-  `npm run typecheck`, `npm test`, `npm run build`, and `git diff --check`.
-- Coverage passed on 2026-05-22: 75 test files, 722 tests, 92.00%
-  statements, 87.59% branches, 96.30% functions, and 92.00% lines.
-- Local release packaging passed for the 1.0 release-candidate surface with
-  `npm --cache /private/tmp/wpmoo-npm-cache pack --dry-run`; the package
-  contained 70 files and the expected `dist`, `docs/assets`, `docs/*.md`,
-  `README.md`, `LICENSE`, and `package.json` entries.
-- Local dist CLI smoke passed for `node dist/cli.js --version`, `--help`,
-  `create --help`, `doctor --help`, and `status --help`.
+- Full local gate passed on 2026-05-22 after the cockpit/runtime fix train:
+  `npm run typecheck`, `npm test` (75 files / 748 tests), `npm run build`,
+  and `git diff --check`.
+- `npm run release:check` passed for the latest pre-1.0 release line and
+  verified local package metadata plus `npm pack --dry-run` for
+  `@wpmoo/toolkit`, `wpmoo`, `@wpmoo/odoo`, and `@wpmoo/odoo-dev`.
+- Registry-backed published package smoke passed for the supported package:
+  `npm run smoke:published -- "$VERSION"` with
+  `WPMOO_PUBLISHED_PACKAGE_SPEC="@wpmoo/toolkit@$VERSION"`.
 - The generated-environment acceptance flow remains covered by
   `test/smoke-published-script.test.ts`, including create, source list/sync,
   safe reset preview, `doctor --fix`, snapshot, and restore dry-run steps.
 - Placeholder review found no `TODO`, `FIXME`, `TBD`, or `coming soon`
   markers in `README.md`, `docs`, or `src`.
 - Local markdown link review passed across `README.md` and `docs/*.md`.
-- Published CLI smoke previously passed against `@wpmoo/toolkit@0.9.27` with
-  `npm exec` for `wpmoo --version`, `wpmoo --help`, and
-  `wpmoo doctor --help`.
 
 Release-candidate notes:
 
-- Local `npm exec --package file:...` smoke against the generated tarball did
-  not complete in this restricted environment because package installation and
-  dependency resolution timed out before the CLI could run. This is not treated
-  as a product regression, but it prevents treating the current line as final
-  `1.0.0` evidence before a registry-backed smoke completes.
-- The next patch release should be published as `0.9.30`. Do not tag `1.0.0`
-  until `WPMOO_SMOKE_ENVIRONMENT=1 npm run smoke:published -- "$VERSION"`
-  passes against a registry-resolved package.
-- After a registry-backed generated-environment smoke passes, the remaining
-  1.0 decision is procedural: bump to `1.0.0`, rerun the full gate, rerun
+- Do not tag `1.0.0` until registry-backed generated-environment acceptance
+  smoke passes with:
+  `WPMOO_SMOKE_ENVIRONMENT=1 WPMOO_PUBLISHED_PACKAGE_SPEC="@wpmoo/toolkit@$VERSION" npm run smoke:published -- "$VERSION"`.
+- After that generated-environment smoke passes, the remaining 1.0 decision is
+  procedural: bump to `1.0.0`, rerun the full gate, rerun
   `npm run release:check`, tag, and verify the required scoped artifacts.
 
 Final policy decisions:
