@@ -8,7 +8,7 @@ import type { DoctorReport } from '../src/doctor.js';
 import type { EnvironmentStatus } from '../src/status.js';
 
 describe('cockpit result views', () => {
-  it('renders environment status as plain result text for cockpit result pages', () => {
+  it('renders environment status as aligned result text with status markers', () => {
     const status: EnvironmentStatus = {
       kind: 'environment',
       target: '/tmp/environment',
@@ -34,13 +34,70 @@ describe('cockpit result views', () => {
 
     const output = renderCockpitEnvironmentStatusResult(status);
 
-    expect(output).toContain('Environment status');
-    expect(output).toContain('------------------');
-    expect(output).toContain('Summary: Environment ready.');
-    expect(output).toContain('Odoo: 19.0');
-    expect(output).toContain('Module quality: 2 installable, 0 non-installable, 0 missing menus');
+    expect(output).not.toContain('Environment status');
+    expect(output).not.toContain('------------------');
+    expect(output).toContain('Summary:         ✓ Environment ready.');
+    expect(output).toContain('Odoo:            19.0');
+    expect(output).toContain('Module quality:  2 installable, 0 non-installable, 0 missing menus');
     expect(output).not.toContain('|');
     expect(output).not.toContain('+---');
+  });
+
+  it('colors environment status issues in interactive terminals', () => {
+    const originalIsTTY = process.stdout.isTTY;
+    const originalNoColor = process.env.NO_COLOR;
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true });
+    delete process.env.NO_COLOR;
+    const status: EnvironmentStatus = {
+      kind: 'environment',
+      target: '/tmp/environment',
+      metadataPath: '/tmp/environment/.wpmoo/odoo.json',
+      recommendedNextAction: 'Fix compose layout errors, then run npx @wpmoo/toolkit doctor.',
+      odooVersion: '19.0',
+      sourceRepoCount: 1,
+      sourceRepoPaths: ['odoo/custom/src/private/moo_test'],
+      invalidSourceRepoPaths: ['../bad'],
+      moduleCandidateCount: 2,
+      moduleQuality: {
+        totalModules: 2,
+        installableModules: 1,
+        nonInstallableModules: 1,
+        modulesWithMenuActions: 1,
+        modulesMissingMenuActions: 1,
+        issues: [
+          {
+            moduleName: 'broken_module',
+            path: 'broken_module/__manifest__.py',
+            issue: 'invalid manifest syntax',
+            severity: 'error',
+          },
+        ],
+      },
+      composeFiles: [],
+      composeErrors: ['Invalid WPMOO_ENV in .env'],
+      missingCoreFiles: ['moo'],
+    };
+
+    try {
+      const output = renderCockpitEnvironmentStatusResult(status);
+
+      expect(output).toContain('Summary:         \u001B[38;2;245;166;35mEnvironment needs attention.\u001B[39m');
+      expect(output).toContain('Compose:         \u001B[2m(missing)\u001B[22m');
+      expect(output).toContain('Compose errors:  \u001B[31mInvalid WPMOO_ENV in .env\u001B[39m');
+      expect(output).toContain('Invalid paths:   \u001B[38;2;245;166;35m../bad\u001B[39m');
+      expect(output).toContain(
+        'Module quality:  1 installable, \u001B[38;2;245;166;35m1 non-installable\u001B[39m, \u001B[38;2;245;166;35m1 missing menu\u001B[39m',
+      );
+      expect(output).toContain('Module issues:   \u001B[31mbroken_module/__manifest__.py: invalid manifest syntax\u001B[39m');
+      expect(output).toContain('Core files:      \u001B[31mmissing moo\u001B[39m');
+    } finally {
+      Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTTY });
+      if (originalNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = originalNoColor;
+      }
+    }
   });
 
   it('renders doctor reports as plain result text with aligned details and status markers', () => {

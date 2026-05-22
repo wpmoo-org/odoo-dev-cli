@@ -827,7 +827,7 @@ describe('cli menu environment routes', () => {
     await runCli([], '/tmp/environment');
 
     expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
-      expect.stringContaining('Environment status'),
+      expect.not.stringContaining('Environment status'),
       'Environment status',
     );
     expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
@@ -1014,7 +1014,7 @@ describe('cli menu environment routes', () => {
 
     expect(mocks.getEnvironmentStatus).toHaveBeenCalledWith('/tmp/environment');
     expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
-      expect.stringContaining('Environment status'),
+      expect.not.stringContaining('Environment status'),
       'Environment status',
     );
   });

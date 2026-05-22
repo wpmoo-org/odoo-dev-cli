@@ -3,10 +3,6 @@ import type { EnvironmentStatus } from '../status.js';
 
 type ResultRow = readonly [string, string];
 
-function resultHeader(title: string): string[] {
-  return [title, '-'.repeat(title.length)];
-}
-
 function supportsAnsi(): boolean {
   return Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
 }
@@ -41,6 +37,14 @@ function plural(value: number, singular: string, pluralValue = `${singular}s`): 
 
 function okToken(): string {
   return green('✓ OK');
+}
+
+function readyText(value: string): string {
+  return green(`✓ ${value}`);
+}
+
+function attentionText(value: string): string {
+  return orange(value);
 }
 
 function warningText(count: number, options: { compact?: boolean } = {}): string {
@@ -113,53 +117,93 @@ function renderSectionSummary(section: DoctorSection, titleWidth: number): strin
   return `- ${section.title}:${' '.repeat(titleWidth - section.title.length + 2)}${section.checks.length} ${okToken()}, ${warnings}, ${errors}`;
 }
 
+function issueListText(values: readonly string[], severity: 'warning' | 'error', empty = '(none)'): string {
+  if (values.length === 0) return dim(empty);
+  const value = values.join(', ');
+  return severity === 'error' ? red(value) : orange(value);
+}
+
+function moduleQualityText(status: Extract<EnvironmentStatus, { kind: 'environment' }>): string {
+  const nonInstallable = status.moduleQuality.nonInstallableModules;
+  const missingMenus = status.moduleQuality.modulesMissingMenuActions;
+  const nonInstallableText =
+    nonInstallable > 0
+      ? orange(`${nonInstallable} non-installable`)
+      : dim(`${nonInstallable} non-installable`);
+  const missingMenusText =
+    missingMenus > 0
+      ? orange(`${missingMenus} ${plural(missingMenus, 'missing menu', 'missing menus')}`)
+      : dim(`${missingMenus} missing menus`);
+
+  return `${status.moduleQuality.installableModules} installable, ${nonInstallableText}, ${missingMenusText}`;
+}
+
+function moduleIssuesText(status: Extract<EnvironmentStatus, { kind: 'environment' }>): string {
+  return status.moduleQuality.issues
+    .map((issue) => {
+      const text = `${issue.path}: ${issue.issue}`;
+      return issue.severity === 'error' ? red(text) : orange(text);
+    })
+    .join('; ');
+}
+
+function environmentNeedsAttention(status: Extract<EnvironmentStatus, { kind: 'environment' }>): boolean {
+  return (
+    status.missingCoreFiles.length > 0 ||
+    status.composeErrors.length > 0 ||
+    status.invalidSourceRepoPaths.length > 0 ||
+    status.moduleQuality.issues.length > 0
+  );
+}
+
 function statusRows(status: EnvironmentStatus): ResultRow[] {
   if (status.kind === 'no_environment') {
     return [
-      ['Summary', 'No WPMoo environment detected.'],
-      ['Metadata', `missing ${status.metadataPath}`],
+      ['Summary', attentionText('No WPMoo environment detected.')],
+      ['Metadata', attentionText(`missing ${status.metadataPath}`)],
       ['Next', status.recommendedNextAction],
     ];
   }
 
   if (status.kind === 'invalid_metadata') {
     return [
-      ['Summary', 'Environment needs attention.'],
-      ['Metadata', `invalid ${status.metadataPath}`],
-      ['Error', status.metadataError],
+      ['Summary', red('Environment metadata is invalid.')],
+      ['Metadata', red(`invalid ${status.metadataPath}`)],
+      ['Error', red(status.metadataError)],
       ['Next', status.recommendedNextAction],
     ];
   }
 
-  const needsAttention =
-    status.missingCoreFiles.length > 0 ||
-    status.composeErrors.length > 0 ||
-    status.invalidSourceRepoPaths.length > 0 ||
-    status.moduleQuality.issues.length > 0;
+  const needsAttention = environmentNeedsAttention(status);
 
   return [
-    ['Summary', needsAttention ? 'Environment needs attention.' : 'Environment ready.'],
+    ['Summary', needsAttention ? attentionText('Environment needs attention.') : readyText('Environment ready.')],
     ['Metadata', status.metadataPath],
     ['Odoo', status.odooVersion],
-    ['Compose', joinList(status.composeFiles, '(missing)')],
+    ['Compose', status.composeFiles.length > 0 ? joinList(status.composeFiles) : dim('(missing)')],
+    ...(status.composeErrors.length > 0
+      ? ([['Compose errors', issueListText(status.composeErrors, 'error')]] satisfies ResultRow[])
+      : []),
     ['Source repos', String(status.sourceRepoCount)],
     ['Source paths', joinList(status.sourceRepoPaths, '(none configured)')],
-    ['Invalid paths', joinList(status.invalidSourceRepoPaths)],
+    ['Invalid paths', issueListText(status.invalidSourceRepoPaths, 'warning')],
     ['Modules', String(status.moduleCandidateCount)],
+    ['Module quality', moduleQualityText(status)],
+    ...(status.moduleQuality.issues.length > 0
+      ? ([['Module issues', moduleIssuesText(status)]] satisfies ResultRow[])
+      : []),
     [
-      'Module quality',
-      `${status.moduleQuality.installableModules} installable, ${status.moduleQuality.nonInstallableModules} non-installable, ${status.moduleQuality.modulesMissingMenuActions} missing menus`,
+      'Core files',
+      status.missingCoreFiles.length > 0
+        ? red(`missing ${status.missingCoreFiles.join(', ')}`)
+        : dim('(none missing)'),
     ],
-    ['Core files', status.missingCoreFiles.length > 0 ? `missing ${status.missingCoreFiles.join(', ')}` : '(none missing)'],
     ['Next', status.recommendedNextAction],
   ];
 }
 
 export function renderCockpitEnvironmentStatusResult(status: EnvironmentStatus): string {
-  return [
-    ...resultHeader('Environment status'),
-    ...renderRows(statusRows(status)),
-  ].join('\n');
+  return renderRows(statusRows(status), { alignValues: true }).join('\n');
 }
 
 export function renderCockpitDoctorResult(report: DoctorReport): string {
