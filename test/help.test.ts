@@ -69,6 +69,14 @@ describe('help', () => {
     expect(readmeText).toContain('For `1.0.0`, generated-environment acceptance smoke is required before the release is considered final.');
   });
 
+  it('keeps 1.0 readiness evidence version-agnostic and release commands aligned', () => {
+    expect(readiness).not.toMatch(/The next patch release should be published as `0\.9\.\d+`/u);
+    expect(readiness).not.toContain('Published CLI smoke previously passed against');
+    expect(readinessText).toContain('Do not tag `1.0.0` until registry-backed generated-environment acceptance smoke passes');
+    expect(handoff).toContain('git tag "v$VERSION"');
+    expect(handoff).not.toContain('git tag -a');
+  });
+
   it('includes status in usage', () => {
     const output = renderHelp();
 
