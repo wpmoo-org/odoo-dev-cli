@@ -70,26 +70,22 @@ describe('cockpit daily action prompts', () => {
     await expect(collectDailyActionArgs('stop', target, promptDeps({}))).resolves.toEqual([]);
   });
 
-  it('uses odoo as the default logs service', async () => {
+  it('uses configured logs defaults without prompting in cockpit', async () => {
     const target = await makeEnvironment();
+    await writeFile(join(target, '.env'), 'WPMOO_LOG_SERVICE=odoo\nWPMOO_LOG_TAIL_LINES=200\n', 'utf8');
+    const text = vi.fn(async (options: { defaultValue?: string }) => options.defaultValue ?? '');
 
-    await expect(collectDailyActionArgs('logs', target, promptDeps({ text: [''] }))).resolves.toEqual(['odoo']);
+    await expect(collectDailyActionArgs('logs', target, { ...promptDeps({}), text })).resolves.toEqual(['odoo', '200']);
+    expect(text).not.toHaveBeenCalled();
   });
 
-  it('collects optional logs tail count after the service prompt', async () => {
+  it('falls back to odoo and 200 log lines when .env does not configure logs', async () => {
     const target = await makeEnvironment();
 
-    await expect(
-      collectDailyActionArgs('logs', target, promptDeps({ text: ['web', '120'] })),
-    ).resolves.toEqual(['web', '120']);
-  });
-
-  it('omits logs tail count when left blank', async () => {
-    const target = await makeEnvironment();
-
-    await expect(
-      collectDailyActionArgs('logs', target, promptDeps({ text: ['web', ''] })),
-    ).resolves.toEqual(['web']);
+    await expect(collectDailyActionArgs('logs', target, promptDeps({ text: ['web', '120'] }))).resolves.toEqual([
+      'odoo',
+      '200',
+    ]);
   });
 
   it('uses postgres as the default psql database', async () => {

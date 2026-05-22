@@ -42,6 +42,8 @@ const mocks = vi.hoisted(() => ({
   runDailyActionWithStyledOutput: vi.fn(async () => undefined),
   renderBanner: vi.fn(() => 'mock banner'),
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
+  renderSafeResetSelectedPreview: vi.fn(() => 'safe reset selected preview'),
+  safeResetSelectableGeneratedPaths: vi.fn(() => [] as string[]),
   renderEnvironmentStatusForTarget: vi.fn(async () => 'environment status report'),
   repositoryPreflightAvailable: vi.fn(async () => true),
   getGitHubPrerequisiteStatus: vi.fn(async () => ({ status: 'ready' as const })),
@@ -149,6 +151,8 @@ vi.mock('../src/safe-reset.js', async (importOriginal) => {
   return {
     ...actual,
     renderSafeResetPreview: mocks.renderSafeResetPreview,
+    renderSafeResetSelectedPreview: mocks.renderSafeResetSelectedPreview,
+    safeResetSelectableGeneratedPaths: mocks.safeResetSelectableGeneratedPaths,
     safeResetEnvironment: mocks.safeResetEnvironment,
   };
 });
@@ -250,13 +254,14 @@ type TopLevelCockpitDailyCase = {
   expectedArgv: string[];
   prompts?: ReadonlyArray<CockpitRoutePromptStep>;
   confirm?: boolean;
+  styled?: boolean;
 };
 
 const topLevelCockpitDailyCases: readonly TopLevelCockpitDailyCase[] = [
   { commandId: 'start', expectedCommand: 'start', expectedArgv: [], prompts: [] },
   { commandId: 'stop', expectedCommand: 'stop', expectedArgv: [], prompts: [], confirm: true },
   { commandId: 'restart', expectedCommand: 'restart', expectedArgv: [], prompts: [] },
-  { commandId: 'logs', expectedCommand: 'logs', expectedArgv: ['odoo'], prompts: [{ kind: 'text', value: '' }] },
+  { commandId: 'logs', expectedCommand: 'logs', expectedArgv: ['odoo', '200'], prompts: [], styled: true },
   { commandId: 'shell', expectedCommand: 'shell', expectedArgv: [], prompts: [] },
   { commandId: 'psql', expectedCommand: 'psql', expectedArgv: ['devel'], prompts: [{ kind: 'select', value: 'devel' }] },
   {
@@ -287,6 +292,7 @@ async function expectCockpitTopLevelDailyRoute({
   expectedArgv,
   prompts = [],
   confirm = false,
+  styled = false,
 }: TopLevelCockpitDailyCase) {
   const promptsModule = await import('../src/prompts/index.js');
   vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
@@ -303,6 +309,18 @@ async function expectCockpitTopLevelDailyRoute({
   const { runCli } = await loadCli();
 
   await runCli([], '/tmp/environment');
+
+  if (styled) {
+    expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledWith(
+      expectedCommand,
+      expectedArgv,
+      '/tmp/environment',
+      expect.any(Function),
+      expect.any(Object),
+    );
+    expect(mocks.runDailyAction).not.toHaveBeenCalled();
+    return;
+  }
 
   expect(mocks.runDailyAction).toHaveBeenCalledWith(expectedCommand, expectedArgv, '/tmp/environment');
   expect(mocks.runDailyActionWithStyledOutput).not.toHaveBeenCalled();
@@ -378,9 +396,9 @@ describe('cli menu environment routes', () => {
       typeof topLevelPromptArgs.disabledError === 'function'
         ? (topLevelPromptArgs.disabledError as (activeReason?: string) => string)('No modules found.')
         : topLevelPromptArgs.disabledError;
-    expect(disabledError).toBe(
-      'This option is disabled and cannot be selected.\nReason: No modules found.\nNext: choose "Add module" first.',
-    );
+    expect(disabledError).toContain('Action unavailable');
+    expect(disabledError).toContain('Reason  No modules found.');
+    expect(disabledError).toContain('Next    choose "Add module" first.');
     const bannerOrder = mocks.renderBanner.mock.invocationCallOrder[0] ?? 0;
     const selectOrder = vi.mocked(prompts.selectPrompt).mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER;
     expect(bannerOrder).toBeLessThan(selectOrder);
@@ -616,6 +634,68 @@ describe('cli menu environment routes', () => {
     expect(vi.mocked(prompts.selectPrompt)).toHaveBeenCalledTimes(4);
   });
 
+  it('refreshes runtime state before running a selected cockpit command', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    mocks.getServiceRuntimeStatus
+      .mockResolvedValueOnce({ kind: 'running' })
+      .mockResolvedValueOnce({ kind: 'stopped' })
+      .mockResolvedValueOnce({ kind: 'stopped' });
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('stop'))
+      .mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.runDailyAction).not.toHaveBeenCalled();
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith(
+      expect.stringContaining('Reason  Services stopped.'),
+      'Action unavailable',
+    );
+  });
+
+  it('runs environment lint in a readable result page instead of module selection', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('lint'))
+      .mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledWith(
+      'lint',
+      [],
+      '/tmp/environment',
+    );
+    expect(mocks.listModulesInEnvironment).not.toHaveBeenCalled();
+  });
+
+  it('shows diagnostics in result pages before returning to the cockpit', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('status'))
+      .mockResolvedValueOnce(cockpitCommand('doctor'))
+      .mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    await runCli([], '/tmp/environment');
+
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith('environment status report', 'Environment status');
+    expect(vi.mocked(prompts.notePrompt)).toHaveBeenCalledWith('doctor report', 'Doctor');
+    expect(mocks.renderBanner).toHaveBeenCalledWith(
+      ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Status: ● Services stopped', 'Last: Environment status'],
+      { version: `v${packageVersion()}` },
+    );
+    expect(mocks.renderBanner).toHaveBeenCalledWith(
+      ['Environment: Odoo 19.0 · 1 repo · 0 modules', 'Status: ● Services stopped', 'Last: Run doctor'],
+      { version: `v${packageVersion()}` },
+    );
+  });
+
   it('routes remove-repo and calls removeModuleRepo with selected repository', async () => {
     const prompts = await import('../src/prompts/index.js');
     vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
@@ -765,6 +845,7 @@ describe('cli menu environment routes', () => {
     expectedArgv,
     prompts,
     confirm,
+    styled,
   }) => {
     await expectCockpitTopLevelDailyRoute({
       commandId,
@@ -772,6 +853,7 @@ describe('cli menu environment routes', () => {
       expectedArgv,
       prompts,
       confirm,
+      styled,
     });
   });
 
@@ -905,15 +987,6 @@ describe('cli menu environment routes', () => {
       selectValuesAfterModule: [],
       expectedCommand: 'test',
       expectedArgv: ['odoo_sample_module_base'],
-      expectsDatabasePrompt: false,
-    },
-    {
-      commandId: 'lint',
-      title: 'Run environment lint',
-      textValues: [],
-      selectValuesAfterModule: [],
-      expectedCommand: 'lint',
-      expectedArgv: [],
       expectsDatabasePrompt: false,
     },
     {
@@ -1075,6 +1148,38 @@ describe('cli menu environment routes', () => {
 
     expect(mocks.renderSafeResetPreview).toHaveBeenCalledWith('/tmp/environment', true);
     expect(mocks.safeResetEnvironment).toHaveBeenCalledWith({ target: '/tmp/environment', stage: true });
+  });
+
+  it('lets safe reset generated file rows be toggled before confirmation', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    const originalStdinIsTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    mocks.safeResetSelectableGeneratedPaths.mockReturnValueOnce(['README.md', '.env.example']);
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('safe-reset'))
+      .mockResolvedValueOnce('toggle:README.md')
+      .mockResolvedValueOnce('continue')
+      .mockResolvedValueOnce('exit');
+    vi.mocked(prompts.confirmPrompt).mockResolvedValueOnce(true);
+    const { runCli } = await loadCli();
+
+    try {
+      await runCli([], '/tmp/environment');
+    } finally {
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalStdinIsTTY });
+    }
+
+    expect(mocks.renderSafeResetSelectedPreview).toHaveBeenCalledWith(
+      '/tmp/environment',
+      true,
+      ['README.md', '.env.example'],
+    );
+    expect(mocks.renderSafeResetSelectedPreview).toHaveBeenCalledWith('/tmp/environment', true, ['.env.example']);
+    expect(mocks.safeResetEnvironment).toHaveBeenCalledWith({
+      target: '/tmp/environment',
+      stage: true,
+      includeGeneratedPaths: ['.env.example'],
+    });
   });
 
   it('handles a back/cancel signal and loops to the menu again', async () => {

@@ -6,7 +6,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { GitRunner } from '../src/git.js';
-import { renderSafeResetPreview, safeResetEnvironment } from '../src/safe-reset.js';
+import {
+  renderSafeResetPreview,
+  renderSafeResetSelectedPreview,
+  safeResetEnvironment,
+  safeResetSelectableGeneratedPaths,
+} from '../src/safe-reset.js';
 
 async function writeStandaloneResourceFixtures(root: string): Promise<{ compose: string; skills: string }> {
   const compose = join(root, 'odoo-docker-compose');
@@ -51,13 +56,16 @@ function fakeCloneGit(fixtures: Record<string, string>, cloneCalls: string[][]):
 describe('safe reset', () => {
   it('explains what safe reset will change and not touch', () => {
     const preview = renderSafeResetPreview('/tmp/odoo_sample_module_dev', true);
-    expect(preview).toContain('Safe reset preview (dry-run): generated WPMoo files and source repo protections are listed.');
-    expect(preview).toContain('Generated files that would change:');
-    expect(preview).toContain('- README.md');
-    expect(preview).toContain('Source repositories that will remain untouched:');
-    expect(preview).toContain('- (none detected)');
+    expect(preview).toContain('Safe reset preview');
+    expect(preview).toContain('File / Path');
+    expect(preview).toContain('Change');
+    expect(preview).toContain('Keep');
+    expect(preview).toContain('README.md');
+    expect(preview).toContain('✓');
+    expect(preview).toContain('source repos');
+    expect(preview).toContain('locked');
     expect(preview).toContain('- .env.example');
-    expect(preview).toContain('Preview-only output; files are not changed until reset is executed.');
+    expect(preview).toContain('Preview only; no files changed yet.');
     expect(preview).toContain('Generated changes will be staged with git add .');
     expect(preview).not.toContain('Warning:');
   });
@@ -66,6 +74,15 @@ describe('safe reset', () => {
     expect(renderSafeResetPreview('/tmp/odoo_sample_module_dev', false)).toContain(
       'Generated changes will not be staged.',
     );
+  });
+
+  it('moves unselected generated files to the keep column in the preview', () => {
+    const preview = renderSafeResetSelectedPreview('/tmp/odoo_sample_module_dev', true, ['README.md']);
+
+    expect(preview).toContain('README.md');
+    expect(preview).toContain('- README.md');
+    expect(preview).toMatch(/README\.md\s+✓/);
+    expect(preview).toMatch(/\.env\.example\s+\s+✓/);
   });
 
   it('reports which generated files would change and which source repos are untouched', async () => {
@@ -110,11 +127,10 @@ describe('safe reset', () => {
     await writeFile(join(target, 'README.md'), 'stale-readme\n', 'utf8');
 
     const preview = renderSafeResetPreview(target, true);
-    expect(preview).toContain('Generated files that would change:');
+    expect(preview).toContain('File / Path');
     expect(preview).toContain('- README.md');
-    expect(preview).toContain('Source repositories that will remain untouched:');
-    expect(preview).toContain('- external/library');
-    expect(preview).toContain('- private/main');
+    expect(preview).toContain('external/library');
+    expect(preview).toContain('private/main');
     expect(preview).toContain('Generated changes will be staged with git add .');
   });
 
@@ -195,6 +211,47 @@ describe('safe reset', () => {
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).resolves.toContain(
       'private/odoo_sample_module:',
     );
+  });
+
+  it('can refresh only the selected generated files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-selected-'));
+    const fixtures = await writeStandaloneResourceFixtures(await mkdtemp(join(tmpdir(), 'wpmoo-safe-reset-selected-fixtures-')));
+
+    await mkdir(join(target, '.wpmoo'), { recursive: true });
+    await writeFile(
+      join(target, '.wpmoo/odoo.json'),
+      JSON.stringify(
+        {
+          tool: '@wpmoo/toolkit',
+          version: '0.8.0',
+          product: 'odoo_sample_module',
+          odooVersion: '19.0',
+          devRepo: 'odoo_sample_module_dev',
+          devRepoUrl: 'https://github.com/example-org/odoo_sample_module_dev.git',
+          engine: 'compose',
+          composeTemplateUrl: fixtures.compose,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    await writeFile(join(target, 'README.md'), 'stale readme\n', 'utf8');
+    await writeFile(join(target, '.env.example'), 'STALE_ENV=true\n', 'utf8');
+
+    expect(safeResetSelectableGeneratedPaths(target)).toContain('README.md');
+    expect(safeResetSelectableGeneratedPaths(target)).toContain('.env.example');
+
+    await safeResetEnvironment({
+      target,
+      stage: false,
+      includeGeneratedPaths: ['README.md'],
+    });
+
+    await expect(readFile(join(target, 'README.md'), 'utf8')).resolves.toContain(
+      'Odoo Sample Module Development Environment',
+    );
+    await expect(readFile(join(target, '.env.example'), 'utf8')).resolves.toBe('STALE_ENV=true\n');
   });
 
   it('does not stage files when safe reset runs with stage=false', async () => {

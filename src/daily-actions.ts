@@ -85,6 +85,10 @@ export type DailyActionSafetyPreview = DailyActionPlan & {
 
 export type DailyActionRunner = (plan: DailyActionPlan) => Promise<void>;
 export type DailyActionOutputWriter = (chunk: string) => void;
+export type DailyActionRunOptions = {
+  signal?: AbortSignal;
+  treatAbortAsSuccess?: boolean;
+};
 
 const ANSI_DIM_INFO = '\u001B[2m\u001B[38;2;120;157;181m';
 const ANSI_WARNING = '\u001B[33m';
@@ -502,11 +506,22 @@ export function renderDailyActionOutput(output: string): string {
 async function spawnDailyActionWithStyledOutput(
   plan: DailyActionPlan,
   writer: DailyActionOutputWriter,
+  options: DailyActionRunOptions = {},
 ): Promise<void> {
   const child = spawn(plan.scriptPath, plan.args, {
     cwd: plan.cwd,
     stdio: ['inherit', 'pipe', 'pipe'],
   });
+  let aborted = false;
+  const abort = () => {
+    aborted = true;
+    child.kill('SIGINT');
+  };
+  if (options.signal?.aborted) {
+    abort();
+  } else {
+    options.signal?.addEventListener('abort', abort, { once: true });
+  }
 
   child.stdout?.on('data', (chunk: Buffer) => writer(renderDailyActionOutput(chunk.toString('utf8'))));
   child.stderr?.on('data', (chunk: Buffer) => writer(renderDailyActionOutput(chunk.toString('utf8'))));
@@ -514,7 +529,11 @@ async function spawnDailyActionWithStyledOutput(
   const exitCode = await new Promise<number | null>((resolve, reject) => {
     child.on('error', reject);
     child.on('close', resolve);
-  });
+  }).finally(() => options.signal?.removeEventListener('abort', abort));
+
+  if (aborted && options.treatAbortAsSuccess) {
+    return;
+  }
 
   if (exitCode !== 0) {
     throw new Error(`Daily action script exited with code ${exitCode ?? 'unknown'}: ${plan.scriptPath}`);
@@ -535,6 +554,7 @@ export async function runDailyActionWithStyledOutput(
   argv: string[],
   cwd = process.cwd(),
   writer: DailyActionOutputWriter = (chunk) => process.stdout.write(chunk),
+  options: DailyActionRunOptions = {},
 ): Promise<void> {
-  await spawnDailyActionWithStyledOutput(await dailyActionPlan(command, argv, cwd), writer);
+  await spawnDailyActionWithStyledOutput(await dailyActionPlan(command, argv, cwd), writer, options);
 }

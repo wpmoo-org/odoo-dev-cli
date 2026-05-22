@@ -29,6 +29,15 @@ function renderDisabledError(config: CockpitMenuConfig, reason: string): unknown
     : config.disabledError;
 }
 
+function expectedDisabledAlert(reason: string, fallback: string): string {
+  return [
+    'Action unavailable',
+    `Reason  ${reason}`,
+    `Next    ${fallback.replace(/^Next:\s*/u, '')}`,
+    'Esc clear · Enter select · ↑/↓ navigate',
+  ].join('\n');
+}
+
 describe('Cockpit top-level menu disabled next-step notes', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -106,7 +115,7 @@ describe('Cockpit top-level menu disabled next-step notes', () => {
       const disabledValue = menuChoiceDisabledValue(config as CockpitMenuConfig, caseConfig.commandId);
       expect(disabledValue).toBe(caseConfig.expected);
       expect(renderDisabledError(config as CockpitMenuConfig, caseConfig.expected)).toBe(
-        `This option is disabled and cannot be selected.\nReason: ${caseConfig.expected}\n${caseConfig.fallback}`,
+        expectedDisabledAlert(caseConfig.expected, caseConfig.fallback),
       );
       return selectDefault;
     });

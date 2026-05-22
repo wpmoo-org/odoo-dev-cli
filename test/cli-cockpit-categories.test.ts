@@ -50,6 +50,10 @@ function inlineCommand(label: string, description: string): string {
   return `${command(` ${label.padEnd(22)}`)}${dim(`  ${description}`)}`;
 }
 
+function visibleLength(value: string): number {
+  return value.replace(/\u001B\[[0-9;]*m/gu, '').length;
+}
+
 function disabledValue(choice: CockpitMenuChoice | undefined): unknown {
   return (choice as { disabled?: unknown } | undefined)?.disabled;
 }
@@ -116,14 +120,14 @@ describe('cockpit top-level menu', () => {
         inlineCommand('Open shell', 'Open a service shell.'),
         ' ',
         category('Modules'),
-        inlineCommand('List modules', 'Browse detected Odoo modules by source category.'),
+        inlineCommand('List modules', 'Browse Odoo modules.'),
         inlineCommand('Install module', 'Install modules in the database.'),
         inlineCommand('Update module', 'Update modules in the database.'),
         inlineCommand('Run tests', 'Run tests for selected modules.'),
         inlineCommand('Run environment lint', 'Run environment lint checks.'),
         inlineCommand('Generate POT', 'Generate module translation templates.'),
         inlineCommand('Add module', 'Add a module to a source repository.'),
-        inlineCommand('Remove module', 'Remove a module from a source repository.'),
+        inlineCommand('Remove module', 'Remove a module.'),
         ' ',
         category('Database'),
         inlineCommand('Open psql', 'Open PostgreSQL prompt.'),
@@ -132,7 +136,7 @@ describe('cockpit top-level menu', () => {
         inlineCommand('Reset database', 'Reset the environment database.'),
         ' ',
         category('Diagnostics'),
-        inlineCommand('Environment status', 'Show a summary of the current environment state.'),
+        inlineCommand('Environment status', 'Show environment state.'),
         inlineCommand('Run doctor', 'Run environment diagnostics.'),
         ' ',
         category('Repositories'),
@@ -167,6 +171,21 @@ describe('cockpit top-level menu', () => {
       kind: 'command',
       command: startCommand,
     });
+  });
+
+  it('keeps rendered command rows within the cockpit header width', async () => {
+    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
+      const config = options as MenuPromptConfig;
+      const rows = menuChoiceLabels(config).filter((label): label is string => typeof label === 'string');
+
+      for (const row of rows.filter((label) => label.trim() && !label.includes('Services'))) {
+        expect(visibleLength(row)).toBeLessThanOrEqual(72);
+      }
+
+      return cockpitCommands.find((command) => command.id === 'start');
+    });
+
+    await selectCockpitTopLevelMenu({ select: prompt });
   });
 
   it('does not expose the command palette as a duplicate top-level menu item', async () => {
@@ -386,10 +405,10 @@ describe('cockpit top-level menu', () => {
       const config = options as MenuPromptConfig;
 
       expectMenuChoiceMatrix(config, expected);
-      expect(renderDisabledError(config.disabledError)).toBe('This option is disabled and cannot be selected.');
+      expect(renderDisabledError(config.disabledError)).toContain('Action unavailable');
       if (disabled.length > 0) {
         const activeReason = disabled[0]?.disabled;
-        expect(renderDisabledError(config.disabledError, activeReason)).toContain(`Reason: ${activeReason}`);
+        expect(renderDisabledError(config.disabledError, activeReason)).toContain(`Reason  ${activeReason}`);
       }
       expect(config.default).toBe(defaultCommand);
       expect(addRepoChoice?.disabled).toBeUndefined();
