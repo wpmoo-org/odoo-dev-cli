@@ -197,6 +197,10 @@ describe('help', () => {
     expect(output).toContain('npx @wpmoo/toolkit doctor --json');
     expect(output).toContain('npx @wpmoo/toolkit doctor --json [--postgres]');
     expect(output).toContain('doctor --json --postgres includes a structured postgres object for automation.');
+    expect(output).toContain('doctor --json is read-only; run doctor --fix first, then doctor --json for post-fix state.');
+    expect(readme).toContain('`doctor --json --fix` is intentionally unsupported');
+    expect(commandReference).toContain('Run `doctor --fix` first, then `doctor --json`');
+    expect(commandReference).toContain('post-fix state.');
     expect(readme).toContain('Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics');
     expect(readme).toContain('sessions currently running queries');
     expect(readme).toContain("`pg_stat_activity.state = 'active'`");
