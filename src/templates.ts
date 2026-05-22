@@ -232,8 +232,10 @@ resources/odoo/entrypoint.sh
 
 Development uses compose.yaml plus compose/dev.yaml by default.
 Set WPMOO_ENV=stage or WPMOO_ENV=prod only after providing production-grade secrets and volumes.
-In WPMOO_ENV=prod, module lifecycle commands such as install, update, and test
-require WPMOO_ALLOW_PROD_LIFECYCLE=1. Destructive database commands such as
+In WPMOO_ENV=stage, lifecycle commands such as install, update, stop, and
+restart require WPMOO_ALLOW_STAGE_LIFECYCLE=1. In WPMOO_ENV=prod, lifecycle
+commands such as install, update, test, stop, and restart require
+WPMOO_ALLOW_PROD_LIFECYCLE=1. Destructive database commands such as
 resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage
 and prod. restore-snapshot --dry-run remains available for preview.
 For short-lived local approvals, add JSONL entries to \`.wpmoo/approvals.jsonl\`;
@@ -958,6 +960,8 @@ case "$command" in
   "stop")
     shift
     require_no_args "$command" "$@"
+    require_stage_lifecycle_allowed "$command"
+    require_prod_lifecycle_allowed "$command"
     run_script ./scripts/down.sh
     ;;
   "logs")
@@ -978,6 +982,8 @@ case "$command" in
   "restart")
     shift
     require_no_args "$command" "$@"
+    require_stage_lifecycle_allowed "$command"
+    require_prod_lifecycle_allowed "$command"
     run_script ./scripts/restart.sh
     ;;
   "shell")

@@ -87,8 +87,8 @@ Daily actions:
   Use ./moo or npx @wpmoo/toolkit with the same daily action arguments.
 
 Lifecycle command guards:
-  In WPMOO_ENV=stage, install/update require WPMOO_ALLOW_STAGE_LIFECYCLE=1.
-  In WPMOO_ENV=prod, install/update/test require WPMOO_ALLOW_PROD_LIFECYCLE=1.
+  In WPMOO_ENV=stage, install/update/stop/restart require WPMOO_ALLOW_STAGE_LIFECYCLE=1.
+  In WPMOO_ENV=prod, install/update/test/stop/restart require WPMOO_ALLOW_PROD_LIFECYCLE=1.
   resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage/prod.
   restore-snapshot --dry-run remains allowed for preview.
   Time-bounded local approvals may also be recorded in .wpmoo/approvals.jsonl.

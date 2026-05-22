@@ -48,9 +48,17 @@ describe('environment policy command table', () => {
       requiresProdLifecycleApproval: true,
     });
 
-    expect(dailyActionPolicyTable['start']).toMatchObject({
+    expect(dailyActionPolicyTable.start).toMatchObject({
       requiresStageLifecycleApproval: false,
       requiresProdLifecycleApproval: false,
+    });
+    expect(dailyActionPolicyTable.stop).toMatchObject({
+      requiresStageLifecycleApproval: true,
+      requiresProdLifecycleApproval: true,
+    });
+    expect(dailyActionPolicyTable.restart).toMatchObject({
+      requiresStageLifecycleApproval: true,
+      requiresProdLifecycleApproval: true,
     });
   });
 
@@ -241,8 +249,60 @@ describe('environment policy decisions for stage and prod safety', () => {
     });
   });
 
+  it('requires lifecycle approval for stop and restart in stage/prod while leaving start simple', () => {
+    for (const command of ['stop', 'restart'] as const) {
+      expect(
+        evaluateDailyActionPolicy(command, [], {
+          envName: 'stage',
+        }),
+      ).toMatchObject({
+        allowed: false,
+        isDestructive: false,
+        isAuditWorthy: true,
+        deny: {
+          kind: 'stage-lifecycle',
+          requiredFlag: 'WPMOO_ALLOW_STAGE_LIFECYCLE',
+        },
+      });
+
+      expect(
+        evaluateDailyActionPolicy(command, [], {
+          envName: 'prod',
+        }),
+      ).toMatchObject({
+        allowed: false,
+        isDestructive: false,
+        isAuditWorthy: true,
+        deny: {
+          kind: 'prod-lifecycle',
+          requiredFlag: 'WPMOO_ALLOW_PROD_LIFECYCLE',
+        },
+      });
+
+      expect(
+        evaluateDailyActionPolicy(command, [], {
+          envName: 'dev',
+        }),
+      ).toMatchObject({
+        allowed: true,
+        isDestructive: false,
+        isAuditWorthy: true,
+      });
+    }
+
+    expect(
+      evaluateDailyActionPolicy('start', [], {
+        envName: 'prod',
+      }),
+    ).toMatchObject({
+      allowed: true,
+      isDestructive: false,
+      isAuditWorthy: false,
+    });
+  });
+
   it('does not require lifecycle or destructive approvals for snapshot and helpers in stage/prod', () => {
-    const common = ['snapshot', 'lint', 'pot', 'psql', 'logs', 'start', 'stop', 'restart', 'shell'] as const;
+    const common = ['snapshot', 'lint', 'pot', 'psql', 'logs', 'start', 'shell'] as const;
 
     for (const command of common) {
       const decision = evaluateDailyActionPolicy(command, ['odoo'], {

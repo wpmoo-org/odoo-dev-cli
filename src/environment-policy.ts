@@ -69,9 +69,9 @@ export const dailyActionPolicyTable: Record<DailyActionPolicyCommand, DailyActio
   stop: {
     isDestructive: () => false,
     isDryRunAllowed: false,
-    requiresStageLifecycleApproval: false,
-    requiresProdLifecycleApproval: false,
-    isAuditWorthy: () => false,
+    requiresStageLifecycleApproval: true,
+    requiresProdLifecycleApproval: true,
+    isAuditWorthy: () => true,
   },
   logs: {
     isDestructive: () => false,
@@ -83,9 +83,9 @@ export const dailyActionPolicyTable: Record<DailyActionPolicyCommand, DailyActio
   restart: {
     isDestructive: () => false,
     isDryRunAllowed: false,
-    requiresStageLifecycleApproval: false,
-    requiresProdLifecycleApproval: false,
-    isAuditWorthy: () => false,
+    requiresStageLifecycleApproval: true,
+    requiresProdLifecycleApproval: true,
+    isAuditWorthy: () => true,
   },
   shell: {
     isDestructive: () => false,

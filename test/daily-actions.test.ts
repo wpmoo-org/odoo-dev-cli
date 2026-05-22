@@ -306,6 +306,47 @@ describe('daily actions', () => {
     });
   });
 
+  it('blocks stage/prod stop and restart unless lifecycle approval is explicit', async () => {
+    const scripts = ['up.sh', 'down.sh', 'restart.sh'];
+    const devTarget = await makeEnvironment({ scripts, env: 'WPMOO_ENV=dev\n' });
+    const stageTarget = await makeEnvironment({ scripts, env: 'WPMOO_ENV=stage\n' });
+    const allowedStageTarget = await makeEnvironment({
+      scripts,
+      env: 'WPMOO_ENV=stage\nWPMOO_ALLOW_STAGE_LIFECYCLE=1\n',
+    });
+    const prodTarget = await makeEnvironment({ scripts, env: 'WPMOO_ENV=prod\n' });
+    const allowedProdTarget = await makeEnvironment({
+      scripts,
+      env: 'WPMOO_ENV=prod\nWPMOO_ALLOW_PROD_LIFECYCLE=1\n',
+    });
+
+    await expect(dailyActionPlan('start', [], prodTarget)).resolves.toMatchObject({
+      scriptPath: join(prodTarget, 'scripts/up.sh'),
+      args: [],
+    });
+
+    for (const command of ['stop', 'restart'] as const) {
+      await expect(dailyActionPlan(command, [], devTarget)).resolves.toMatchObject({
+        scriptPath: join(devTarget, command === 'stop' ? 'scripts/down.sh' : 'scripts/restart.sh'),
+        args: [],
+      });
+      await expect(dailyActionPlan(command, [], stageTarget)).rejects.toThrow(
+        `Refusing stage lifecycle command '${command}' in WPMOO_ENV=stage. Set WPMOO_ALLOW_STAGE_LIFECYCLE=1 to run it intentionally.`,
+      );
+      await expect(dailyActionPlan(command, [], prodTarget)).rejects.toThrow(
+        `Refusing production lifecycle command '${command}' in WPMOO_ENV=prod. Set WPMOO_ALLOW_PROD_LIFECYCLE=1 to run it intentionally.`,
+      );
+      await expect(dailyActionPlan(command, [], allowedStageTarget)).resolves.toMatchObject({
+        scriptPath: join(allowedStageTarget, command === 'stop' ? 'scripts/down.sh' : 'scripts/restart.sh'),
+        args: [],
+      });
+      await expect(dailyActionPlan(command, [], allowedProdTarget)).resolves.toMatchObject({
+        scriptPath: join(allowedProdTarget, command === 'stop' ? 'scripts/down.sh' : 'scripts/restart.sh'),
+        args: [],
+      });
+    }
+  });
+
   it('requires explicit migration approval in stage/prod when module migration scripts are present', async () => {
     const blockedTarget = await makeEnvironment({
       scripts: ['install.sh'],

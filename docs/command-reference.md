@@ -79,8 +79,8 @@ Current JSON contract notes:
 | Variable | Purpose |
 | --- | --- |
 | `WPMOO_ENV=dev|stage|prod` | Selects environment safety policy. Missing value behaves like development for local workflows. |
-| `WPMOO_ALLOW_STAGE_LIFECYCLE=1` | Allows `install` and `update` in stage. |
-| `WPMOO_ALLOW_PROD_LIFECYCLE=1` | Allows `install`, `update`, and `test` in production. |
+| `WPMOO_ALLOW_STAGE_LIFECYCLE=1` | Allows `install`, `update`, `stop`, and `restart` in stage. |
+| `WPMOO_ALLOW_PROD_LIFECYCLE=1` | Allows `install`, `update`, `test`, `stop`, and `restart` in production. |
 | `WPMOO_ALLOW_DESTRUCTIVE=1` | Allows destructive database commands in stage/prod. |
 | `WPMOO_ALLOW_NO_RECENT_SNAPSHOT=1` | Allows destructive commands without a recent snapshot when that extra guard applies. |
 | `WPMOO_ALLOW_MIGRATIONS=1` | Allows lifecycle commands when migration scripts are detected. |
@@ -121,6 +121,7 @@ approval. Expired, malformed, or mismatched entries are ignored.
 | Command Family | Stage | Production |
 | --- | --- | --- |
 | `install`, `update` | Requires `WPMOO_ALLOW_STAGE_LIFECYCLE=1` | Requires `WPMOO_ALLOW_PROD_LIFECYCLE=1` |
+| `stop`, `restart` | Requires `WPMOO_ALLOW_STAGE_LIFECYCLE=1` | Requires `WPMOO_ALLOW_PROD_LIFECYCLE=1` |
 | `test` | Allowed | Requires `WPMOO_ALLOW_PROD_LIFECYCLE=1` |
 | `resetdb`, real `restore-snapshot` | Requires `WPMOO_ALLOW_DESTRUCTIVE=1` | Requires `WPMOO_ALLOW_DESTRUCTIVE=1` |
 | `restore-snapshot --dry-run` | Allowed | Allowed |
