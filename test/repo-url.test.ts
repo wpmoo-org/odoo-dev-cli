@@ -18,6 +18,12 @@ describe('repo url helpers', () => {
     expect(() => inferRepoPath('')).toThrow('Cannot infer repository path from URL: ');
   });
 
+  it('rejects inferred repository paths that are not safe path segments', () => {
+    expect(() => inferRepoPath('https://github.com/wpmoo-org/bad:name.git')).toThrow(
+      'Invalid repo path: use a single path segment without traversal.',
+    );
+  });
+
   it('infers GitHub owner from HTTPS and SSH URLs only', () => {
     expect(inferGitHubOwner('https://github.com/wpmoo-org/odoo_sample_module')).toBe('wpmoo-org');
     expect(inferGitHubOwner('git@github.com:wpmoo-org/odoo_sample_module')).toBe('wpmoo-org');

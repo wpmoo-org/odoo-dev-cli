@@ -258,6 +258,25 @@ export function normalizeDatabaseName(value: string): string {
   return normalized;
 }
 
+export function normalizeSnapshotName(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error('Invalid snapshot name: value is required.');
+  }
+  if (/\s/u.test(value)) {
+    throw new Error('Invalid snapshot name: whitespace is not allowed.');
+  }
+  if (normalized.startsWith('-')) {
+    throw new Error('Invalid snapshot name: leading hyphens are not allowed.');
+  }
+  if (!databaseNamePattern.test(normalized)) {
+    throw new Error(
+      'Invalid snapshot name: use letters, digits, underscores, dots, or hyphens without shell metacharacters or path characters.',
+    );
+  }
+  return normalized;
+}
+
 const listDatabasesQuery = [
   'SELECT datname',
   'FROM pg_database',
