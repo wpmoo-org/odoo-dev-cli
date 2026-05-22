@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LONG_TRANSACTION_AGE_WARNING_SECONDS,
   IDLE_IN_TRANSACTION_AGE_WARNING_SECONDS,
+  POSTGRES_DIAGNOSTICS_OPTIONAL_QUERIES,
   POSTGRES_DIAGNOSTICS_QUERY,
   malformedPostgresDiagnosticKeys,
   missingPostgresDiagnosticKeys,
@@ -247,10 +248,24 @@ describe('PostgreSQL diagnostics validation and SQL safety', () => {
   });
 
   it('rejects destructive SQL verbs in the diagnostic query', () => {
-    const uppercaseQuery = POSTGRES_DIAGNOSTICS_QUERY.toUpperCase();
+    const uppercaseQuery = [
+      POSTGRES_DIAGNOSTICS_QUERY,
+      ...POSTGRES_DIAGNOSTICS_OPTIONAL_QUERIES.map((probe) => probe.query),
+    ].join('\n').toUpperCase();
     const forbiddenVerbs = ['ALTER', 'CREATE', 'DELETE', 'DROP', 'INSERT', 'UPDATE', 'TRUNCATE', 'REINDEX', 'VACUUM', 'ANALYZE'];
     for (const verb of forbiddenVerbs) {
       expect(uppercaseQuery).not.toMatch(new RegExp(`\\\\b${verb}\\\\b`));
     }
+  });
+
+  it('keeps privileged probes outside the core diagnostics query', () => {
+    expect(POSTGRES_DIAGNOSTICS_QUERY).not.toContain('pg_ls_waldir');
+    expect(POSTGRES_DIAGNOSTICS_QUERY).not.toContain('pg_tablespace_size');
+    expect(POSTGRES_DIAGNOSTICS_OPTIONAL_QUERIES.map((probe) => probe.id)).toEqual([
+      'wal-directory',
+      'default-tablespace',
+    ]);
+    expect(POSTGRES_DIAGNOSTICS_OPTIONAL_QUERIES.map((probe) => probe.query).join('\n')).toContain('pg_ls_waldir');
+    expect(POSTGRES_DIAGNOSTICS_OPTIONAL_QUERIES.map((probe) => probe.query).join('\n')).toContain('pg_tablespace_size');
   });
 });

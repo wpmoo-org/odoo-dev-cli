@@ -125,13 +125,10 @@ index_health AS (
 wal_health AS (
   SELECT
     COALESCE((SELECT setting FROM pg_settings WHERE name = 'wal_level'), 'unavailable')::text AS wal_level,
-    COALESCE((SELECT setting FROM pg_settings WHERE name = 'archive_mode'), 'unavailable')::text AS wal_archive_mode,
-    COALESCE((SELECT COUNT(*) FROM pg_ls_waldir()), 0)::text AS wal_file_count,
-    COALESCE((SELECT SUM(size) FROM pg_ls_waldir()), 0)::text AS wal_directory_size_bytes
+    COALESCE((SELECT setting FROM pg_settings WHERE name = 'archive_mode'), 'unavailable')::text AS wal_archive_mode
 ),
 capacity_health AS (
   SELECT
-    COALESCE((SELECT pg_tablespace_size('pg_default')), 0)::text AS default_tablespace_size_bytes,
     COALESCE(
       (SELECT SUM(n_tup_ins + n_tup_upd + n_tup_del) FROM pg_stat_database WHERE datname IS NOT NULL),
       0
@@ -256,16 +253,36 @@ FROM (
   UNION ALL
   SELECT 'wal_archive_mode', wal_archive_mode FROM wal_health
   UNION ALL
-  SELECT 'wal_file_count', wal_file_count FROM wal_health
-  UNION ALL
-  SELECT 'wal_directory_size_bytes', wal_directory_size_bytes FROM wal_health
-  UNION ALL
-  SELECT 'default_tablespace_size_bytes', default_tablespace_size_bytes FROM capacity_health
-  UNION ALL
   SELECT 'database_write_activity_rows', database_write_activity_rows FROM capacity_health
 ) metrics
 ORDER BY metric;
 `.trim();
+
+export type PostgresDiagnosticsOptionalProbeId = 'wal-directory' | 'default-tablespace';
+
+export const POSTGRES_DIAGNOSTICS_OPTIONAL_QUERIES: readonly {
+  id: PostgresDiagnosticsOptionalProbeId;
+  query: string;
+}[] = [
+  {
+    id: 'wal-directory',
+    query: `
+SELECT metric || '|' || value
+FROM (
+  SELECT 'wal_file_count'::text AS metric, COALESCE((SELECT COUNT(*) FROM pg_ls_waldir()), 0)::text AS value
+  UNION ALL
+  SELECT 'wal_directory_size_bytes', COALESCE((SELECT SUM(size) FROM pg_ls_waldir()), 0)::text
+) metrics
+ORDER BY metric;
+`.trim(),
+  },
+  {
+    id: 'default-tablespace',
+    query: `
+SELECT 'default_tablespace_size_bytes'::text || '|' || COALESCE((SELECT pg_tablespace_size('pg_default')), 0)::text;
+`.trim(),
+  },
+] as const;
 
 export const POSTGRES_DIAGNOSTIC_KEYS = [
   'database_count',

@@ -979,6 +979,83 @@ describe('doctor', () => {
     expect(report.errors).toEqual([]);
   });
 
+  it('keeps core PostgreSQL diagnostics available when optional privileged probes fail', async () => {
+    const calls: string[][] = [];
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner(calls);
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        calls.push([command, ...args]);
+        return {
+          stdout: [
+            'database_count|2',
+            'active_connections|3',
+            'connection_count|42',
+            'max_connections|100',
+            'total_database_size_bytes|10485760',
+            'slow_query_logging|500ms',
+            'pg_stat_statements|installed',
+            'shared_buffers|128MB',
+          ].join('\n'),
+          stderr: '',
+        };
+      }
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_ls_waldir')) {
+        calls.push([command, ...args]);
+        throw new Error('permission denied for function pg_ls_waldir');
+      }
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_tablespace_size')) {
+        calls.push([command, ...args]);
+        throw new Error('permission denied for function pg_tablespace_size');
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true });
+    const postgresCommands = calls.filter(([command]) => command === 'bash').map((call) => call.slice(1).join(' '));
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual([]);
+    expect(report.postgres?.available).toBe(true);
+    expect(report.postgres?.diagnostics.totalDatabaseSizeBytes).toBe(10485760);
+    expect(report.postgres?.diagnostics.walFileCount).toBeUndefined();
+    expect(report.postgres?.diagnostics.defaultTablespaceSizeBytes).toBeUndefined();
+    expect(postgresCommands[0]).not.toContain('pg_ls_waldir');
+    expect(postgresCommands[0]).not.toContain('pg_tablespace_size');
+    expect(postgresCommands.some((command) => command.includes('pg_ls_waldir'))).toBe(true);
+    expect(postgresCommands.some((command) => command.includes('pg_tablespace_size'))).toBe(true);
+  });
+
+  it('times out PostgreSQL diagnostics without failing doctor', async () => {
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const baseRunner = passingDockerRunner();
+    const runner: DoctorCommandRunner = async (command, args, options) => {
+      if (command === 'bash' && args[0] === '-lc' && args[1]?.includes('pg_database_size')) {
+        return new Promise<{ stdout: string; stderr: string }>(() => undefined);
+      }
+
+      return baseRunner(command, args, options);
+    };
+
+    const report = await getDoctorReport(target, runner, { postgres: true, postgresTimeoutMs: 1 });
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual(['PostgreSQL diagnostics unavailable: PostgreSQL diagnostics timed out after 1ms']);
+    expect(report.postgres).toEqual({
+      requested: true,
+      contractVersion: 2,
+      available: false,
+      diagnostics: {},
+      warning: 'PostgreSQL diagnostics timed out after 1ms',
+    });
+    expect(report.errors).toEqual([]);
+  });
+
   it('marks partial PostgreSQL diagnostics as unavailable without failing doctor', async () => {
     const calls: string[][] = [];
     const target = await makeEnvironment({
