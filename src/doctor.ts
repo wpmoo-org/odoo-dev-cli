@@ -19,6 +19,7 @@ import {
   structuredPostgresDiagnostics,
   unavailablePostgresDiagnosticsWarning,
   type PostgresDiagnosticsReport,
+  type PostgresDiagnosticsOptionalProbeId,
   type RawPostgresDiagnostics,
 } from './postgres-diagnostics.js';
 import {
@@ -52,11 +53,17 @@ export type DoctorCommandOptions = {
 
 export type DoctorPostgresDiagnostics = Partial<PostgresDiagnosticsReport>;
 
+export type DoctorPostgresOptionalProbeFailure = {
+  id: PostgresDiagnosticsOptionalProbeId;
+  warning: string;
+};
+
 export type DoctorPostgresReport = {
   requested: true;
   contractVersion: typeof POSTGRES_DIAGNOSTICS_CONTRACT_VERSION;
   available: boolean;
   diagnostics: DoctorPostgresDiagnostics;
+  optionalProbeFailures?: DoctorPostgresOptionalProbeFailure[];
   warning?: string;
 };
 
@@ -212,6 +219,15 @@ function postgresDiagnosticsTimeoutMs(options: DoctorCommandOptions): number {
     : defaultPostgresDiagnosticsTimeoutMs;
 }
 
+function optionalPostgresProbeFailureWarning(error: unknown): string | undefined {
+  const message = commandErrorText(error).trim();
+  if (!/(?:permission denied|insufficient privilege|must be superuser|not permitted|not allowed)/iu.test(message)) {
+    return undefined;
+  }
+
+  return message.split(/\r?\n/u).find((line) => line.trim())?.trim();
+}
+
 async function readPostgresDiagnosticQuery(
   target: string,
   runner: DoctorCommandRunner,
@@ -232,19 +248,27 @@ async function readPostgresDiagnostics(
   target: string,
   runner: DoctorCommandRunner,
   timeoutMs: number,
-): Promise<RawPostgresDiagnostics> {
+): Promise<{
+  diagnostics: RawPostgresDiagnostics;
+  optionalProbeFailures: DoctorPostgresOptionalProbeFailure[];
+}> {
   const diagnostics = await readPostgresDiagnosticQuery(target, runner, POSTGRES_DIAGNOSTICS_QUERY, timeoutMs);
+  const optionalProbeFailures: DoctorPostgresOptionalProbeFailure[] = [];
 
   for (const probe of POSTGRES_DIAGNOSTICS_OPTIONAL_QUERIES) {
     try {
       Object.assign(diagnostics, await readPostgresDiagnosticQuery(target, runner, probe.query, timeoutMs));
-    } catch {
+    } catch (error) {
+      const warning = optionalPostgresProbeFailureWarning(error);
+      if (warning) {
+        optionalProbeFailures.push({ id: probe.id, warning });
+      }
       // Optional probes use PostgreSQL functions that can require elevated roles.
       // Their failure must not hide the core read-only health report.
     }
   }
 
-  return diagnostics;
+  return { diagnostics, optionalProbeFailures };
 }
 
 function stripInlineComment(line: string): string {
@@ -845,7 +869,7 @@ export async function getDoctorReport(
 
   if (actualOptions.postgres) {
     try {
-      const postgresDiagnostics = await readPostgresDiagnostics(
+      const { diagnostics: postgresDiagnostics, optionalProbeFailures } = await readPostgresDiagnostics(
         target,
         actualRunner,
         postgresDiagnosticsTimeoutMs(actualOptions),
@@ -862,6 +886,7 @@ export async function getDoctorReport(
           contractVersion: POSTGRES_DIAGNOSTICS_CONTRACT_VERSION,
           available: true,
           diagnostics: structuredPostgresDiagnostics(postgresDiagnostics),
+          ...(optionalProbeFailures.length > 0 ? { optionalProbeFailures } : {}),
         };
         warnings.push(...postgresPostgresWarnings(postgresDiagnostics));
       } else {
@@ -875,6 +900,7 @@ export async function getDoctorReport(
           contractVersion: POSTGRES_DIAGNOSTICS_CONTRACT_VERSION,
           available: false,
           diagnostics: structuredPostgresDiagnostics(postgresDiagnostics),
+          ...(optionalProbeFailures.length > 0 ? { optionalProbeFailures } : {}),
           warning,
         };
       }

@@ -72,6 +72,9 @@ Current JSON contract notes:
 - `doctor --json --postgres` adds `postgres.contractVersion` and a PostgreSQL
   diagnostics object with its own `schemaVersion`.
 - PostgreSQL fields are optional when a metric is unavailable.
+- Optional privileged PostgreSQL probe failures may appear under
+  `postgres.optionalProbeFailures`; core diagnostics remain available when those
+  optional probes fail with permission errors.
 - Automation should ignore unknown JSON fields.
 - Minor and patch releases may add optional fields without a breaking release.
 - Removing, renaming, or changing the meaning of a documented field requires a

@@ -215,6 +215,10 @@ JSON variant exposes a versioned PostgreSQL diagnostics contract.
 `doctor --json --postgres` keeps the JSON contract stable by versioning the
 `postgres` payload; individual fields are optional so automation can safely handle
 environments where PostgreSQL does not expose a metric.
+Optional PostgreSQL probe permission failures appear under
+`postgres.optionalProbeFailures` when available; they do not make
+`postgres.available` false and can be ignored by automation that only needs core
+diagnostics.
 All `doctor --json` reports also include optional `sections` entries that group
 checks, warnings, and errors without changing the legacy flat arrays.
 
