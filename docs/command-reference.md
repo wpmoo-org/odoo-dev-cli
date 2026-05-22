@@ -29,6 +29,12 @@ unscoped `npx wpmoo` short alias is optional and best-effort; scripts should use
 
 Run these from the generated environment root:
 
+The cockpit disables runtime actions such as `psql`, `snapshot`, `resetdb`,
+`restore-snapshot`, `install`, `update`, `test`, and `pot` while services are
+stopped or the database is not ready. File-only cockpit actions remain
+selectable so source repositories, module scaffolds, and safe reset can still be
+managed.
+
 | Command | Cockpit Equivalent | Guarded In Stage/Prod | Notes |
 | --- | --- | --- | --- |
 | `./moo start` | Services -> Start services | No | Starts local Odoo services. Disabled in cockpit when already running. |
