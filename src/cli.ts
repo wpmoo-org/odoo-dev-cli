@@ -933,6 +933,7 @@ function removeModuleOptionsFromArgs(argv: string[]): ModuleRemovalPromptOptions
     moduleName,
     sourceType: optionalSourceTypeValue(values),
     deleteFiles: booleanOption(values, 'deleteFiles', false),
+    dryRun: booleanOption(values, 'dryRun', false),
     stage: booleanOption(values, 'stage', true),
   };
 }
@@ -1854,15 +1855,15 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     const options = removeModuleOptionsFromArgs(route.argv);
     if (options) {
       console.log(renderBanner());
-      await removeModuleFromSourceRepo(options);
-      outroPrompt(`Removed module ${options.moduleName} from source repo ${options.repoPath}.`);
+      const report = await removeModuleFromSourceRepo(options);
+      outroPrompt(report.dryRun ? report.summary : `Removed module ${options.moduleName} from source repo ${options.repoPath}.`);
       return;
     }
 
     await showStartup(argv, skipUpdateCheck);
     const promptedOptions = await removeModuleOptionsFromPrompts();
-    await removeModuleFromSourceRepo(promptedOptions);
-    outroPrompt(`Removed module ${promptedOptions.moduleName} from source repo ${promptedOptions.repoPath}.`);
+    const report = await removeModuleFromSourceRepo(promptedOptions);
+    outroPrompt(report.dryRun ? report.summary : `Removed module ${promptedOptions.moduleName} from source repo ${promptedOptions.repoPath}.`);
     return;
   }
 

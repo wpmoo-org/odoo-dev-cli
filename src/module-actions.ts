@@ -58,7 +58,19 @@ export type RemoveModuleOptions = {
   moduleName: string;
   sourceType?: SourceRepoType;
   deleteFiles: boolean;
+  dryRun?: boolean;
   stage: boolean;
+};
+
+export type ModuleRemovalReport = {
+  moduleName: string;
+  repoPath: string;
+  sourceType: SourceRepoType;
+  path: string;
+  deleteFiles: boolean;
+  dryRun: boolean;
+  wouldDeletePath?: string;
+  summary: string;
 };
 
 const validSourceTypes: SourceRepoType[] = ['private', 'oca', 'external'];
@@ -549,24 +561,23 @@ async function assertModuleCleanBeforeDelete(
   const repoRoot = sourceRepoPath(target, sourceType, repoPath);
   try {
     const result = await git.run(repoRoot, ['status', '--short', '--', moduleName]);
-    if (result.stdout.trim() && (await moduleHasCommittedFiles(repoRoot, moduleName, git))) {
+    const status = result.stdout.trimEnd();
+    if (status.trim()) {
+      const hasUntrackedOrStaged = status
+        .split(/\r?\n/u)
+        .some((line) => line.startsWith('??') || /^[A-Z][A-Z ]\s/u.test(line));
+      const reason = hasUntrackedOrStaged ? 'uncommitted git changes' : 'dirty git changes';
       throw new Error(
-        `Refusing to delete module ${moduleName} because it has dirty git changes in source repo ${repoPath}.`,
+        `Refusing to delete module ${moduleName} because it has ${reason} in source repo ${repoPath}.`,
       );
     }
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('Refusing to delete module ')) {
       throw error;
     }
-  }
-}
-
-async function moduleHasCommittedFiles(repoRoot: string, moduleName: string, git: GitRunner): Promise<boolean> {
-  try {
-    const result = await git.run(repoRoot, ['ls-tree', '-r', '--name-only', 'HEAD', '--', moduleName]);
-    return Boolean(result.stdout.trim());
-  } catch {
-    return false;
+    throw new Error(
+      `Refusing to delete module ${moduleName} because git status could not be verified in source repo ${repoPath}.`,
+    );
   }
 }
 
@@ -701,10 +712,24 @@ export async function listModulesInEnvironment(target: string): Promise<ListedMo
 export async function removeModuleFromSourceRepo(
   options: RemoveModuleOptions,
   git: GitRunner = realGit,
-): Promise<void> {
+): Promise<ModuleRemovalReport> {
   const repoPath = validateRepoPath(options.repoPath);
   const moduleName = validateModuleName(options.moduleName);
   const sourceType = normalizeSourceType(options.sourceType);
+  const destination = modulePath(options.target, sourceType, repoPath, moduleName);
+
+  if (options.dryRun) {
+    return {
+      moduleName,
+      repoPath,
+      sourceType,
+      path: destination,
+      deleteFiles: options.deleteFiles,
+      dryRun: true,
+      ...(options.deleteFiles ? { wouldDeletePath: destination } : {}),
+      summary: `Previewed removal of module ${moduleName} from source repo ${repoPath}.`,
+    };
+  }
 
   if (options.deleteFiles) {
     await assertModuleCleanBeforeDelete(options.target, sourceType, repoPath, moduleName, git);
@@ -720,7 +745,7 @@ export async function removeModuleFromSourceRepo(
   await updateModuleRegistration(options.target, sourceType, repoPath, moduleName, 'remove');
 
   if (options.deleteFiles) {
-    await rm(modulePath(options.target, sourceType, repoPath, moduleName), { recursive: true, force: true });
+    await rm(destination, { recursive: true, force: true });
   }
 
   if (options.stage) {
@@ -729,4 +754,15 @@ export async function removeModuleFromSourceRepo(
     }
     await stageAll(git, options.target);
   }
+
+  return {
+    moduleName,
+    repoPath,
+    sourceType,
+    path: destination,
+    deleteFiles: options.deleteFiles,
+    dryRun: false,
+    ...(options.deleteFiles ? { wouldDeletePath: destination } : {}),
+    summary: `Removed module ${moduleName} from source repo ${repoPath}.`,
+  };
 }

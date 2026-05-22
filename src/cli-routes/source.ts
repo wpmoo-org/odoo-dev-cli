@@ -8,7 +8,10 @@ import { normalizeRepositoryUrl } from '../repo-url.js';
 import {
   listSources,
   renderSourceList,
+  renderSourceSyncPlan,
   sourceListJson,
+  sourceSyncPlan,
+  sourceSyncPlanJson,
   sourceSyncJson,
   syncSources,
   type SourceSyncOptions,
@@ -71,6 +74,7 @@ export function sourceUsage(): string {
 
 export type SourceSyncCliOptions = SourceSyncOptions & {
   json: boolean;
+  dryRun: boolean;
 };
 
 export function sourceSyncOptionsFromArgs(argv: string[]): SourceSyncCliOptions {
@@ -80,6 +84,7 @@ export function sourceSyncOptionsFromArgs(argv: string[]): SourceSyncCliOptions 
     target: resolve(stringOption(values, 'target') ?? process.cwd()),
     stage: booleanOption(values, 'stage', true),
     json: jsonOption(values),
+    dryRun: booleanOption(values, 'dryRun', false),
   };
 }
 
@@ -112,6 +117,18 @@ export async function runSourceCommand(argv: string[]): Promise<void> {
 
   if (subcommand === 'sync') {
     const options = sourceSyncOptionsFromArgs(subcommandArgv);
+    if (options.dryRun) {
+      const plan = await sourceSyncPlan(options.target);
+      if (options.json) {
+        printJson(sourceSyncPlanJson(plan));
+        return;
+      }
+
+      console.log(renderBanner());
+      console.log(renderSourceSyncPlan(plan));
+      return;
+    }
+
     const sources = await syncSources({ target: options.target, stage: options.stage });
     if (options.json) {
       printJson(sourceSyncJson(sources, options.target));
