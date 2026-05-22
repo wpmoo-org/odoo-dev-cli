@@ -1891,6 +1891,11 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
       doctorOptions.postgres = options.postgres;
     }
     if (options.json) {
+      if (doctorOptions.fix) {
+        throw new Error(
+          'doctor --json --fix is not supported; run doctor --fix for human-readable auto-fix output, then doctor --json to inspect the post-fix state.',
+        );
+      }
       printJson(await getDoctorReport(cwd, doctorOptions));
       return;
     }

@@ -9,6 +9,7 @@ import { defaultPostgresVersion } from './external-templates.js';
 import { defaultOdooVersion, markerPath, replaceSourceRepos } from './environment.js';
 import {
   POSTGRES_DIAGNOSTICS_CONTRACT_VERSION,
+  POSTGRES_DIAGNOSTICS_OPTIONAL_QUERIES,
   POSTGRES_DIAGNOSTICS_QUERY,
   malformedPostgresDiagnosticKeys,
   missingPostgresDiagnosticKeys,
@@ -46,6 +47,7 @@ export type DoctorCommandRunner = (
 export type DoctorCommandOptions = {
   fix?: boolean;
   postgres?: boolean;
+  postgresTimeoutMs?: number;
 };
 
 export type DoctorPostgresDiagnostics = Partial<PostgresDiagnosticsReport>;
@@ -168,6 +170,14 @@ function isMetadataError(message: string): boolean {
 }
 
 const incompatiblePostgres18MountTargets = ['/var/lib/postgresql/data', '/var/lib/postgresql/18/docker'];
+const defaultPostgresDiagnosticsTimeoutMs = 15_000;
+
+class PostgresDiagnosticsTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`PostgreSQL diagnostics timed out after ${timeoutMs}ms`);
+    this.name = 'PostgresDiagnosticsTimeoutError';
+  }
+}
 
 function parsePostgresMajorFromValue(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -179,18 +189,62 @@ function parsePostgresMajorFromValue(value: string | undefined): string | undefi
   return match?.[1];
 }
 
-async function readPostgresDiagnostics(
+async function withPostgresDiagnosticsTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new PostgresDiagnosticsTimeoutError(timeoutMs)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+function postgresDiagnosticsTimeoutMs(options: DoctorCommandOptions): number {
+  return typeof options.postgresTimeoutMs === 'number' &&
+    Number.isFinite(options.postgresTimeoutMs) &&
+    options.postgresTimeoutMs > 0
+    ? options.postgresTimeoutMs
+    : defaultPostgresDiagnosticsTimeoutMs;
+}
+
+async function readPostgresDiagnosticQuery(
   target: string,
   runner: DoctorCommandRunner,
+  query: string,
+  timeoutMs: number,
 ): Promise<RawPostgresDiagnostics> {
-  const queryLiteral = JSON.stringify(POSTGRES_DIAGNOSTICS_QUERY);
+  const queryLiteral = JSON.stringify(query);
   const command = [
     `query=${queryLiteral}`,
     '. ./scripts/lib.sh >/dev/null',
     'compose exec -T db psql -X -q -t -A -U "${POSTGRES_USER:-odoo}" -d "${POSTGRES_DB:-postgres}" -c "$query"',
   ].join(' && ');
-  const result = await runner('bash', ['-lc', command], { cwd: target });
+  const result = await withPostgresDiagnosticsTimeout(runner('bash', ['-lc', command], { cwd: target }), timeoutMs);
   return parsePostgresDiagnostics(result.stdout);
+}
+
+async function readPostgresDiagnostics(
+  target: string,
+  runner: DoctorCommandRunner,
+  timeoutMs: number,
+): Promise<RawPostgresDiagnostics> {
+  const diagnostics = await readPostgresDiagnosticQuery(target, runner, POSTGRES_DIAGNOSTICS_QUERY, timeoutMs);
+
+  for (const probe of POSTGRES_DIAGNOSTICS_OPTIONAL_QUERIES) {
+    try {
+      Object.assign(diagnostics, await readPostgresDiagnosticQuery(target, runner, probe.query, timeoutMs));
+    } catch {
+      // Optional probes use PostgreSQL functions that can require elevated roles.
+      // Their failure must not hide the core read-only health report.
+    }
+  }
+
+  return diagnostics;
 }
 
 function stripInlineComment(line: string): string {
@@ -791,7 +845,11 @@ export async function getDoctorReport(
 
   if (actualOptions.postgres) {
     try {
-      const postgresDiagnostics = await readPostgresDiagnostics(target, actualRunner);
+      const postgresDiagnostics = await readPostgresDiagnostics(
+        target,
+        actualRunner,
+        postgresDiagnosticsTimeoutMs(actualOptions),
+      );
       const missingKeys = missingPostgresDiagnosticKeys(postgresDiagnostics);
       const malformedKeys = malformedPostgresDiagnosticKeys(postgresDiagnostics);
       if (missingKeys.length === 0 && malformedKeys.length === 0) {

@@ -223,6 +223,20 @@ describe('cli status route', () => {
     expect(logSpy).not.toHaveBeenCalled();
   });
 
+  it('rejects doctor --json --fix before running doctor', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await expect(runCli(['doctor', '--json', '--fix'], '/tmp/example-environment')).rejects.toThrow(
+      'doctor --json --fix is not supported',
+    );
+
+    expect(mocks.getDoctorReport).not.toHaveBeenCalled();
+    expect(mocks.runDoctor).not.toHaveBeenCalled();
+    expect(mocks.renderBanner).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
+  });
+
   it('passes opt-in PostgreSQL diagnostics to doctor JSON output', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const { runCli } = await loadCli();
