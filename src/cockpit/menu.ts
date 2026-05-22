@@ -78,7 +78,7 @@ const topLevelCommands: readonly CockpitCommand[] = topLevelCategoryOrder.flatMa
   cockpitCommands.filter((command) => command.category === category && command.id !== 'exit'),
 );
 const topLevelCommandLabelWidth = Math.max(...topLevelCommands.map((command) => command.label.length));
-const moduleDependentCommandIds = new Set(['list-modules', 'install', 'update', 'test', 'lint', 'pot', 'remove-module']);
+const moduleDependentCommandIds = new Set(['list-modules', 'install', 'update', 'test', 'pot', 'remove-module']);
 
 function rgb(red: number, green: number, blue: number, value: string): string {
   return `\u001B[38;2;${red};${green};${blue}m${value}\u001B[39m`;

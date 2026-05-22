@@ -359,7 +359,7 @@ describe('cli menu environment routes', () => {
       choices?: Array<{ value?: unknown; disabled?: unknown }>;
       disabledError?: unknown;
     };
-    const moduleDisabledIds = ['list-modules', 'install', 'update', 'test', 'lint', 'pot', 'remove-module'];
+    const moduleDisabledIds = ['list-modules', 'install', 'update', 'test', 'pot', 'remove-module'];
     for (const commandId of moduleDisabledIds) {
       expect(
         topLevelPromptArgs.choices?.find((choice) => (choice.value as CockpitCommand | undefined)?.id === commandId)
@@ -368,6 +368,10 @@ describe('cli menu environment routes', () => {
     }
     expect(
       topLevelPromptArgs.choices?.find((choice) => (choice.value as CockpitCommand | undefined)?.id === 'add-module')
+        ?.disabled,
+    ).toBeUndefined();
+    expect(
+      topLevelPromptArgs.choices?.find((choice) => (choice.value as CockpitCommand | undefined)?.id === 'lint')
         ?.disabled,
     ).toBeUndefined();
     const disabledError =

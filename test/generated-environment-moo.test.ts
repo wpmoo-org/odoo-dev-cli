@@ -370,6 +370,47 @@ done
     await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
   });
 
+  it('lists generated snapshots as JSON locally without delegating to snapshot script', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+    const snapshotDir = join(root, 'backups', 'snapshots');
+    await mkdir(snapshotDir, { recursive: true });
+    await writeFile(join(snapshotDir, 'before-update.dump'), 'snapshot', 'utf8');
+    await writeFile(join(snapshotDir, 'before-update.filestore.tar.gz'), 'filestore', 'utf8');
+    await writeFile(
+      join(snapshotDir, 'before-update.json'),
+      JSON.stringify({
+        name: 'before-update',
+        database: 'devel',
+        created_at: '2026-05-22T10:20:30Z',
+        dump: 'before-update.dump',
+        filestore: 'before-update.filestore.tar.gz',
+      }),
+      'utf8',
+    );
+
+    const result = await execa(join(root, 'moo'), ['snapshot', '--list', '--json'], { cwd: root, env });
+    const payload = JSON.parse(result.stdout) as {
+      schemaVersion: number;
+      command: string;
+      ok: boolean;
+      snapshots: Array<{ name: string; databaseName?: string; filestoreStatus?: string }>;
+    };
+
+    expect(payload).toMatchObject({
+      schemaVersion: 1,
+      command: 'snapshot list',
+      ok: true,
+    });
+    expect(payload.snapshots).toEqual([
+      expect.objectContaining({
+        name: 'before-update',
+        databaseName: 'devel',
+        filestoreStatus: 'found',
+      }),
+    ]);
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
+  });
+
   it('prints generated command help without falling back to npx', async () => {
     const { callsPath, env, root } = await createMooFixture();
 

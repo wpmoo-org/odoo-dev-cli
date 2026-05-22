@@ -315,7 +315,6 @@ describe('cockpit top-level menu', () => {
         { id: 'install', disabled: 'No modules found.' },
         { id: 'update', disabled: 'No modules found.' },
         { id: 'test', disabled: 'No modules found.' },
-        { id: 'lint', disabled: 'No modules found.' },
         { id: 'pot', disabled: 'No modules found.' },
         { id: 'remove-module', disabled: 'No modules found.' },
       ],
