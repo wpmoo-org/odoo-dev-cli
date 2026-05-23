@@ -73,6 +73,10 @@ help output before optional generated-environment acceptance smoke.
 Long registry-backed smoke runs print `Smoke step:` progress lines before each
 published CLI check, so a slow `npx` or `npm exec` resolution is visible in the
 terminal instead of appearing stuck.
+Generated-environment acceptance smoke uses a Docker stub for environment
+creation and generated `./moo` checks, then covers source sync, module
+add/status/remove lifecycle, safe reset preview, `doctor --fix`, snapshot, and
+restore dry-run behavior without requiring a live Odoo service.
 
 For a 1.0.0 tag, run generated-environment acceptance smoke with
 WPMOO_SMOKE_ENVIRONMENT=1. Treat the release as final only after that smoke

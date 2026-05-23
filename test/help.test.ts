@@ -64,8 +64,11 @@ describe('help', () => {
     expect(readinessText).toContain('`.wpmoo/approvals.jsonl` adds time-bounded local approvals as an additive safety layer, not as a replacement for env flags in 1.x.');
     expect(readinessText).toContain('`.wpmoo/approvals.jsonl` is additive and local-only.');
     expect(readinessText).toContain('Generated-environment acceptance smoke is mandatory for a 1.0.0 release candidate.');
+    expect(readinessText).toContain('module add/status/remove lifecycle');
+    expect(readinessText).toContain('environment creation still depended on the host Docker Engine');
     expect(handoffText).toContain('For a 1.0.0 tag, run generated-environment acceptance smoke with WPMOO_SMOKE_ENVIRONMENT=1.');
     expect(handoffText).toContain('Smoke step:');
+    expect(handoffText).toContain('module add/status/remove lifecycle');
     expect(readmeText).toContain('For `1.0.0`, generated-environment acceptance smoke is required before the release is considered final.');
   });
 

@@ -242,6 +242,17 @@ MOO
   "source")
     echo "private/wpmoo_smoke_module @ 19.0 -> local"
     ;;
+  "add-module")
+    echo "Added module wpmoo_smoke_extra under source repo wpmoo_smoke_module."
+    ;;
+  "remove-module")
+    if [[ "$*" == *"--dry-run"* ]]; then
+      echo "Previewed removal of module wpmoo_smoke_extra from source repo wpmoo_smoke_module."
+      exit 0
+    fi
+
+    echo "Removed module wpmoo_smoke_extra from source repo wpmoo_smoke_module."
+    ;;
   "reset")
     echo "Safe reset preview"
     ;;
@@ -256,6 +267,11 @@ MOO
   "status")
     if [[ "${'$'}{2:-}" == "--help" ]]; then
       echo "Usage: wpmoo status"
+      exit 0
+    fi
+
+    if [[ "${'$'}{2:-}" == "--json" ]]; then
+      echo '{"schemaVersion":1,"command":"status","ok":true,"modules":["wpmoo_smoke_extra"]}'
       exit 0
     fi
 
@@ -436,11 +452,15 @@ describe('published package smoke script', () => {
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo status --help');
     expect(commands.some((command) => command.includes(' wpmoo create '))).toBe(true);
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo source list');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo add-module --repo wpmoo_smoke_module --module wpmoo_smoke_extra --stage=false');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo status --json');
     expect(commands.some((command) => command.includes(' wpmoo reset --dry-run '))).toBe(true);
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo doctor --fix');
     expect(commands).toContain('moo:status --json');
     expect(commands).toContain('moo:doctor');
     expect(commands).toContain('moo:snapshot devel smoke-before');
     expect(commands).toContain('moo:restore-snapshot --dry-run smoke-before devel');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo remove-module --repo wpmoo_smoke_module --module wpmoo_smoke_extra --dry-run --stage=false');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo remove-module --repo wpmoo_smoke_module --module wpmoo_smoke_extra --deleteFiles --stage=false');
   });
 });

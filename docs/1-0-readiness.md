@@ -95,12 +95,12 @@ Ready:
 
 ## Current Audit
 
-Last updated: 2026-05-22.
+Last updated: 2026-05-23.
 
 Completed checks:
 
-- Full local gate passed on 2026-05-22 after the cockpit/runtime fix train:
-  `npm run typecheck`, `npm test` (75 files / 748 tests), `npm run build`,
+- Full local gate passed on 2026-05-23 before Train 32 acceptance-smoke work:
+  `npm run typecheck`, `npm test` (76 files / 760 tests), `npm run build`,
   and `git diff --check`.
 - `npm run release:check` passed for the latest pre-1.0 release line and
   verified local package metadata plus `npm pack --dry-run` for
@@ -110,7 +110,12 @@ Completed checks:
   `WPMOO_PUBLISHED_PACKAGE_SPEC="@wpmoo/toolkit@$VERSION"`.
 - The generated-environment acceptance flow remains covered by
   `test/smoke-published-script.test.ts`, including create, source list/sync,
-  safe reset preview, `doctor --fix`, snapshot, and restore dry-run steps.
+  module add/status/remove lifecycle, safe reset preview, `doctor --fix`,
+  snapshot, and restore dry-run steps.
+- Train 32 rehearsed the registry-backed `0.9.36` acceptance smoke and found
+  that environment creation still depended on the host Docker Engine despite
+  the smoke's Docker stub. The acceptance script now runs environment creation
+  through the same stubbed Docker path as later generated-environment checks.
 - Placeholder review found no `TODO`, `FIXME`, `TBD`, or `coming soon`
   markers in `README.md`, `docs`, or `src`.
 - Local markdown link review passed across `README.md` and `docs/*.md`.
