@@ -249,7 +249,7 @@ STUB
 }
 
 run_environment_smoke() {
-  local smoke_root target source_repo dev_repo bin_dir source_list reset_preview doctor_report moo_status_report moo_doctor_report restore_preview
+  local smoke_root target source_repo dev_repo bin_dir source_list status_report reset_preview doctor_report moo_status_report moo_doctor_report restore_preview removal_preview removal_report
   smoke_root="$(mktemp -d "${TMPDIR:-/tmp}/wpmoo-published-env-smoke.XXXXXX")"
   target="$smoke_root/wpmoo_smoke_env"
   source_repo="$smoke_root/source_repo"
@@ -269,7 +269,7 @@ run_environment_smoke() {
 
   echo "Running generated environment acceptance smoke..."
   echo "- Creating fresh environment"
-  run_wpmoo_in "$CLI_RUN_ROOT" create \
+  PATH="$bin_dir:$PATH" DOCKER_STUB_LOG="$smoke_root/docker.log" run_wpmoo_in "$CLI_RUN_ROOT" create \
     --product wpmoo_smoke_module \
     --target "$target" \
     --dev-repo-url "$dev_repo" \
@@ -291,6 +291,21 @@ run_environment_smoke() {
 
   echo "- Syncing source manifest"
   run_wpmoo_in "$target" source sync --stage=false >/dev/null
+
+  echo "- Adding smoke module"
+  run_wpmoo_in "$target" add-module \
+    --repo wpmoo_smoke_module \
+    --module wpmoo_smoke_extra \
+    --stage=false >/dev/null
+
+  echo "- Checking package status --json"
+  status_report="$(run_wpmoo_in "$target" status --json)"
+  [[ "$status_report" == *'"schemaVersion":1'* && "$status_report" == *'"command":"status"'* && "$status_report" == *"wpmoo_smoke_extra"* ]] ||
+    {
+      echo "Expected wpmoo status --json to include the added smoke module, got:" >&2
+      echo "$status_report" >&2
+      exit 1
+    }
 
   echo "- Checking reset preview"
   reset_preview="$(run_wpmoo_in "$target" reset --dry-run --stage=false)"
@@ -339,6 +354,37 @@ run_environment_smoke() {
     {
       echo "Expected restore-snapshot --dry-run to print a restore preview, got:" >&2
       echo "$restore_preview" >&2
+      exit 1
+    }
+
+  echo "- Checking remove-module --dry-run"
+  removal_preview="$(run_wpmoo_in "$target" remove-module \
+    --repo wpmoo_smoke_module \
+    --module wpmoo_smoke_extra \
+    --dry-run \
+    --stage=false)"
+  [[ "$removal_preview" == *"Previewed removal of module wpmoo_smoke_extra"* ]] ||
+    {
+      echo "Expected remove-module --dry-run to preview module removal, got:" >&2
+      echo "$removal_preview" >&2
+      exit 1
+    }
+
+  echo "- Removing smoke module"
+  removal_report="$(run_wpmoo_in "$target" remove-module \
+    --repo wpmoo_smoke_module \
+    --module wpmoo_smoke_extra \
+    --deleteFiles \
+    --stage=false)"
+  [[ "$removal_report" == *"Removed module wpmoo_smoke_extra"* ]] ||
+    {
+      echo "Expected remove-module to remove the smoke module, got:" >&2
+      echo "$removal_report" >&2
+      exit 1
+    }
+  [[ ! -e "$target/odoo/custom/src/private/wpmoo_smoke_module/wpmoo_smoke_extra" ]] ||
+    {
+      echo "Expected wpmoo_smoke_extra directory to be removed." >&2
       exit 1
     }
 
