@@ -264,7 +264,12 @@ MOO
     echo "Removed module wpmoo_smoke_extra from source repo wpmoo_smoke_module."
     ;;
   "reset")
-    echo "Safe reset preview"
+    echo "Summary: 3 files will be refreshed"
+    echo "Target: $PWD"
+    echo "Files to refresh"
+    echo "- .wpmoo/odoo.json"
+    echo "Files kept unchanged"
+    echo "- source repo folders"
     ;;
   "doctor")
     if [[ "${'$'}{2:-}" == "--help" ]]; then

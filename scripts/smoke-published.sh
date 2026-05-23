@@ -313,9 +313,9 @@ run_environment_smoke() {
 
   echo "- Checking reset preview"
   reset_preview="$(run_wpmoo_in "$target" reset --dry-run --stage=false)"
-  [[ "$reset_preview" == *"Safe reset"* || "$reset_preview" == *"safe reset"* ]] ||
+  [[ "$reset_preview" == *"Summary:"* && "$reset_preview" == *"Target:"* && "$reset_preview" == *"Files to refresh"* ]] ||
     {
-      echo "Expected reset --dry-run to print a reset preview, got:" >&2
+      echo "Expected reset --dry-run to print a reset summary preview, got:" >&2
       echo "$reset_preview" >&2
       exit 1
     }
