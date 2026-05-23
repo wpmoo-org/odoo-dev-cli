@@ -321,12 +321,13 @@ run_environment_smoke() {
 
   echo "- Checking reset preview"
   reset_preview="$(run_wpmoo_in "$target" reset --dry-run --stage=false)"
-  [[ "$reset_preview" == *"Summary:"* && "$reset_preview" == *"Target:"* && "$reset_preview" == *"Files to refresh"* ]] ||
-    {
-      echo "Expected reset --dry-run to print a reset summary preview, got:" >&2
-      echo "$reset_preview" >&2
-      exit 1
-    }
+  if ! matches_text "$reset_preview" 'files will be refreshed' ||
+    ! matches_text "$reset_preview" '\.wpmoo/odoo\.json|External compose template assets' ||
+    ! matches_text "$reset_preview" 'Files kept unchanged|source repo folders'; then
+    echo "Expected reset --dry-run to print a generated-file reset preview, got:" >&2
+    echo "$reset_preview" >&2
+    exit 1
+  fi
 
   echo "- Running doctor --fix"
   doctor_report="$(PATH="$bin_dir:$PATH" DOCKER_STUB_LOG="$smoke_root/docker.log" run_wpmoo_in "$target" doctor --fix)"

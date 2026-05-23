@@ -270,8 +270,8 @@ MOO
     echo "Removed module wpmoo_smoke_extra from source repo wpmoo_smoke_module."
     ;;
   "reset")
-    echo "Summary: 3 files will be refreshed"
-    echo "Target: $PWD"
+    printf 'S\\033[36mummary:\\033[0m 3 files will be refreshed\\n'
+    printf 'T\\033[36marget:\\033[0m %s\\n' "$PWD"
     echo "Files to refresh"
     echo "- .wpmoo/odoo.json"
     echo "Files kept unchanged"
