@@ -188,6 +188,28 @@ describe('cockpit top-level menu', () => {
     await selectCockpitTopLevelMenu({ select: prompt });
   });
 
+  it('truncates command rows to the active terminal width', async () => {
+    const originalColumns = process.stdout.columns;
+    Object.defineProperty(process.stdout, 'columns', { configurable: true, value: 48 });
+    const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
+      const config = options as MenuPromptConfig;
+      const rows = menuChoiceLabels(config).filter((label): label is string => typeof label === 'string');
+
+      for (const row of rows.filter((label) => label.trim() && !label.includes('Services'))) {
+        expect(visibleLength(row)).toBeLessThanOrEqual(46);
+      }
+      expect(rows.some((label) => label.includes('…'))).toBe(true);
+
+      return cockpitCommands.find((command) => command.id === 'start');
+    });
+
+    try {
+      await selectCockpitTopLevelMenu({ select: prompt });
+    } finally {
+      Object.defineProperty(process.stdout, 'columns', { configurable: true, value: originalColumns });
+    }
+  });
+
   it('does not expose the command palette as a duplicate top-level menu item', async () => {
     const prompt: CockpitMenuSelectPrompt = vi.fn(async (options: Parameters<CockpitMenuSelectPrompt>[0]) => {
       const config = options as MenuPromptConfig;

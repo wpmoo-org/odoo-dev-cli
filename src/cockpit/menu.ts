@@ -79,6 +79,7 @@ const topLevelCommands: readonly CockpitCommand[] = topLevelCategoryOrder.flatMa
 );
 const topLevelCommandLabelWidth = Math.max(...topLevelCommands.map((command) => command.label.length));
 const cockpitRowMaxWidth = 72;
+const minimumCockpitRowWidth = topLevelCommandLabelWidth + 4;
 const moduleDependentCommandIds = new Set(['list-modules', 'install', 'update', 'test', 'pot', 'remove-module']);
 const runningServicesRequiredCommandIds = new Set([
   'install',
@@ -104,7 +105,7 @@ function visibleLength(value: string): number {
 }
 
 function truncateToVisibleWidth(value: string, maxWidth: number): string {
-  if (value.length <= maxWidth) {
+  if (visibleLength(value) <= maxWidth) {
     return value;
   }
 
@@ -115,6 +116,15 @@ function truncateToVisibleWidth(value: string, maxWidth: number): string {
   return `${value.slice(0, maxWidth - 1)}…`;
 }
 
+function cockpitRowWidth(): number {
+  const terminalColumns = process.stdout.columns;
+  if (!terminalColumns || terminalColumns <= 0) {
+    return cockpitRowMaxWidth;
+  }
+
+  return Math.min(cockpitRowMaxWidth, Math.max(minimumCockpitRowWidth, terminalColumns - 2));
+}
+
 function categoryHeading(category: CockpitCommandCategory): string {
   return `\u001B[1D${rgb(143, 211, 255, categoryLabels[category])}`;
 }
@@ -122,7 +132,7 @@ function categoryHeading(category: CockpitCommandCategory): string {
 function commandName(command: CockpitCommand): string {
   const label = ` ${command.label.padEnd(topLevelCommandLabelWidth)}`;
   const descriptionPrefix = '  ';
-  const availableDescriptionWidth = Math.max(0, cockpitRowMaxWidth - visibleLength(label) - descriptionPrefix.length);
+  const availableDescriptionWidth = Math.max(0, cockpitRowWidth() - visibleLength(label) - descriptionPrefix.length);
   const description = truncateToVisibleWidth(command.description, availableDescriptionWidth);
   return `${rgb(226, 184, 96, label)}${dim(`${descriptionPrefix}${description}`)}`;
 }
