@@ -20,6 +20,7 @@ not validate staging or production deployments.
 | Scaffold files and metadata | Generated environment includes expected files and `.wpmoo/odoo.json` metadata. | `npx @wpmoo/toolkit create ...` |
 | Compose resource files | Compact compose layout is present (`compose.yaml` + environment overlays under `compose/`), plus config/resources/scripts. | `npx @wpmoo/toolkit create ...` |
 | `./moo` delegation | `./moo` dispatches fixed daily actions to the matching script and preserves argument pass-through. | `./moo <action> ...` |
+| Status JSON contract | Generated `./moo status --json` emits the versioned environment status contract with `ok: true`, `kind: "environment"`, and current module candidate counts. | `./moo status --json` |
 | Doctor checks | Metadata, compose files, scripts, source repo paths, and local tooling checks behave as expected. | `npx @wpmoo/toolkit doctor` or `./moo doctor` |
 | Doctor safe fixes | Safe file-level fixes are applied only with `--fix`, then doctor runs again and reports any remaining manual issues. | `npx @wpmoo/toolkit doctor --fix` |
 | Generated Postgres checks | For PostgreSQL 18 environments, doctor validates db mount targets avoid old PG image-specific paths and can normalize safe targets with `--fix`. | `npx @wpmoo/toolkit doctor`, `npx @wpmoo/toolkit doctor --fix` |

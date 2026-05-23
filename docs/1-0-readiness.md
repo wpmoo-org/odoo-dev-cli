@@ -111,7 +111,8 @@ Completed checks:
 - The generated-environment acceptance flow remains covered by
   `test/smoke-published-script.test.ts`, including create, source list/sync,
   module add/status/remove lifecycle, safe reset preview, `doctor --fix`,
-  snapshot, and restore dry-run steps.
+  snapshot, restore dry-run steps, and generated `./moo status --json`
+  environment contract checks.
 - Train 32 rehearsed the registry-backed `0.9.36` acceptance smoke and found
   that environment creation still depended on the host Docker Engine despite
   the smoke's Docker stub. The acceptance script now runs environment creation

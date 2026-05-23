@@ -1,6 +1,6 @@
 {
   "name": "@wpmoo/toolkit",
-  "version": "0.9.42",
+  "version": "0.9.43",
   "description": "WPMoo Toolkit for development, staging, and production lifecycle workflows.",
   "type": "module",
   "repository": {

@@ -237,7 +237,11 @@ if [[ "$1" == "status" && "$2" == "--json" ]]; then
 {
   "schemaVersion": 1,
   "command": "status",
-  "ok": true
+  "ok": true,
+  "status": {
+    "kind": "environment",
+    "moduleCandidateCount": 1
+  }
 }
 JSON
   exit 0

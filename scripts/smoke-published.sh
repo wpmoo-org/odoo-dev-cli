@@ -341,8 +341,11 @@ run_environment_smoke() {
   echo "- Checking generated ./moo status --json"
   moo_status_report="$(PATH="$bin_dir:$PATH" DOCKER_STUB_LOG="$smoke_root/docker.log" "$target/moo" status --json)"
   if ! matches_text "$moo_status_report" '"schemaVersion"[[:space:]]*:[[:space:]]*1' ||
-    ! matches_text "$moo_status_report" '"command"[[:space:]]*:[[:space:]]*"status"'; then
-    echo "Expected ./moo status --json to emit status JSON, got:" >&2
+    ! matches_text "$moo_status_report" '"command"[[:space:]]*:[[:space:]]*"status"' ||
+    ! matches_text "$moo_status_report" '"ok"[[:space:]]*:[[:space:]]*true' ||
+    ! matches_text "$moo_status_report" '"kind"[[:space:]]*:[[:space:]]*"environment"' ||
+    ! matches_text "$moo_status_report" '"moduleCandidateCount"[[:space:]]*:[[:space:]]*1'; then
+    echo "Expected ./moo status --json to emit the generated environment status contract, got:" >&2
     echo "$moo_status_report" >&2
     exit 1
   fi
