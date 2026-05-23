@@ -249,12 +249,13 @@ STUB
 }
 
 run_environment_smoke() {
-  local smoke_root target source_repo dev_repo bin_dir source_list status_report reset_preview doctor_report moo_status_report moo_doctor_report restore_preview removal_preview removal_report
+  local smoke_root target source_repo dev_repo bin_dir source_repo_checkout source_list status_report reset_preview doctor_report moo_status_report moo_doctor_report restore_preview removal_preview removal_report
   smoke_root="$(mktemp -d "${TMPDIR:-/tmp}/wpmoo-published-env-smoke.XXXXXX")"
   target="$smoke_root/wpmoo_smoke_env"
   source_repo="$smoke_root/source_repo"
   dev_repo="$smoke_root/dev_repo"
   bin_dir="$smoke_root/bin"
+  source_repo_checkout="$target/odoo/custom/src/private/wpmoo_smoke_module"
 
   if ! is_truthy "${WPMOO_SMOKE_KEEP_ENVIRONMENT:-0}"; then
     CREATED_SMOKE_ROOT="$smoke_root"
@@ -300,12 +301,15 @@ run_environment_smoke() {
 
   echo "- Checking package status --json"
   status_report="$(run_wpmoo_in "$target" status --json)"
-  [[ "$status_report" == *'"schemaVersion":1'* && "$status_report" == *'"command":"status"'* && "$status_report" == *"wpmoo_smoke_extra"* ]] ||
+  [[ "$status_report" == *'"schemaVersion":1'* && "$status_report" == *'"command":"status"'* && "$status_report" == *'"moduleCandidateCount":1'* ]] ||
     {
-      echo "Expected wpmoo status --json to include the added smoke module, got:" >&2
+      echo "Expected wpmoo status --json to report one module candidate after add-module, got:" >&2
       echo "$status_report" >&2
       exit 1
     }
+
+  git_in "$source_repo_checkout" add wpmoo_smoke_extra
+  git_in "$source_repo_checkout" commit -m "Add smoke module" >/dev/null
 
   echo "- Checking reset preview"
   reset_preview="$(run_wpmoo_in "$target" reset --dry-run --stage=false)"

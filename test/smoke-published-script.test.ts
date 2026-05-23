@@ -213,6 +213,13 @@ case "${'$'}{1:-}" in
     done
     [[ -n "$target" ]] || exit 2
     mkdir -p "$target"
+    mkdir -p "$target/odoo/custom/src/private/wpmoo_smoke_module"
+    git -C "$target/odoo/custom/src/private/wpmoo_smoke_module" init -b 19.0 >/dev/null
+    git -C "$target/odoo/custom/src/private/wpmoo_smoke_module" config user.name "WPMoo Smoke"
+    git -C "$target/odoo/custom/src/private/wpmoo_smoke_module" config user.email "smoke@example.com"
+    printf '# Smoke source\n' >"$target/odoo/custom/src/private/wpmoo_smoke_module/README.md"
+    git -C "$target/odoo/custom/src/private/wpmoo_smoke_module" add README.md
+    git -C "$target/odoo/custom/src/private/wpmoo_smoke_module" commit -m "Initial smoke source" >/dev/null
     cat >"$target/moo" <<'MOO'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -243,6 +250,8 @@ MOO
     echo "private/wpmoo_smoke_module @ 19.0 -> local"
     ;;
   "add-module")
+    mkdir -p odoo/custom/src/private/wpmoo_smoke_module/wpmoo_smoke_extra
+    printf '{}\n' >odoo/custom/src/private/wpmoo_smoke_module/wpmoo_smoke_extra/__manifest__.py
     echo "Added module wpmoo_smoke_extra under source repo wpmoo_smoke_module."
     ;;
   "remove-module")
@@ -251,6 +260,7 @@ MOO
       exit 0
     fi
 
+    rm -rf odoo/custom/src/private/wpmoo_smoke_module/wpmoo_smoke_extra
     echo "Removed module wpmoo_smoke_extra from source repo wpmoo_smoke_module."
     ;;
   "reset")
@@ -271,7 +281,7 @@ MOO
     fi
 
     if [[ "${'$'}{2:-}" == "--json" ]]; then
-      echo '{"schemaVersion":1,"command":"status","ok":true,"modules":["wpmoo_smoke_extra"]}'
+      echo '{"schemaVersion":1,"command":"status","ok":true,"status":{"kind":"environment","moduleCandidateCount":1}}'
       exit 0
     fi
 
