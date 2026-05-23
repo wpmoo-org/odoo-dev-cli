@@ -233,7 +233,13 @@ if [[ "$1" == "restore-snapshot" && "$2" == "--dry-run" ]]; then
   exit 0
 fi
 if [[ "$1" == "status" && "$2" == "--json" ]]; then
-  echo '{"schemaVersion":1,"command":"status","ok":true}'
+  cat <<'JSON'
+{
+  "schemaVersion": 1,
+  "command": "status",
+  "ok": true
+}
+JSON
   exit 0
 fi
 if [[ "$1" == "doctor" && "$#" -eq 1 ]]; then
@@ -286,7 +292,17 @@ MOO
     fi
 
     if [[ "${'$'}{2:-}" == "--json" ]]; then
-      echo '{"schemaVersion":1,"command":"status","ok":true,"status":{"kind":"environment","moduleCandidateCount":1}}'
+      cat <<'JSON'
+{
+  "schemaVersion": 1,
+  "command": "status",
+  "ok": true,
+  "status": {
+    "kind": "environment",
+    "moduleCandidateCount": 1
+  }
+}
+JSON
       exit 0
     fi
 

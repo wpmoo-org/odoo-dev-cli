@@ -191,6 +191,13 @@ is_truthy() {
   esac
 }
 
+matches_text() {
+  local content="$1"
+  local pattern="$2"
+
+  [[ "$content" =~ $pattern ]]
+}
+
 run_wpmoo_in() {
   local cwd="$1"
   shift
@@ -301,12 +308,13 @@ run_environment_smoke() {
 
   echo "- Checking package status --json"
   status_report="$(run_wpmoo_in "$target" status --json)"
-  [[ "$status_report" == *'"schemaVersion":1'* && "$status_report" == *'"command":"status"'* && "$status_report" == *'"moduleCandidateCount":1'* ]] ||
-    {
-      echo "Expected wpmoo status --json to report one module candidate after add-module, got:" >&2
-      echo "$status_report" >&2
-      exit 1
-    }
+  if ! matches_text "$status_report" '"schemaVersion"[[:space:]]*:[[:space:]]*1' ||
+    ! matches_text "$status_report" '"command"[[:space:]]*:[[:space:]]*"status"' ||
+    ! matches_text "$status_report" '"moduleCandidateCount"[[:space:]]*:[[:space:]]*1'; then
+    echo "Expected wpmoo status --json to report one module candidate after add-module, got:" >&2
+    echo "$status_report" >&2
+    exit 1
+  fi
 
   git_in "$source_repo_checkout" add wpmoo_smoke_extra
   git_in "$source_repo_checkout" commit -m "Add smoke module" >/dev/null
@@ -331,12 +339,12 @@ run_environment_smoke() {
 
   echo "- Checking generated ./moo status --json"
   moo_status_report="$(PATH="$bin_dir:$PATH" DOCKER_STUB_LOG="$smoke_root/docker.log" "$target/moo" status --json)"
-  [[ "$moo_status_report" == *'"schemaVersion":1'* && "$moo_status_report" == *'"command":"status"'* ]] ||
-    {
-      echo "Expected ./moo status --json to emit status JSON, got:" >&2
-      echo "$moo_status_report" >&2
-      exit 1
-    }
+  if ! matches_text "$moo_status_report" '"schemaVersion"[[:space:]]*:[[:space:]]*1' ||
+    ! matches_text "$moo_status_report" '"command"[[:space:]]*:[[:space:]]*"status"'; then
+    echo "Expected ./moo status --json to emit status JSON, got:" >&2
+    echo "$moo_status_report" >&2
+    exit 1
+  fi
 
   echo "- Checking generated ./moo doctor"
   moo_doctor_report="$(PATH="$bin_dir:$PATH" DOCKER_STUB_LOG="$smoke_root/docker.log" "$target/moo" doctor)"
