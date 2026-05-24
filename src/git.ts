@@ -75,8 +75,19 @@ export async function addSubmodule(
   repoUrl: string,
   branch: string,
   path: string,
+  force = false,
 ): Promise<void> {
-  await git.run(target, ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-b', branch, repoUrl, path]);
+  await git.run(target, [
+    '-c',
+    'protocol.file.allow=always',
+    'submodule',
+    'add',
+    ...(force ? ['--force'] : []),
+    '-b',
+    branch,
+    repoUrl,
+    path,
+  ]);
 }
 
 export async function isTrackedPath(git: GitRunner, target: string, path: string): Promise<boolean> {
@@ -100,7 +111,26 @@ export async function ensureSubmodule(
     return;
   }
 
-  await addSubmodule(git, target, repoUrl, branch, path);
+  await addSubmodule(git, target, repoUrl, branch, path, (await localSubmoduleOriginUrl(git, target, path)) === repoUrl);
+}
+
+async function localSubmoduleOriginUrl(
+  git: GitRunner,
+  target: string,
+  path: string,
+): Promise<string | undefined> {
+  try {
+    const result = await git.run(target, [
+      'config',
+      '--file',
+      join('.git/modules', path, 'config'),
+      '--get',
+      'remote.origin.url',
+    ]);
+    return result.stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function hasUncommittedChanges(git: GitRunner, cwd: string): Promise<boolean> {

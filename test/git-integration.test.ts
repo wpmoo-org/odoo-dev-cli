@@ -380,6 +380,47 @@ describe('git integration', () => {
     await expect(readFile(join(target, 'odoo/custom/src/addons.yaml'), 'utf8')).rejects.toThrow();
   });
 
+  it('re-adds a source repo after removal leaves a local submodule gitdir', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wpmoo-git-readd-'));
+    const reportsRemote = join(root, 'odoo_sample_module_reports.git');
+    const target = join(root, 'odoo_sample_module_dev');
+
+    await git(root, ['init', '--bare', reportsRemote]);
+    await git(root, ['init', target]);
+    await git(target, ['config', 'user.name', 'Test User']);
+    await git(target, ['config', 'user.email', 'test@example.com']);
+    await git(target, ['commit', '--allow-empty', '-m', 'Initial dev repo']);
+
+    await addModuleRepo({
+      target,
+      repoUrl: reportsRemote,
+      odooVersion: '19.0',
+      initEmptyRepos: true,
+      stage: true,
+    });
+    await git(target, ['commit', '-m', 'Add reports repo']);
+
+    await removeModuleRepo({
+      target,
+      repoPath: 'odoo_sample_module_reports',
+      stage: true,
+    });
+    await git(target, ['commit', '-m', 'Remove reports repo']);
+
+    await addModuleRepo({
+      target,
+      repoUrl: reportsRemote,
+      odooVersion: '19.0',
+      initEmptyRepos: true,
+      stage: true,
+    });
+
+    await expect(stat(join(target, 'odoo/custom/src/private/odoo_sample_module_reports'))).resolves.toBeTruthy();
+    await expect(readFile(join(target, '.gitmodules'), 'utf8')).resolves.toContain(
+      'path = odoo/custom/src/private/odoo_sample_module_reports',
+    );
+  });
+
   it('lists a module repo added before the first dev environment commit', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wpmoo-git-add-before-commit-'));
     const baseRemote = join(root, 'odoo_sample_module.git');
