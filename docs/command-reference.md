@@ -16,7 +16,7 @@ unscoped `npx wpmoo` short alias is optional and best-effort; scripts should use
 | `npx @wpmoo/toolkit` | Open cockpit or create wizard | No | Opens the create wizard outside an environment and the cockpit inside one. |
 | `npx @wpmoo/toolkit create ...` | Create wizard | No | Creates a generated environment. Use `--target <path>` for a custom folder. |
 | `npx @wpmoo/toolkit status` | Diagnostics -> Environment status | Yes, `--json` | Fast local metadata and file check. |
-| `npx @wpmoo/toolkit doctor [--fix] [--postgres]` | Diagnostics -> Run doctor | Yes, `--json` | Deeper health checks. `--postgres` is read-only and advisory. |
+| `npx @wpmoo/toolkit doctor [--fix] [--postgres] [--fail-on-warning]` | Diagnostics -> Run doctor | Yes, `--json` | Deeper health checks. `--postgres` is read-only and advisory; `--fail-on-warning` is for strict automation gates. |
 | `npx @wpmoo/toolkit source list` | Repositories | Yes, `--json` | Lists known source repositories. |
 | `npx @wpmoo/toolkit source sync` | Repositories | Yes, `--json` | Refreshes source manifest data. |
 | `npx @wpmoo/toolkit add-repo --repo-url <url>` | Repositories -> Add source repo | No | Adds a source repository category entry. |
@@ -52,7 +52,7 @@ managed.
 | `./moo restore-snapshot --dry-run <name> [db]` | Database -> Restore snapshot | Preview only | Prints a restore preview without changing data. |
 | `./moo restore-snapshot <name> [db]` | Database -> Restore snapshot | Yes | Restores database and filestore from a snapshot. |
 | `./moo resetdb [db] [module[,module]]` | Database -> Reset database | Yes | Destructive database reset. |
-| `./moo doctor [--fix] [--postgres]` | Diagnostics -> Run doctor | No | Local health checks. |
+| `./moo doctor [--fix] [--postgres] [--fail-on-warning]` | Diagnostics -> Run doctor | No | Local health checks. |
 | `./moo status` | Diagnostics -> Environment status | No | Local environment status. |
 
 ## JSON Output
@@ -64,6 +64,7 @@ npx @wpmoo/toolkit status --json
 npx @wpmoo/toolkit source list --json
 npx @wpmoo/toolkit source sync --json
 npx @wpmoo/toolkit doctor --json
+npx @wpmoo/toolkit doctor --json --fail-on-warning
 npx @wpmoo/toolkit doctor --json --postgres
 ```
 
@@ -77,6 +78,9 @@ Current JSON contract notes:
   post-fix state.
 - `doctor --json --postgres` adds `postgres.contractVersion` and a PostgreSQL
   diagnostics object with its own `schemaVersion`.
+- `doctor --fail-on-warning` keeps warning details visible and returns non-zero
+  when warnings are present. Use it for CI and train gates, not as the default
+  interactive developer mode.
 - PostgreSQL fields are optional when a metric is unavailable.
 - Optional privileged PostgreSQL probe failures may appear under
   `postgres.optionalProbeFailures`; core diagnostics remain available when those

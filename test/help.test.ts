@@ -93,6 +93,7 @@ describe('help', () => {
     expect(output).toContain('status: fast and offline.');
     expect(output).toContain('doctor: deeper health check.');
     expect(output).toContain('doctor --fix: applies safe file-level repairs.');
+    expect(output).toContain('doctor --fail-on-warning: returns non-zero when advisory warnings are present.');
     expect(output).toContain('doctor --postgres: adds read-only PostgreSQL diagnostics');
     expect(output).toContain('Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics');
     expect(output).toContain('sessions currently running queries');
@@ -208,12 +209,14 @@ describe('help', () => {
     expect(output).toContain('npx @wpmoo/toolkit source list --json');
     expect(output).toContain('npx @wpmoo/toolkit source sync --json');
     expect(output).toContain('npx @wpmoo/toolkit doctor --json');
+    expect(output).toContain('npx @wpmoo/toolkit doctor --json --fail-on-warning');
     expect(output).toContain('npx @wpmoo/toolkit doctor --json [--postgres]');
     expect(output).toContain('doctor --json --postgres includes a structured postgres object for automation.');
     expect(output).toContain('doctor --json is read-only; run doctor --fix first, then doctor --json for post-fix state.');
     expect(readme).toContain('`doctor --json --fix` is intentionally unsupported');
     expect(commandReference).toContain('Run `doctor --fix` first, then `doctor --json`');
     expect(commandReference).toContain('post-fix state.');
+    expect(commandReference).toContain('`doctor --fail-on-warning` keeps warning details visible');
     expect(readme).toContain('Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics');
     expect(readme).toContain('Optional PostgreSQL probe permission failures appear under');
     expect(readme).toContain('`postgres.optionalProbeFailures`');
@@ -223,7 +226,9 @@ describe('help', () => {
     expect(readme).toContain('connection utilization against');
     expect(readme).toContain('`max_connections`');
     expect(output).toContain('--postgres');
+    expect(output).toContain('--fail-on-warning');
     expect(output).toContain('Include read-only PostgreSQL health/performance diagnostics in doctor.');
+    expect(output).toContain('Make doctor fail when advisory warnings are present.');
     expect(readme).toContain('`doctor --json --postgres` includes a structured `postgres` object for automation.');
   });
 
@@ -272,8 +277,10 @@ describe('help', () => {
     expect(readmeText).toContain('npx @wpmoo/toolkit source list --json');
     expect(readmeText).toContain('npx @wpmoo/toolkit source sync --json');
     expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json');
+    expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json --fail-on-warning');
     expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json --postgres');
     expect(readmeText).toContain('doctor --postgres');
+    expect(readmeText).toContain('doctor --fail-on-warning');
     expect(readmeText).toContain('JSON output is optional; human-readable output remains the default.');
   });
 });

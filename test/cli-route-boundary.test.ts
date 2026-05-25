@@ -47,10 +47,11 @@ describe('cli route boundary helpers', () => {
   it('keeps doctor and reset command option parsing outside the main cli router', () => {
     const target = resolve('/tmp/wpmoo-maintenance-route-boundary');
 
-    expect(doctorOptionsFromArgs(['--json', '--postgres', '--fix=false'])).toEqual({
+    expect(doctorOptionsFromArgs(['--json', '--postgres', '--fix=false', '--fail-on-warning'])).toEqual({
       json: true,
       postgres: true,
       fix: false,
+      failOnWarning: true,
     });
     expect(() => doctorOptionsFromArgs(['--target', target])).toThrow('Usage: wpmoo doctor');
     expect(resetCommandOptionsFromArgs(['--target', target, '--stage=false', '--dry-run'])).toEqual({

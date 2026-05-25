@@ -235,6 +235,39 @@ describe('doctor', () => {
     );
   });
 
+  it('can fail doctor when warnings are present in strict mode', async () => {
+    const target = await makeEnvironment({
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/demo_module');
+    await mkdir(modulePath, { recursive: true });
+    await writeFile(
+      join(modulePath, '__manifest__.py'),
+      [
+        '{',
+        "  'name': 'Demo',",
+        "  'installable': True,",
+        "  'depends': ['base'],",
+        "  'data': [],",
+        '}',
+        '',
+      ].join('\n'),
+    );
+
+    const report = await getDoctorReport(target, passingDockerRunner(), { failOnWarning: true });
+
+    expect(report.ok).toBe(false);
+    expect(report.warnings).toEqual(
+      expect.arrayContaining([
+        'Module quality advisory: odoo/custom/src/private/odoo_sample_module/demo_module: missing license in __manifest__.py',
+      ]),
+    );
+    expect(report.errors).toEqual(['Warnings present and --fail-on-warning is enabled.']);
+    await expect(runDoctor(target, passingDockerRunner(), { failOnWarning: true })).rejects.toThrow(
+      'Warnings present and --fail-on-warning is enabled.',
+    );
+  });
+
   it('rejects non-object metadata and invalid source repo entries', async () => {
     const nonObjectMetadata = await makeEnvironment({ metadata: [] });
     await expect(runDoctor(nonObjectMetadata, passingDockerRunner())).rejects.toThrow(

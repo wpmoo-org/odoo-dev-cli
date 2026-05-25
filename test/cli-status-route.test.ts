@@ -260,4 +260,16 @@ describe('cli status route', () => {
     expect(logSpy).toHaveBeenCalledWith('mock banner');
     expect(logSpy).toHaveBeenCalledWith('doctor report');
   });
+
+  it('passes fail-on-warning mode to human doctor output', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await runCli(['doctor', '--fail-on-warning'], '/tmp/example-environment');
+
+    expect(mocks.runDoctor).toHaveBeenCalledWith('/tmp/example-environment', { failOnWarning: true });
+    expect(mocks.getDoctorReport).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith('mock banner');
+    expect(logSpy).toHaveBeenCalledWith('doctor report');
+  });
 });

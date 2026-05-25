@@ -47,6 +47,7 @@ export type DoctorCommandRunner = (
 
 export type DoctorCommandOptions = {
   fix?: boolean;
+  failOnWarning?: boolean;
   postgres?: boolean;
   postgresTimeoutMs?: number;
 };
@@ -953,6 +954,10 @@ export async function getDoctorReport(
     checks.push('OK GitHub CLI auth');
   } catch (error) {
     warnings.push(`GitHub CLI auth: ${errorMessage(error)}`);
+  }
+
+  if (actualOptions.failOnWarning && warnings.length > 0 && errors.length === 0) {
+    errors.push('Warnings present and --fail-on-warning is enabled.');
   }
 
   report.ok = errors.length === 0;

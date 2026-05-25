@@ -2092,6 +2092,9 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
     if (options.fix !== undefined) {
       doctorOptions.fix = options.fix;
     }
+    if (options.failOnWarning !== undefined) {
+      doctorOptions.failOnWarning = options.failOnWarning;
+    }
     if (options.postgres !== undefined) {
       doctorOptions.postgres = options.postgres;
     }
@@ -2107,7 +2110,7 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
 
     console.log(renderBanner());
     console.log(
-      options.fix === undefined && options.postgres === undefined
+      options.fix === undefined && options.failOnWarning === undefined && options.postgres === undefined
         ? await runDoctor(cwd)
         : await runDoctor(cwd, doctorOptions),
     );

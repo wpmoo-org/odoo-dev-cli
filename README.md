@@ -179,6 +179,7 @@ npx @wpmoo/toolkit status --json
 npx @wpmoo/toolkit source list --json
 npx @wpmoo/toolkit source sync --json
 npx @wpmoo/toolkit doctor --json
+npx @wpmoo/toolkit doctor --json --fail-on-warning
 npx @wpmoo/toolkit doctor --postgres
 npx @wpmoo/toolkit doctor --json --postgres
 ```
@@ -190,6 +191,8 @@ to inspect the post-fix state.
 Human `doctor` output is grouped into stable sections (`Generated files`,
 `Compose`, `Source repositories`, `PostgreSQL`, and `Host tools`) so terminal
 operators can see which lifecycle layer needs attention first.
+Use `doctor --fail-on-warning` when CI or a train gate must fail on advisory
+warnings that remain acceptable in normal interactive developer output.
 `doctor --postgres` runs read-only PostgreSQL diagnostics as advisory checks only; it
 does not perform automatic tuning.
 Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics

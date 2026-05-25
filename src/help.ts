@@ -20,8 +20,8 @@ Usage:
   npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> [--source-type <category>]
   npx @wpmoo/toolkit remove-module --repo <source-repo> --module <module-name> [--source-type <category>]
   npx @wpmoo/toolkit reset [--dry-run]
-  npx @wpmoo/toolkit doctor [--fix] [--postgres]
-  npx @wpmoo/toolkit doctor --json [--postgres]
+  npx @wpmoo/toolkit doctor [--fix] [--postgres] [--fail-on-warning]
+  npx @wpmoo/toolkit doctor --json [--postgres] [--fail-on-warning]
   npx @wpmoo/toolkit start
   npx @wpmoo/toolkit stop
   npx @wpmoo/toolkit logs [service] [tail-lines]
@@ -69,6 +69,7 @@ Options:
   --init-empty-repos           Initialize empty source repos with the selected branch.
   --dry-run                    Print planned files and commands without writing.
   --postgres                   Include read-only PostgreSQL health/performance diagnostics in doctor.
+  --fail-on-warning            Make doctor fail when advisory warnings are present.
   --stage=false                Do not run git add .
   --no-update-check            Skip the startup npm update check.
   --version, -v                Show the package version.
@@ -112,6 +113,7 @@ Status and doctor:
   status: fast and offline. Reads local environment metadata and files only.
   doctor: deeper health check. May check Docker CLI access and GitHub workflows.
   doctor --fix: applies safe file-level repairs. Runs doctor again after fixes.
+  doctor --fail-on-warning: returns non-zero when advisory warnings are present.
   doctor --postgres: adds read-only PostgreSQL diagnostics such as database size,
     sessions currently running queries with pg_stat_activity.state = 'active',
     connection utilization against max_connections, slow-query readiness,
@@ -160,6 +162,7 @@ Machine-readable JSON output:
     npx @wpmoo/toolkit source list --json
     npx @wpmoo/toolkit source sync --json
     npx @wpmoo/toolkit doctor --json
+    npx @wpmoo/toolkit doctor --json --fail-on-warning
     doctor --json --postgres includes a structured postgres object for automation.
     doctor --json is read-only; run doctor --fix first, then doctor --json for post-fix state.
     Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics.

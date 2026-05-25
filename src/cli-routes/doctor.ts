@@ -9,7 +9,7 @@ export type DoctorCliOptions = DoctorCommandOptions & {
 export function doctorOptionsFromArgs(argv: string[]): DoctorCliOptions {
   const { values } = parseArgs(argv);
   const keys = Object.keys(values);
-  const allowedKeys = new Set(['fix', 'json', 'postgres']);
+  const allowedKeys = new Set(['failOnWarning', 'fix', 'json', 'postgres']);
   if (!keys.every((key) => allowedKeys.has(key))) {
     throw new Error('Usage: wpmoo doctor');
   }
@@ -19,6 +19,9 @@ export function doctorOptionsFromArgs(argv: string[]): DoctorCliOptions {
   };
   if (Object.hasOwn(values, 'fix')) {
     options.fix = booleanOption(values, 'fix', false);
+  }
+  if (Object.hasOwn(values, 'failOnWarning')) {
+    options.failOnWarning = booleanOption(values, 'failOnWarning', false);
   }
   if (Object.hasOwn(values, 'postgres')) {
     options.postgres = booleanOption(values, 'postgres', false);
