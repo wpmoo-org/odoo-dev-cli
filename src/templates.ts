@@ -1400,6 +1400,7 @@ function emptyModuleQuality() {
     nonInstallableModules: 0,
     modulesWithMenuActions: 0,
     modulesMissingMenuActions: 0,
+    addons: [],
     issues: [],
   };
 }
@@ -1458,7 +1459,7 @@ async function analyzeModule(modulePath) {
     });
   }
 
-  return { installable, hasMenuAction, issues };
+  return { moduleName, relativePath: moduleRelativePath, installable, hasMenuAction, issues };
 }
 
 function addModuleQuality(summary, result) {
@@ -1468,18 +1469,44 @@ function addModuleQuality(summary, result) {
     nonInstallableModules: summary.nonInstallableModules + (result.installable ? 0 : 1),
     modulesWithMenuActions: summary.modulesWithMenuActions + (result.hasMenuAction ? 1 : 0),
     modulesMissingMenuActions: summary.modulesMissingMenuActions + (result.hasMenuAction ? 0 : 1),
+    addons: [...summary.addons, { moduleName: result.moduleName, path: result.relativePath }],
     issues: [...summary.issues, ...result.issues],
   };
 }
 
+function duplicateAddonIssues(addons) {
+  const byName = new Map();
+  for (const addon of addons) {
+    byName.set(addon.moduleName, [...(byName.get(addon.moduleName) || []), addon]);
+  }
+
+  const issues = [];
+  for (const [moduleName, duplicates] of byName) {
+    if (duplicates.length < 2) continue;
+    const paths = duplicates.map((addon) => addon.path).sort();
+    const issue = 'duplicate addon technical name: ' + moduleName + ' found at ' + paths.join(', ');
+    for (const addon of duplicates) {
+      issues.push({ moduleName, path: addon.path, issue, severity: 'error' });
+    }
+  }
+  return issues;
+}
+
+function withoutDuplicateAddonIssues(issues) {
+  return issues.filter((issue) => !issue.issue.startsWith('duplicate addon technical name:'));
+}
+
 function mergeModuleQuality(left, right) {
+  const addons = [...left.addons, ...right.addons];
+  const duplicateIssues = duplicateAddonIssues(addons);
   return {
     totalModules: left.totalModules + right.totalModules,
     installableModules: left.installableModules + right.installableModules,
     nonInstallableModules: left.nonInstallableModules + right.nonInstallableModules,
     modulesWithMenuActions: left.modulesWithMenuActions + right.modulesWithMenuActions,
     modulesMissingMenuActions: left.modulesMissingMenuActions + right.modulesMissingMenuActions,
-    issues: [...left.issues, ...right.issues],
+    addons,
+    issues: [...withoutDuplicateAddonIssues([...left.issues, ...right.issues]), ...duplicateIssues],
   };
 }
 
@@ -1506,7 +1533,10 @@ async function scanModuleQuality(root) {
     }
   }
 
-  return summary;
+  return {
+    ...summary,
+    issues: [...withoutDuplicateAddonIssues(summary.issues), ...duplicateAddonIssues(summary.addons)],
+  };
 }
 
 function parseEnvContent(content) {
@@ -1642,11 +1672,15 @@ function summaryText(status) {
 }
 
 function isHealthy(status) {
+  const moduleQualityHasErrors =
+    status.kind === 'environment' &&
+    status.moduleQuality.issues.some((issue) => issue.severity === 'error');
   return (
     status.kind === 'environment' &&
     status.missingCoreFiles.length === 0 &&
     status.invalidSourceRepoPaths.length === 0 &&
-    status.composeErrors.length === 0
+    status.composeErrors.length === 0 &&
+    !moduleQualityHasErrors
   );
 }
 

@@ -37,6 +37,7 @@ describe('cockpit result views', () => {
         nonInstallableModules: 0,
         modulesWithMenuActions: 2,
         modulesMissingMenuActions: 0,
+        addons: [],
         issues: [],
       },
       composeFiles: ['compose.yaml'],
@@ -76,6 +77,7 @@ describe('cockpit result views', () => {
         nonInstallableModules: 0,
         modulesWithMenuActions: 0,
         modulesMissingMenuActions: 0,
+        addons: [],
         issues: [],
       },
       composeFiles: ['compose.yaml', 'compose/dev.yaml'],
@@ -123,6 +125,7 @@ describe('cockpit result views', () => {
         nonInstallableModules: 1,
         modulesWithMenuActions: 1,
         modulesMissingMenuActions: 1,
+        addons: [],
         issues: [
           {
             moduleName: 'broken_module',

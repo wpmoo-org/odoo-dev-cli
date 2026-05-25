@@ -598,6 +598,56 @@ describe('analyzeModuleDirectory module quality v2 checks', () => {
 });
 
 describe('scanModuleQuality dependency graph checks', () => {
+  it('reports duplicate addon technical names across nested source roots', async () => {
+    const target = await makeTarget('wpmoo-module-quality-duplicate-addon-');
+    const modulesRoot = join(target, 'odoo/custom/src/private');
+    const communityPath = join(modulesRoot, 'community/addons/demo_duplicate');
+    const proPath = join(modulesRoot, 'pro/addons/demo_duplicate');
+    await writeText(join(communityPath, '__manifest__.py'), buildManifest({ depends: ['base'] }));
+    await writeStandardQualityFiles(communityPath, 'demo_duplicate');
+    await writeText(join(proPath, '__manifest__.py'), buildManifest({ depends: ['base'] }));
+    await writeStandardQualityFiles(proPath, 'demo_duplicate');
+
+    const result = await scanModuleQuality(modulesRoot, target);
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_duplicate',
+          issue: expect.stringContaining('duplicate addon technical name: demo_duplicate'),
+          severity: 'error',
+        }),
+      ]),
+    );
+    expect(result.issues.find((issue) => issue.issue.includes('duplicate addon technical name'))?.issue).toContain(
+      'odoo/custom/src/private/community/addons/demo_duplicate',
+    );
+    expect(result.issues.find((issue) => issue.issue.includes('duplicate addon technical name'))?.issue).toContain(
+      'odoo/custom/src/private/pro/addons/demo_duplicate',
+    );
+  });
+
+  it('does not report duplicate addon names when community and pro addon names differ', async () => {
+    const target = await makeTarget('wpmoo-module-quality-distinct-addon-');
+    const modulesRoot = join(target, 'odoo/custom/src/private');
+    const communityPath = join(modulesRoot, 'community/addons/demo_community');
+    const proPath = join(modulesRoot, 'pro/addons/demo_pro');
+    await writeText(join(communityPath, '__manifest__.py'), buildManifest({ depends: ['base'] }));
+    await writeStandardQualityFiles(communityPath, 'demo_community');
+    await writeText(join(proPath, '__manifest__.py'), buildManifest({ depends: ['base'] }));
+    await writeStandardQualityFiles(proPath, 'demo_pro');
+
+    const result = await scanModuleQuality(modulesRoot, target);
+
+    expect(result.issues).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          issue: expect.stringContaining('duplicate addon technical name'),
+        }),
+      ]),
+    );
+  });
+
   it('reports missing local dependencies', async () => {
     const target = await makeTarget('wpmoo-module-quality-missing-local-dependency-');
     const modulesRoot = join(target, 'modules');

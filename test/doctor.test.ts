@@ -235,6 +235,58 @@ describe('doctor', () => {
     );
   });
 
+  it('fails doctor when duplicate addon technical names are found', async () => {
+    const target = await makeEnvironment({
+      metadata: {
+        ...baseMetadata,
+        sourceRepos: [
+          { url: 'https://github.com/example-org/repo_a.git', path: 'repo_a', addons: [] },
+          { url: 'https://github.com/example-org/repo_b.git', path: 'repo_b', addons: [] },
+        ],
+      },
+      sourcePaths: ['repo_a', 'repo_b'],
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+
+    for (const repo of ['repo_a', 'repo_b']) {
+      const modulePath = join(target, 'odoo/custom/src/private', repo, 'demo_duplicate');
+      await mkdir(join(modulePath, 'views'), { recursive: true });
+      await mkdir(join(modulePath, 'security'), { recursive: true });
+      await mkdir(join(modulePath, 'tests'), { recursive: true });
+      await writeFile(
+        join(modulePath, '__manifest__.py'),
+        [
+          '{',
+          "  'name': 'Demo',",
+          "  'installable': True,",
+          "  'version': '1.0.0',",
+          "  'license': 'LGPL-3',",
+          "  'depends': ['base'],",
+          "  'data': ['security/ir.model.access.csv', 'views/demo_views.xml'],",
+          '}',
+          '',
+        ].join('\n'),
+      );
+      await writeFile(join(modulePath, 'security', 'ir.model.access.csv'), 'id,name\n');
+      await writeFile(
+        join(modulePath, 'views', 'demo_views.xml'),
+        '<odoo><record id="action_demo" model="ir.actions.act_window"/><menuitem id="menu_demo" action="action_demo"/></odoo>\n',
+      );
+    }
+
+    const report = await getDoctorReport(target, passingDockerRunner());
+
+    expect(report.ok).toBe(false);
+    expect(report.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Module quality error: odoo/custom/src/private/repo_a/demo_duplicate: duplicate addon technical name: demo_duplicate'),
+      ]),
+    );
+    await expect(runDoctor(target, passingDockerRunner())).rejects.toThrow(
+      'Module quality error: odoo/custom/src/private/repo_a/demo_duplicate: duplicate addon technical name: demo_duplicate',
+    );
+  });
+
   it('can fail doctor when warnings are present in strict mode', async () => {
     const target = await makeEnvironment({
       env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',

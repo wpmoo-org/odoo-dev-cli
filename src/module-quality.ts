@@ -29,6 +29,10 @@ export type ModuleQualitySummary = {
   nonInstallableModules: number;
   modulesWithMenuActions: number;
   modulesMissingMenuActions: number;
+  addons: Array<{
+    moduleName: string;
+    path: string;
+  }>;
   dependencyGraph?: ModuleDependencyGraph;
   issues: ModuleQualityIssue[];
 };
@@ -50,6 +54,7 @@ export function emptyModuleQualitySummary(): ModuleQualitySummary {
     nonInstallableModules: 0,
     modulesWithMenuActions: 0,
     modulesMissingMenuActions: 0,
+    addons: [],
     issues: [],
   };
 }
@@ -457,6 +462,7 @@ export function addModuleQualityResult(
     nonInstallableModules: summary.nonInstallableModules + (result.installable ? 0 : 1),
     modulesWithMenuActions: summary.modulesWithMenuActions + (result.hasMenuAction ? 1 : 0),
     modulesMissingMenuActions: summary.modulesMissingMenuActions + (result.hasMenuAction ? 0 : 1),
+    addons: [...summary.addons, { moduleName: result.moduleName, path: result.relativePath }],
     issues: [...summary.issues, ...result.issues],
   };
 }
@@ -471,6 +477,8 @@ export function mergeModuleQualitySummaries(
   ];
   const dependencies = [...(left.dependencyGraph?.dependencies ?? []), ...(right.dependencyGraph?.dependencies ?? [])];
   const cycles = [...(left.dependencyGraph?.cycles ?? []), ...(right.dependencyGraph?.cycles ?? [])];
+  const addons = [...left.addons, ...right.addons];
+  const duplicateIssues = duplicateAddonNameIssues(addons);
   const dependencyGraph =
     dependencies.length > 0 || missingDependencies.length > 0 || cycles.length > 0
       ? { dependencies, missingDependencies, cycles }
@@ -482,8 +490,9 @@ export function mergeModuleQualitySummaries(
     nonInstallableModules: left.nonInstallableModules + right.nonInstallableModules,
     modulesWithMenuActions: left.modulesWithMenuActions + right.modulesWithMenuActions,
     modulesMissingMenuActions: left.modulesMissingMenuActions + right.modulesMissingMenuActions,
+    addons,
     ...(dependencyGraph ? { dependencyGraph } : {}),
-    issues: [...left.issues, ...right.issues],
+    issues: [...withoutDuplicateAddonIssues([...left.issues, ...right.issues]), ...duplicateIssues],
   };
 }
 
@@ -565,6 +574,31 @@ function moduleDependencyGraph(results: readonly ModuleQualityResult[]): {
   return { graph: { dependencies, missingDependencies, cycles }, issues };
 }
 
+function duplicateAddonNameIssues(
+  addons: ReadonlyArray<{ moduleName: string; path: string }>,
+): ModuleQualityIssue[] {
+  const byName = new Map<string, Array<{ moduleName: string; path: string }>>();
+  for (const addon of addons) {
+    byName.set(addon.moduleName, [...(byName.get(addon.moduleName) ?? []), addon]);
+  }
+
+  const issues: ModuleQualityIssue[] = [];
+  for (const [moduleName, duplicates] of byName) {
+    if (duplicates.length < 2) continue;
+    const paths = duplicates.map((result) => result.path).sort();
+    const issue = `duplicate addon technical name: ${moduleName} found at ${paths.join(', ')}`;
+    for (const result of duplicates) {
+      issues.push(moduleQualityIssue(moduleName, result.path, issue, 'error'));
+    }
+  }
+
+  return issues;
+}
+
+function withoutDuplicateAddonIssues(issues: readonly ModuleQualityIssue[]): ModuleQualityIssue[] {
+  return issues.filter((issue) => !issue.issue.startsWith('duplicate addon technical name:'));
+}
+
 export async function scanModuleQuality(root: string, target: string): Promise<ModuleQualitySummary> {
   try {
     const rootStat = await stat(root);
@@ -600,12 +634,13 @@ export async function scanModuleQuality(root: string, target: string): Promise<M
   }
 
   const dependencyGraph = moduleDependencyGraph(results);
+  const duplicateIssues = duplicateAddonNameIssues(summary.addons);
   const hasDependencyGraphIssues =
     dependencyGraph.graph.missingDependencies.length > 0 || dependencyGraph.graph.cycles.length > 0;
 
   return {
     ...summary,
     ...(hasDependencyGraphIssues ? { dependencyGraph: dependencyGraph.graph } : {}),
-    issues: [...summary.issues, ...dependencyGraph.issues],
+    issues: [...withoutDuplicateAddonIssues(summary.issues), ...duplicateIssues, ...dependencyGraph.issues],
   };
 }

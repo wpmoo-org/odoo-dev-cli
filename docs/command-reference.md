@@ -16,7 +16,7 @@ unscoped `npx wpmoo` short alias is optional and best-effort; scripts should use
 | `npx @wpmoo/toolkit` | Open cockpit or create wizard | No | Opens the create wizard outside an environment and the cockpit inside one. |
 | `npx @wpmoo/toolkit create ...` | Create wizard | No | Creates a generated environment. Use `--target <path>` for a custom folder. |
 | `npx @wpmoo/toolkit status` | Diagnostics -> Environment status | Yes, `--json` | Fast local metadata and file check. |
-| `npx @wpmoo/toolkit doctor [--fix] [--postgres] [--fail-on-warning]` | Diagnostics -> Run doctor | Yes, `--json` | Deeper health checks. `--postgres` is read-only and advisory; `--fail-on-warning` is for strict automation gates. |
+| `npx @wpmoo/toolkit doctor [--fix] [--postgres] [--fail-on-warning]` | Diagnostics -> Run doctor | Yes, `--json` | Deeper health checks. Fails on duplicate Odoo addon technical names. `--postgres` is read-only and advisory; `--fail-on-warning` is for strict automation gates. |
 | `npx @wpmoo/toolkit source list` | Repositories | Yes, `--json` | Lists known source repositories. |
 | `npx @wpmoo/toolkit source sync` | Repositories | Yes, `--json` | Refreshes source manifest data. |
 | `npx @wpmoo/toolkit add-repo --repo-url <url>` | Repositories -> Add source repo | No | Adds a source repository category entry. |

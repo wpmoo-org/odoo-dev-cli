@@ -810,8 +810,15 @@ export async function getDoctorReport(
     moduleQuality = mergeModuleQualitySummaries(moduleQuality, await scanModuleQuality(repoRoot, target));
   }
   checks.push(`OK module quality ${moduleQuality.totalModules} module${moduleQuality.totalModules === 1 ? '' : 's'} scanned`);
+  errors.push(
+    ...moduleQuality.issues
+      .filter((issue) => issue.severity === 'error')
+      .map((issue) => `Module quality error: ${issue.path}: ${issue.issue}`),
+  );
   warnings.push(
-    ...moduleQuality.issues.map((issue) => `Module quality advisory: ${issue.path}: ${issue.issue}`),
+    ...moduleQuality.issues
+      .filter((issue) => issue.severity !== 'error')
+      .map((issue) => `Module quality advisory: ${issue.path}: ${issue.issue}`),
   );
 
   const manifestPath = join(target, sourceManifestPath);

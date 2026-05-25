@@ -23,6 +23,7 @@ const environmentStatus: EnvironmentStatus = {
     nonInstallableModules: 0,
     modulesWithMenuActions: 0,
     modulesMissingMenuActions: 0,
+    addons: [],
     issues: [],
   },
   composeFiles: ['compose.yaml', 'compose/dev.yaml'],

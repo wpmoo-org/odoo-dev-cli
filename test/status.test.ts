@@ -220,6 +220,60 @@ describe('status', () => {
     );
   });
 
+  it('marks status JSON unhealthy when duplicate addon technical names are found', async () => {
+    const target = await makeTarget('wpmoo-status-duplicate-addons-');
+    const metadata = {
+      ...validMetadata,
+      sourceRepos: [
+        { url: 'https://github.com/example/a.git', path: 'repo_a', addons: [] },
+        { url: 'https://github.com/example/b.git', path: 'repo_b', addons: [] },
+      ],
+    };
+    await writeMetadata(target, JSON.stringify(metadata, null, 2));
+    await writeCoreFiles(target, '19.0');
+
+    for (const repo of ['repo_a', 'repo_b']) {
+      const modulePath = join(target, 'odoo/custom/src/private', repo, 'demo_duplicate');
+      await mkdir(join(modulePath, 'views'), { recursive: true });
+      await mkdir(join(modulePath, 'security'), { recursive: true });
+      await mkdir(join(modulePath, 'tests'), { recursive: true });
+      await writeFile(
+        join(modulePath, '__manifest__.py'),
+        [
+          '{',
+          "  'name': 'Demo',",
+          "  'installable': True,",
+          "  'version': '1.0.0',",
+          "  'license': 'LGPL-3',",
+          "  'depends': ['base'],",
+          "  'data': ['security/ir.model.access.csv', 'views/demo_views.xml'],",
+          '}',
+          '',
+        ].join('\n'),
+      );
+      await writeFile(join(modulePath, 'security', 'ir.model.access.csv'), 'id,name\n');
+      await writeFile(
+        join(modulePath, 'views', 'demo_views.xml'),
+        '<odoo><record id="action_demo" model="ir.actions.act_window"/><menuitem id="menu_demo" action="action_demo"/></odoo>\n',
+      );
+    }
+
+    const status = await getEnvironmentStatus(target);
+    expect(status.kind).toBe('environment');
+    if (status.kind !== 'environment') return;
+
+    expect(environmentStatusJson(status).ok).toBe(false);
+    expect(status.moduleQuality.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_duplicate',
+          issue: expect.stringContaining('duplicate addon technical name: demo_duplicate'),
+          severity: 'error',
+        }),
+      ]),
+    );
+  });
+
   it('counts module candidates from source-aware repo sourceType directories', async () => {
     const target = await makeTarget('wpmoo-status-source-types-');
     const metadata = {
@@ -426,6 +480,7 @@ describe('status', () => {
           nonInstallableModules: 0,
           modulesWithMenuActions: 0,
           modulesMissingMenuActions: 0,
+          addons: [],
           issues: [],
         },
         composeFiles: ['docker-compose_19.0.yml'],

@@ -201,7 +201,8 @@ function isStatusHealthy(status: EnvironmentStatus): boolean {
   return (
     status.missingCoreFiles.length === 0 &&
     status.invalidSourceRepoPaths.length === 0 &&
-    status.composeErrors.length === 0
+    status.composeErrors.length === 0 &&
+    !status.moduleQuality.issues.some((issue) => issue.severity === 'error')
   );
 }
 
