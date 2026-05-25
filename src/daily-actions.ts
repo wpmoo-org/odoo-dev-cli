@@ -127,7 +127,7 @@ function usage(command: DailyActionCommand): string {
   if (command === 'shell') return 'Usage: wpmoo shell';
   if (command === 'psql') return 'Usage: wpmoo psql [db]';
   if (command === 'install') return 'Usage: wpmoo install <module[,module]> [db]';
-  if (command === 'update') return 'Usage: wpmoo update <module[,module]> [db]';
+  if (command === 'update') return 'Usage: wpmoo update <module[,module]> [db|--db <db>]';
   if (command === 'test') return 'Usage: wpmoo test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]';
   if (command === 'resetdb') return 'Usage: wpmoo resetdb [db] [module[,module]]';
   if (command === 'snapshot') return 'Usage: wpmoo snapshot [--list] [db] [snapshot-name]';
@@ -150,6 +150,60 @@ function moduleArgs(command: 'install' | 'update', argv: string[]): string[] {
   const [modules, db, ...rest] = argv;
   if (!modules || modules.startsWith('-') || rest.length > 0) throw new Error(usage(command));
   return db ? [modules, normalizeDatabaseName(db)] : [modules];
+}
+
+function looksLikeOdooModuleName(value: string): boolean {
+  return /^[a-z][a-z0-9_]*$/u.test(value);
+}
+
+function ambiguousUpdateArgumentsError(moduleTokens: readonly string[], db: string): Error {
+  return new Error(
+    [
+      'Ambiguous update arguments.',
+      'Did you mean:',
+      `wpmoo update ${moduleTokens.join(',')} ${db}`,
+      'or:',
+      `wpmoo update ${moduleTokens.join(' ')} --db ${db}`,
+    ].join('\n'),
+  );
+}
+
+function updateArgs(argv: string[]): string[] {
+  if (argv.length === 0 || argv[0]?.startsWith('-')) {
+    throw new Error(usage('update'));
+  }
+
+  const dbOptionIndex = argv.indexOf('--db');
+  if (dbOptionIndex >= 0) {
+    const moduleTokens = argv.slice(0, dbOptionIndex);
+    const db = argv[dbOptionIndex + 1];
+    if (moduleTokens.length === 0) {
+      throw new Error(usage('update'));
+    }
+    if (!db || db.startsWith('--')) {
+      throw new Error('Missing value for --db');
+    }
+    if (dbOptionIndex + 2 !== argv.length) {
+      throw new Error(usage('update'));
+    }
+    return [moduleTokens.join(','), normalizeDatabaseName(db)];
+  }
+
+  if (argv.some((arg) => arg.startsWith('-'))) {
+    throw new Error(usage('update'));
+  }
+
+  if (argv.length <= 2) {
+    return moduleArgs('update', argv);
+  }
+
+  const db = argv.at(-1)!;
+  const moduleTokens = argv.slice(0, -1);
+  if (looksLikeOdooModuleName(db)) {
+    throw ambiguousUpdateArgumentsError(moduleTokens, db);
+  }
+
+  return [moduleTokens.join(','), normalizeDatabaseName(db)];
 }
 
 function positionalArgs(command: DailyActionCommand, argv: string[], min: number, max: number): string[] {
@@ -235,7 +289,8 @@ function scriptArgs(command: DailyActionCommand, argv: string[]): string[] {
   if (command === 'restart') return ensureNoArgs(command, argv);
   if (command === 'shell') return ensureNoArgs(command, argv);
   if (command === 'psql') return optionalSingleArg(command, argv, 'postgres').map(normalizeDatabaseName);
-  if (command === 'install' || command === 'update') return moduleArgs(command, argv);
+  if (command === 'install') return moduleArgs(command, argv);
+  if (command === 'update') return updateArgs(argv);
   if (command === 'test') return testArgs(argv);
   if (command === 'resetdb') {
     rejectLeadingHyphenDatabaseArg(argv);

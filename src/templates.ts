@@ -505,7 +505,7 @@ usage() {
     "shell") echo "Usage: ./moo shell" ;;
     "psql") echo "Usage: ./moo psql [db]" ;;
     "install") echo "Usage: ./moo install <module[,module]> [db]" ;;
-    "update") echo "Usage: ./moo update <module[,module]> [db]" ;;
+    "update") echo "Usage: ./moo update <module[,module]> [db|--db <db>]" ;;
     "test") echo "Usage: ./moo test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]" ;;
     "resetdb") echo "Usage: ./moo resetdb [db] [module[,module]]" ;;
     "snapshot") echo "Usage: ./moo snapshot [--list] [db] [snapshot-name]" ;;
@@ -562,6 +562,79 @@ require_module_args() {
   if [[ "$#" -lt 1 || "\${1:-}" == -* || "$#" -gt 2 ]]; then
     fail_usage "$command"
   fi
+}
+
+is_odoo_module_name() {
+  [[ "$1" =~ ^[a-z][a-z0-9_]*$ ]]
+}
+
+join_modules() {
+  local IFS=,
+  printf '%s\\n' "$*"
+}
+
+ambiguous_update_args() {
+  local db="$1"
+  shift
+  local modules_csv
+  modules_csv="$(join_modules "$@")"
+  echo "Ambiguous update arguments." >&2
+  echo "Did you mean:" >&2
+  echo "./moo update \${modules_csv} \${db}" >&2
+  echo "or:" >&2
+  echo "./moo update $* --db \${db}" >&2
+  exit 2
+}
+
+run_update_script() {
+  if [[ "$#" -lt 1 || "\${1:-}" == -* ]]; then
+    fail_usage "update"
+  fi
+
+  local db=""
+  local -a modules=()
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      "--db")
+        shift
+        if [[ "$#" -lt 1 || "\${1:-}" == --* ]]; then
+          echo "Missing value for --db" >&2
+          exit 2
+        fi
+        db="$1"
+        shift
+        if [[ "$#" -gt 0 ]]; then
+          fail_usage "update"
+        fi
+        ;;
+      --*)
+        echo "Unknown option for ./moo update: $1" >&2
+        exit 2
+        ;;
+      *)
+        modules+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -n "$db" ]]; then
+    run_script ./scripts/update.sh "$(join_modules "\${modules[@]}")" "$db"
+  fi
+
+  if [[ "\${#modules[@]}" -le 2 ]]; then
+    run_script ./scripts/update.sh "\${modules[@]}"
+  fi
+
+  local last_index=$(( \${#modules[@]} - 1 ))
+  db="\${modules[$last_index]}"
+  unset 'modules[$last_index]'
+
+  if is_odoo_module_name "$db"; then
+    ambiguous_update_args "$db" "\${modules[@]}"
+  fi
+
+  run_script ./scripts/update.sh "$(join_modules "\${modules[@]}")" "$db"
 }
 
 positional_args() {
@@ -1062,11 +1135,10 @@ case "$command" in
     ;;
   "update")
     shift
-    require_module_args "$command" "$@"
     require_stage_lifecycle_allowed "$command"
     require_prod_lifecycle_allowed "$command"
     require_migrations_allowed "$command"
-    run_script ./scripts/update.sh "$@"
+    run_update_script "$@"
     ;;
   "test")
     shift

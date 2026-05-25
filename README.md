@@ -151,6 +151,7 @@ scaffolding, source repository changes, and safe reset remain available.
 ./moo start
 ./moo logs odoo
 ./moo update sale
+./moo update sale stock --db devel
 ./moo test sale
 ./moo snapshot devel before-update
 ./moo snapshot --list

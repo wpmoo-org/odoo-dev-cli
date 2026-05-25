@@ -44,7 +44,7 @@ managed.
 | `./moo shell` | Services -> Open shell | No | Opens a shell in the Odoo service container. |
 | `./moo psql [db]` | Database -> Open psql | No | Opens a PostgreSQL prompt. |
 | `./moo install <module[,module]> [db]` | Modules -> Install module | Yes | Installs one or more modules. |
-| `./moo update <module[,module]> [db]` | Modules -> Update module | Yes | Updates one or more modules. |
+| `./moo update <module[,module]> [db]` or `./moo update <module> <module> --db <db>` | Modules -> Update module | Yes | Updates one or more modules. Use `--db` for clear space-separated multi-module updates. |
 | `./moo test <module[,module]> --db <db>` | Modules -> Run tests | Yes in prod | Runs Odoo tests for modules. On failure, prints a short excerpt from matching `./logs/odoo-test-<module>.log` or common fallback test logs when present. |
 | `./moo lint` | Modules -> Run environment lint | No | Runs configured environment lint checks. |
 | `./moo pot <module[,module]> [db] [output]` | Modules -> Generate POT | No | Generates translation template files. |

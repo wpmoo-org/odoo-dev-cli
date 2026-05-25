@@ -109,6 +109,7 @@ describe('generated environment moo delegation matrix', () => {
       cwd: root,
       env,
     });
+    await execa(join(root, 'moo'), ['update', 'sale', 'stock', '--db', 'devel'], { cwd: root, env });
     await execa(join(root, 'moo'), ['restore-snapshot', 'snap1', 'devel'], { cwd: root, env });
 
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(
@@ -118,11 +119,27 @@ describe('generated environment moo delegation matrix', () => {
         'logs.sh|db 200',
         'logs.sh|odoo 200',
         'test.sh|sale --db devel --mode update --tags /sale',
+        'update.sh|sale,stock devel',
         'restore-snapshot.sh|snap1 devel',
         '',
       ].join('\n'),
     );
   }, 15000);
+
+  it('gives a clear error for ambiguous space-separated update arguments', async () => {
+    const { env, root } = await createMooFixture();
+
+    const result = await execa(join(root, 'moo'), ['update', 'sale', 'stock', 'odoo_19'], {
+      cwd: root,
+      env,
+      reject: false,
+    });
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain('Ambiguous update arguments.');
+    expect(result.stderr).toContain('./moo update sale,stock odoo_19');
+    expect(result.stderr).toContain('./moo update sale stock --db odoo_19');
+  });
 
   it('prints a relevant Odoo log excerpt when generated moo test fails', async () => {
     const { env, root } = await createMooFixture();

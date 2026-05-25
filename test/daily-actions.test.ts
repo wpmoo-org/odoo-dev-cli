@@ -106,6 +106,14 @@ describe('daily actions', () => {
       scriptPath: join(target, 'scripts/update.sh'),
       args: ['sale', 'devel'],
     });
+    await expect(dailyActionPlan('update', ['sale', 'stock', '--db', 'devel'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/update.sh'),
+      args: ['sale,stock', 'devel'],
+    });
+    await expect(dailyActionPlan('update', ['sale', 'stock', 'odoo-19'], target)).resolves.toMatchObject({
+      scriptPath: join(target, 'scripts/update.sh'),
+      args: ['sale,stock', 'odoo-19'],
+    });
     await expect(
       dailyActionPlan('test', ['sale', '--db', 'devel', '--mode', 'update', '--tags', '/sale'], target),
     ).resolves.toMatchObject({
@@ -554,7 +562,13 @@ describe('daily actions', () => {
       'Usage: wpmoo install <module[,module]> [db]',
     );
     await expect(dailyActionPlan('update', [], target)).rejects.toThrow(
-      'Usage: wpmoo update <module[,module]> [db]',
+      'Usage: wpmoo update <module[,module]> [db|--db <db>]',
+    );
+    await expect(dailyActionPlan('update', ['sale', 'stock', '--db'], target)).rejects.toThrow(
+      'Missing value for --db',
+    );
+    await expect(dailyActionPlan('update', ['sale', 'stock', 'odoo_19'], target)).rejects.toThrow(
+      'Ambiguous update arguments.',
     );
     await expect(dailyActionPlan('test', ['--db', 'devel'], target)).rejects.toThrow(
       'Usage: wpmoo test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]',

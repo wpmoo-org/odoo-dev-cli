@@ -29,7 +29,7 @@ Usage:
   npx @wpmoo/toolkit shell
   npx @wpmoo/toolkit psql [db]
   npx @wpmoo/toolkit install <module[,module]> [db]
-  npx @wpmoo/toolkit update <module[,module]> [db]
+  npx @wpmoo/toolkit update <module[,module]> [db|--db <db>]
   npx @wpmoo/toolkit test <module[,module]> [--db <db>] [--mode auto|init|update] [--tags <tags>]
   npx @wpmoo/toolkit resetdb [db] [module[,module]]
   npx @wpmoo/toolkit snapshot [--list] [db] [snapshot-name]

@@ -279,6 +279,7 @@ describe('help', () => {
     expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json');
     expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json --fail-on-warning');
     expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json --postgres');
+    expect(readmeText).toContain('./moo update sale stock --db devel');
     expect(readmeText).toContain('doctor --postgres');
     expect(readmeText).toContain('doctor --fail-on-warning');
     expect(readmeText).toContain('WPMoo prints a short relevant excerpt');
