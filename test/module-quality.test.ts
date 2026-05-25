@@ -857,4 +857,45 @@ describe('scanModuleQuality dependency graph checks', () => {
       ]),
     );
   });
+
+  it('includes configured Odoo policy lint warnings in module quality scans', async () => {
+    const target = await makeTarget('wpmoo-module-quality-odoo-policy-lint-');
+    const modulesRoot = join(target, 'modules');
+    const modulePath = join(modulesRoot, 'demo_module');
+
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({
+        depends: ['base'],
+        data: ['security/ir.model.access.csv', 'views/demo_views.xml'],
+      }),
+    );
+    await writeStandardQualityFiles(modulePath, 'demo_module');
+    await writeText(
+      join(modulePath, 'models', 'demo_model.py'),
+      [
+        'from odoo import models',
+        '',
+        'class Demo(models.Model):',
+        "    _name = 'demo.model'",
+        '    _sql_constraints = []',
+        '',
+      ].join('\n'),
+    );
+
+    const policy = parseOdooAddonPolicy(['odoo:', '  version: "19.0"', ''].join('\n'));
+
+    const result = await scanModuleQuality(modulesRoot, target, policy);
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'modules/demo_module/models/demo_model.py',
+          severity: 'warning',
+          issue: 'Odoo policy warning: _sql_constraints found; prefer models.Constraint for configured Odoo 19 policy',
+        }),
+      ]),
+    );
+  });
 });

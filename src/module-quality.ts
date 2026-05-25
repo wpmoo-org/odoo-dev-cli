@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
 
 import { parseOdooManifest, type OdooManifest } from './module-manifest.js';
+import { lintOdooAddonPolicy } from './odoo-policy-lint.js';
 import type { OdooAddonPolicy } from './odoo-addon-policy.js';
 
 export type ModuleQualityIssue = {
@@ -329,6 +330,7 @@ export async function analyzeModuleDirectory(
   modulePath: string,
   moduleName = basename(modulePath),
   relativePath = modulePath,
+  policy?: OdooAddonPolicy,
 ): Promise<ModuleQualityResult> {
   const issues: ModuleQualityIssue[] = [];
   let manifest: OdooManifest | undefined;
@@ -449,6 +451,16 @@ export async function analyzeModuleDirectory(
   if (!hasMenuAction) {
     issues.push(moduleIssue(moduleName, relativePath, 'missing actionable menu XML'));
   }
+
+  issues.push(
+    ...(await lintOdooAddonPolicy({
+      moduleName,
+      modulePath,
+      moduleRelativePath: relativePath,
+      depends,
+      policy,
+    })),
+  );
 
   return { moduleName, relativePath, installable, hasMenuAction, depends, ...(manifest ? { manifest } : {}), issues };
 }
@@ -702,7 +714,7 @@ export async function scanModuleQuality(
     }
 
     if (hasManifest) {
-      const result = await analyzeModuleDirectory(current, basename(current), relative(target, current));
+      const result = await analyzeModuleDirectory(current, basename(current), relative(target, current), policy);
       results.push(result);
       summary = addModuleQualityResult(summary, result);
     }

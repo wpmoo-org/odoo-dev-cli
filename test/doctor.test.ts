@@ -348,6 +348,71 @@ describe('doctor', () => {
     );
   });
 
+  it('surfaces configured Odoo policy lint findings as doctor advisories', async () => {
+    const target = await makeEnvironment({
+      metadata: {
+        ...baseMetadata,
+        sourceRepos: [{ url: 'https://github.com/example-org/policy_repo.git', path: 'policy_repo', addons: [] }],
+      },
+      sourcePaths: ['policy_repo'],
+      env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',
+    });
+    await writeFile(join(target, '.wpmoo/policy.yaml'), ['odoo:', '  version: "19.0"', ''].join('\n'));
+
+    const modulePath = join(target, 'odoo/custom/src/private/policy_repo/demo_module');
+    await mkdir(join(modulePath, 'models'), { recursive: true });
+    await mkdir(join(modulePath, 'views'), { recursive: true });
+    await mkdir(join(modulePath, 'security'), { recursive: true });
+    await mkdir(join(modulePath, 'tests'), { recursive: true });
+    await writeFile(join(modulePath, '__init__.py'), 'from . import models\n');
+    await writeFile(join(modulePath, 'models', '__init__.py'), 'from . import demo_model\n');
+    await writeFile(
+      join(modulePath, 'models', 'demo_model.py'),
+      [
+        'from odoo import models',
+        '',
+        'class Demo(models.Model):',
+        "    _name = 'demo.model'",
+        '    _sql_constraints = []',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(
+      join(modulePath, '__manifest__.py'),
+      [
+        '{',
+        "  'name': 'Demo',",
+        "  'installable': True,",
+        "  'version': '1.0.0',",
+        "  'license': 'LGPL-3',",
+        "  'depends': ['base'],",
+        "  'data': ['security/ir.model.access.csv', 'views/demo_views.xml'],",
+        '}',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(
+      join(modulePath, 'security', 'ir.model.access.csv'),
+      'id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink\naccess_demo,demo,model_demo_model,,1,1,1,1\n',
+    );
+    await writeFile(
+      join(modulePath, 'views', 'demo_views.xml'),
+      '<odoo><record id="action_demo" model="ir.actions.act_window"><field name="res_model">demo.model</field></record><menuitem id="menu_demo" action="action_demo"/></odoo>\n',
+    );
+
+    const report = await getDoctorReport(target, passingDockerRunner());
+
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toEqual(
+      expect.arrayContaining([
+        'Module quality advisory: odoo/custom/src/private/policy_repo/demo_module/models/demo_model.py: Odoo policy warning: _sql_constraints found; prefer models.Constraint for configured Odoo 19 policy',
+      ]),
+    );
+    expect(await runDoctor(target, passingDockerRunner())).toContain(
+      'WARN Module quality advisory: odoo/custom/src/private/policy_repo/demo_module/models/demo_model.py: Odoo policy warning: _sql_constraints found; prefer models.Constraint for configured Odoo 19 policy',
+    );
+  });
+
   it('can fail doctor when warnings are present in strict mode', async () => {
     const target = await makeEnvironment({
       env: 'HTTP_PORT=10019\nGEVENT_PORT=20019\n',

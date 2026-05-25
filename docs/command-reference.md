@@ -95,16 +95,27 @@ Current JSON contract notes:
 ## Optional Addon Policy
 
 Generated environments may define `.wpmoo/policy.yaml` to enforce project-specific
-addon dependency boundaries without hardcoding those rules into WPMoo Toolkit.
-When present, `status`, `doctor`, generated `./moo status --json`, and future gate
-commands include policy violations as module-quality errors.
+addon dependency boundaries and optional addon lint rules without hardcoding those
+rules into WPMoo Toolkit. When present, package `status`, `doctor`, and `gate`
+commands include dependency policy violations as module-quality errors and lint
+findings as module-quality advisories. Generated local `./moo status --json`
+includes the dependency policy subset for offline checks.
 
 Example:
 
 ```yaml
+odoo:
+  version: "19.0"
+
 enterpriseOnlyDependencies:
   - documents
   - helpdesk
+
+lint:
+  directStateWrite: true
+  controllerWrites: true
+  notificationDependency:
+    requiredDependency: community_mail
 
 addonGroups:
   community:
@@ -125,6 +136,18 @@ rules:
 The file is optional. Unknown addons are ignored unless they are listed in a
 group. This keeps the policy mechanism useful for any Odoo product layout, not
 only one specific project.
+
+The Odoo-version lint checks are conservative and configurable. For Odoo 17+
+policy, WPMoo warns on legacy XML `attrs=` usage. For Odoo 19 policy, it warns
+on legacy `_sql_constraints` so teams can prefer `models.Constraint` where their
+target Odoo version supports it. `directStateWrite`, `controllerWrites`, and
+`notificationDependency` are opt-in checks. A local exception must carry a reason,
+for example:
+
+```python
+# wpmoo-lint: disable=direct-state-write reason="migration adapter"
+record.write({"state": "done"})
+```
 
 ## Environment Variables
 

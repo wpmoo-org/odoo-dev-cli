@@ -10,6 +10,11 @@ describe('Odoo addon policy parser', () => {
         '  version: "19.0"',
         'enterpriseOnlyDependencies:',
         '  - documents',
+        'lint:',
+        '  directStateWrite: true',
+        '  notificationDependency:',
+        '    requiredDependency: moo_mail',
+        '  controllerWrites: true',
         'addonGroups:',
         '  community:',
         '    - community_core',
@@ -26,11 +31,19 @@ describe('Odoo addon policy parser', () => {
     );
 
     expect(policy).toEqual({
+      odooVersion: '19.0',
       addonGroups: {
         community: ['community_core'],
         pro: ['pro_account'],
       },
       enterpriseOnlyDependencies: ['documents'],
+      lint: {
+        directStateWrite: true,
+        controllerWrites: true,
+        notificationDependency: {
+          requiredDependency: 'moo_mail',
+        },
+      },
       rules: [
         {
           from: 'community',

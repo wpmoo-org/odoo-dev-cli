@@ -11,8 +11,16 @@ export type OdooAddonPolicyRule = {
 };
 
 export type OdooAddonPolicy = {
+  odooVersion?: string;
   addonGroups: Record<string, string[]>;
   enterpriseOnlyDependencies: string[];
+  lint: {
+    directStateWrite?: boolean;
+    controllerWrites?: boolean;
+    notificationDependency?: {
+      requiredDependency: string;
+    };
+  };
   rules: OdooAddonPolicyRule[];
 };
 
@@ -68,8 +76,24 @@ function normalizePolicy(value: unknown): OdooAddonPolicy {
   }
 
   return {
+    ...(typeof value.odooVersion === 'string' && value.odooVersion.trim() ? { odooVersion: value.odooVersion.trim() } : {}),
     addonGroups,
     enterpriseOnlyDependencies: asStringArray(value.enterpriseOnlyDependencies),
+    lint: isRecord(value.lint)
+      ? {
+          ...(value.lint.directStateWrite === true ? { directStateWrite: true } : {}),
+          ...(value.lint.controllerWrites === true ? { controllerWrites: true } : {}),
+          ...(isRecord(value.lint.notificationDependency) &&
+          typeof value.lint.notificationDependency.requiredDependency === 'string' &&
+          value.lint.notificationDependency.requiredDependency.trim()
+            ? {
+                notificationDependency: {
+                  requiredDependency: value.lint.notificationDependency.requiredDependency.trim(),
+                },
+              }
+            : {}),
+        }
+      : {},
     rules,
   };
 }
@@ -114,7 +138,7 @@ function stripComment(line: string): string {
 
 function parseYamlPolicy(content: string): OdooAddonPolicy {
   const root: Record<string, unknown> = {};
-  let section: 'addonGroups' | 'enterpriseOnlyDependencies' | 'rules' | undefined;
+  let section: 'odoo' | 'addonGroups' | 'enterpriseOnlyDependencies' | 'lint' | 'notificationDependency' | 'rules' | undefined;
   let currentGroup: string | undefined;
   let currentRule: Record<string, unknown> | undefined;
 
@@ -127,6 +151,10 @@ function parseYamlPolicy(content: string): OdooAddonPolicy {
     if (indent === 0) {
       currentGroup = undefined;
       currentRule = undefined;
+      if (trimmed === 'odoo:') {
+        section = 'odoo';
+        continue;
+      }
       if (trimmed === 'addonGroups:') {
         section = 'addonGroups';
         root.addonGroups = {};
@@ -142,7 +170,44 @@ function parseYamlPolicy(content: string): OdooAddonPolicy {
         root.rules = [];
         continue;
       }
+      if (trimmed === 'lint:') {
+        section = 'lint';
+        root.lint = {};
+        continue;
+      }
       section = undefined;
+      continue;
+    }
+
+    if (section === 'odoo' && indent === 2) {
+      const separator = trimmed.indexOf(':');
+      if (separator !== -1 && trimmed.slice(0, separator).trim() === 'version') {
+        root.odooVersion = parseScalar(trimmed.slice(separator + 1));
+      }
+      continue;
+    }
+
+    if ((section === 'lint' || section === 'notificationDependency') && indent >= 2) {
+      if (section === 'notificationDependency' && indent === 2 && trimmed !== 'notificationDependency:') {
+        section = 'lint';
+      }
+      if (section === 'lint' && indent === 2 && trimmed === 'notificationDependency:') {
+        const lint = root.lint as Record<string, unknown>;
+        lint.notificationDependency = {};
+        section = 'notificationDependency';
+        continue;
+      }
+      const separator = trimmed.indexOf(':');
+      if (separator !== -1) {
+        const key = trimmed.slice(0, separator).trim();
+        const value = parseScalar(trimmed.slice(separator + 1));
+        if (section === 'notificationDependency') {
+          const lint = root.lint as Record<string, unknown>;
+          (lint.notificationDependency as Record<string, unknown>)[key] = value;
+        } else {
+          (root.lint as Record<string, unknown>)[key] = value;
+        }
+      }
       continue;
     }
 
