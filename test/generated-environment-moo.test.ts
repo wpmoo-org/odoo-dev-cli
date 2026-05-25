@@ -166,6 +166,30 @@ describe('generated environment moo delegation matrix', () => {
     expect(result.stderr).toContain('Full log: ./logs/odoo-test-sale.log');
   });
 
+  it('falls back to the live Odoo server log when generated moo test logs are absent', async () => {
+    const { env, root } = await createMooFixture();
+    await mkdir(join(root, 'data'), { recursive: true });
+    await writeFile(
+      join(root, 'data', 'odoo-server.log'),
+      [
+        '2026-05-25 10:00:00,000 ERROR odoo.tests.suite',
+        'Traceback (most recent call last):',
+        '  File "/odoo/addons/demo/tests/test_demo.py", line 42, in test_demo',
+        "KeyError: 'state'",
+        '',
+      ].join('\n'),
+    );
+    await writeFile(join(root, 'scripts', 'test.sh'), '#!/usr/bin/env bash\nexit 9\n');
+    await chmod(join(root, 'scripts', 'test.sh'), 0o755);
+
+    const result = await execa(join(root, 'moo'), ['test', 'demo'], { cwd: root, env, reject: false });
+
+    expect(result.exitCode).toBe(9);
+    expect(result.stderr).toContain('Test failed: demo');
+    expect(result.stderr).toContain("KeyError: 'state'");
+    expect(result.stderr).toContain('Full log: ./data/odoo-server.log');
+  });
+
   it('falls back to package command for doctor', async () => {
     const { callsPath, env, root } = await createMooFixture();
 
@@ -174,13 +198,12 @@ describe('generated environment moo delegation matrix', () => {
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor\n`);
   });
 
-  it('prefers local doctor script when available', async () => {
+  it('uses package doctor when a local doctor script is available', async () => {
     const { callsPath, env, root } = await createMooFixture({ includeDoctorScript: true });
 
-    const result = await execa(join(root, 'moo'), ['doctor'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['doctor'], { cwd: root, env });
 
-    expect(result.stdout).toContain('WPMoo doctor');
-    await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor\n`);
   });
 
   it('falls back to package command for doctor when local script is not available offline-safe checks', async () => {
@@ -200,7 +223,7 @@ exit 1
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor --help\n`);
   });
 
-  it('runs local doctor checks without Docker', async () => {
+  it('delegates doctor to the package command when Docker is unavailable', async () => {
     const { callsPath, env, root } = await createMooFixture({ includeDoctorScript: true });
     await writeFile(
       join(root, 'bin', 'docker'),
@@ -213,19 +236,24 @@ exit 1
 
     await chmod(join(root, 'bin', 'docker'), 0o755);
 
-    const result = await execa(join(root, 'moo'), ['doctor'], { cwd: root, env });
+    await execa(join(root, 'moo'), ['doctor'], { cwd: root, env });
 
-    expect(result.stdout).toContain('Doctor checks passed.');
-    await expect(readFile(callsPath, 'utf8')).resolves.not.toContain('docker ');
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor\n`);
   });
 
-  it('runs status locally when the generated status script exists', async () => {
+  it('uses package status when the generated status script exists', async () => {
     const { callsPath, env, root } = await createMooFixture();
 
     await execa(join(root, 'moo'), ['status'], { cwd: root, env });
     await execa(join(root, 'moo'), ['status', '--json'], { cwd: root, env });
 
-    await expect(readFile(callsPath, 'utf8')).resolves.toBe('status.sh|\nstatus.sh|--json\n');
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(
+      [
+        `npx|--yes ${expectedFallbackPackageSpec} status`,
+        `npx|--yes ${expectedFallbackPackageSpec} status --json`,
+        '',
+      ].join('\n'),
+    );
   });
 
   it('falls back to package status when the generated status script is missing', async () => {
@@ -311,7 +339,7 @@ exit 1
     await chmod(join(root, 'bin', 'docker'), 0o755);
     await chmod(join(root, 'bin', 'docker-compose'), 0o755);
 
-    const result = await execa(join(root, 'moo'), ['status'], { cwd: root, env });
+    const result = await execa(join(root, 'scripts/status.sh'), [], { cwd: root, env });
 
     expect(result.stdout).toContain('Status:');
     expect(result.stdout).toContain('Metadata:');
@@ -326,7 +354,7 @@ exit 1
     await writeGeneratedStatusFixture(root);
     await writeFile(callsPath, '', 'utf8');
 
-    const result = await execa(join(root, 'moo'), ['status', '--json'], { cwd: root, env });
+    const result = await execa(join(root, 'scripts/status.sh'), ['--json'], { cwd: root, env });
     const generated = JSON.parse(result.stdout) as ReturnType<typeof environmentStatusJson>;
     const direct = environmentStatusJson(await getEnvironmentStatus(await realpath(root)));
 
@@ -396,7 +424,7 @@ exit 1
       '<odoo><record id="action_community_core" model="ir.actions.act_window"/><menuitem id="menu_community_core" action="action_community_core"/></odoo>\n',
     );
 
-    const result = await execa(join(root, 'moo'), ['status', '--json'], { cwd: root, env });
+    const result = await execa(join(root, 'scripts/status.sh'), ['--json'], { cwd: root, env });
     const payload = JSON.parse(result.stdout) as ReturnType<typeof environmentStatusJson>;
 
     expect(payload.ok).toBe(false);
@@ -417,10 +445,10 @@ exit 1
     const { env, root } = await createMooFixture();
     await writeGeneratedStatusFixture(root);
 
-    const jsonTrue = await execa(join(root, 'moo'), ['status', '--json=true'], { cwd: root, env });
+    const jsonTrue = await execa(join(root, 'scripts/status.sh'), ['--json=true'], { cwd: root, env });
     expect(JSON.parse(jsonTrue.stdout)).toMatchObject({ command: 'status', schemaVersion: 1 });
 
-    const jsonFalse = await execa(join(root, 'moo'), ['status', '--json=false'], { cwd: root, env });
+    const jsonFalse = await execa(join(root, 'scripts/status.sh'), ['--json=false'], { cwd: root, env });
     expect(jsonFalse.stdout).toContain('Status:');
     expect(() => JSON.parse(jsonFalse.stdout)).toThrow();
   });
@@ -527,8 +555,8 @@ done
     expect(result.stdout).toContain('install, update, test, resetdb, snapshot, restore-snapshot, lint, pot');
     expect(result.stdout).toContain('Management commands:');
     expect(result.stdout).toContain('source, add-repo, remove-repo, add-module, remove-module, reset, doctor');
-    expect(result.stdout).toContain('Local diagnostics:');
-    expect(result.stdout).toContain('status [--json]');
+    expect(result.stdout).toContain('Package diagnostics:');
+    expect(result.stdout).toContain('status [--json], doctor, gate');
     await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
   });
 

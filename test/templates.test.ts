@@ -105,8 +105,7 @@ describe('template rendering', () => {
     expect(readme).toContain('### Lint');
     expect(readme).toContain('### Export Translations');
     expect(readme).toContain('### Recover / Reset');
-    expect(readme).toContain('`./moo status` runs local offline metadata checks');
-    expect(readme).toContain('`./moo doctor` runs local checks first and uses the package fallback only for');
+    expect(readme).toContain('`./moo status`, `./moo doctor`, and `./moo gate` use the package diagnostic');
     expect(readme).toContain('routes day-to-day service and module workflows to local scripts');
     expect(readme).toContain('compose.yaml');
     expect(readme).toContain('compose/dev.yaml');
@@ -178,9 +177,9 @@ describe('template rendering', () => {
     expect(script).toContain('"pot")');
     expect(script).toContain('./scripts/pot.sh');
     expect(script).toContain('"status")');
-    expect(script).toContain('./scripts/status.sh');
+    expect(script).not.toContain('run_script ./scripts/status.sh');
     expect(script).toContain('"doctor")');
-    expect(script).toContain('./scripts/doctor.sh');
+    expect(script).not.toContain('run_script ./scripts/doctor.sh');
     expect(script).toContain('run_package_command "$command" "$@"');
     expect(script).toContain('Usage: ./moo <command> [args]');
     expect(script).toContain('"--help"|"-h"|"help")');
@@ -249,7 +248,7 @@ describe('template rendering', () => {
         'restore-snapshot:--dry-run before-update devel',
         'pot:sale,stock devel i18n/sale.pot',
         `npx:--yes ${expectedFallbackPackageSpec} status --json`,
-        'doctor:',
+        `npx:--yes ${expectedFallbackPackageSpec} doctor`,
         `npx:--yes ${expectedFallbackPackageSpec} doctor --help`,
         `npx:--yes ${expectedFallbackPackageSpec} add-module`,
         '',
@@ -299,8 +298,7 @@ describe('template rendering', () => {
     expect(agents).toContain('./moo snapshot [--list] [db] [snapshot-name]');
     expect(agents).toContain('./moo restore-snapshot [--dry-run] <snapshot-name> [db]');
     expect(agents).toContain('./moo pot <module[,module]> [db] [output]');
-    expect(agents).toContain('`./moo status` runs local offline metadata checks');
-    expect(agents).toContain('`./moo doctor` runs local checks first and uses package fallback for advanced usage, routed via');
+    expect(agents).toContain('`./moo status`, `./moo doctor`, and `./moo gate` use package diagnostic');
     expect(agents).toContain('delegate to local `./scripts/*.sh`');
   });
 

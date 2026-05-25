@@ -253,9 +253,9 @@ exposes them through \`/mnt/wpmoo-addons\`.
 
 \`./moo\` routes day-to-day service and module workflows to local scripts in
 \`./scripts/\` (for example \`start\`, \`logs\`, \`update\`, \`test\`, \`snapshot\`).
-\`./moo status\` runs local offline metadata checks without needing network access.
-\`./moo doctor\` runs local checks first and uses the package fallback only for
-advanced usage (for example \`--help\`) via \`npx --yes ${fallbackPackageSpec()} doctor\`.
+\`./moo status\`, \`./moo doctor\`, and \`./moo gate\` use the package diagnostic
+and gate implementation via \`npx --yes ${fallbackPackageSpec()}\` so generated
+environments stay aligned with the installed Toolkit release.
 
 ### Start And Inspect Services
 
@@ -527,8 +527,8 @@ Daily commands:
 Management commands:
   source, add-repo, remove-repo, add-module, remove-module, reset, doctor, gate
 
-Local diagnostics:
-  status [--json]
+Package diagnostics:
+  status [--json], doctor, gate
 
 Run ./moo <command> with invalid arguments to see command-specific usage.
 HELP
@@ -1006,7 +1006,8 @@ show_test_failure_excerpt() {
     "./logs/test-\${first_module}.log" \
     "./logs/odoo-test.log" \
     "./logs/test.log" \
-    "./logs/odoo.log"; do
+    "./logs/odoo.log" \
+    "./data/odoo-server.log"; do
     if [[ -s "$candidate" ]]; then
       log_path="$candidate"
       break
@@ -1060,16 +1061,10 @@ case "$command" in
     ;;
   "status")
     shift
-    if [[ -x ./scripts/status.sh ]]; then
-      run_script ./scripts/status.sh "$@"
-    fi
     run_package_command "$command" "$@"
     ;;
   "doctor")
     shift
-    if [[ "$#" -eq 0 && -x ./scripts/doctor.sh ]]; then
-      run_script ./scripts/doctor.sh
-    fi
     run_package_command "$command" "$@"
     ;;
   "create"|"add-repo"|"remove-repo"|"add-module"|"remove-module"|"source"|"reset"|"gate")
@@ -2212,8 +2207,9 @@ Useful maintenance commands:
 
 Daily script delegation vs package fallback:
 - \`./moo start\`, \`logs\`, \`install\`, \`update\`, \`test\`, \`snapshot\`, and related runtime tasks delegate to local \`./scripts/*.sh\`.
-- \`./moo status\` runs local offline metadata checks through \`./scripts/status.sh\`.
-- \`./moo doctor\` runs local checks first and uses package fallback for advanced usage, routed via \`npx --yes ${fallbackPackageSpec()} doctor\`.
+- \`./moo status\`, \`./moo doctor\`, and \`./moo gate\` use package diagnostic
+  and gate implementation via \`npx --yes ${fallbackPackageSpec()}\` so generated
+  environments stay aligned with the installed Toolkit release.
 
 Only report completion after the relevant update/test/lint command exits cleanly.
 `;
