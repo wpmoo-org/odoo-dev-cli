@@ -1409,6 +1409,19 @@ function manifestIsInstallable(content) {
   return !/["']installable["']\\s*:\\s*(?:False|false)\\b/.test(content);
 }
 
+function manifestStringList(content, key) {
+  const pattern = new RegExp("[\\\"']" + key + "[\\\"']\\\\s*:\\\\s*\\\\[(.*?)\\\\]", 'su');
+  const match = content.match(pattern);
+  if (!match) return [];
+  const values = [];
+  const itemPattern = /["']([^"']+)["']/gu;
+  let item;
+  while ((item = itemPattern.exec(match[1] || ''))) {
+    values.push(item[1]);
+  }
+  return values;
+}
+
 function menuXmlHasAction(content, moduleName) {
   const actionId = 'action_' + moduleName;
   return (
@@ -1436,8 +1449,11 @@ async function analyzeModule(modulePath) {
   const moduleRelativePath = relative(target, modulePath);
   const issues = [];
   let installable = false;
+  let depends = [];
   try {
-    installable = manifestIsInstallable(await readFile(join(modulePath, '__manifest__.py'), 'utf8'));
+    const manifestContent = await readFile(join(modulePath, '__manifest__.py'), 'utf8');
+    installable = manifestIsInstallable(manifestContent);
+    depends = manifestStringList(manifestContent, 'depends');
   } catch {
     installable = false;
   }
@@ -1459,7 +1475,7 @@ async function analyzeModule(modulePath) {
     });
   }
 
-  return { moduleName, relativePath: moduleRelativePath, installable, hasMenuAction, issues };
+  return { moduleName, relativePath: moduleRelativePath, installable, hasMenuAction, depends, issues };
 }
 
 function addModuleQuality(summary, result) {
@@ -1496,6 +1512,66 @@ function withoutDuplicateAddonIssues(issues) {
   return issues.filter((issue) => !issue.issue.startsWith('duplicate addon technical name:'));
 }
 
+function addonGroupByName(policy) {
+  const byName = new Map();
+  for (const [groupName, addons] of Object.entries(policy.addonGroups || {})) {
+    for (const addon of addons || []) {
+      byName.set(addon, groupName);
+    }
+  }
+  return byName;
+}
+
+function dependencyPolicyIssues(results, policy) {
+  if (!policy) return [];
+  const groupByName = addonGroupByName(policy);
+  const enterpriseOnly = new Set(policy.enterpriseOnlyDependencies || []);
+  const issues = [];
+
+  for (const result of results) {
+    const sourceGroup = groupByName.get(result.moduleName);
+    if (!sourceGroup) continue;
+    for (const rule of (policy.rules || []).filter((candidate) => candidate.from === sourceGroup)) {
+      const forbiddenTargets = new Set(rule.mustNotDependOn || []);
+      for (const dependency of result.depends || []) {
+        const dependencyGroup = groupByName.get(dependency);
+        if (forbiddenTargets.has(dependency) || (dependencyGroup && forbiddenTargets.has(dependencyGroup))) {
+          const targetLabel = dependencyGroup ? dependency + ' (' + dependencyGroup + ')' : dependency;
+          issues.push({
+            moduleName: result.moduleName,
+            path: result.relativePath,
+            issue:
+              'dependency policy violation: ' +
+              result.moduleName +
+              ' (' +
+              sourceGroup +
+              ') must not depend on ' +
+              targetLabel,
+            severity: 'error',
+          });
+        }
+
+        if (rule.mustNotDependOnEnterpriseOnly === true && enterpriseOnly.has(dependency)) {
+          issues.push({
+            moduleName: result.moduleName,
+            path: result.relativePath,
+            issue:
+              'dependency policy violation: ' +
+              result.moduleName +
+              ' (' +
+              sourceGroup +
+              ') must not depend on Enterprise-only addon ' +
+              dependency,
+            severity: 'error',
+          });
+        }
+      }
+    }
+  }
+
+  return issues;
+}
+
 function mergeModuleQuality(left, right) {
   const addons = [...left.addons, ...right.addons];
   const duplicateIssues = duplicateAddonIssues(addons);
@@ -1510,10 +1586,11 @@ function mergeModuleQuality(left, right) {
   };
 }
 
-async function scanModuleQuality(root) {
+async function scanModuleQuality(root, policy) {
   if (!(await isDirectory(root))) return emptyModuleQuality();
   const stack = [root];
   let summary = emptyModuleQuality();
+  const results = [];
 
   while (stack.length > 0) {
     const current = stack.pop();
@@ -1529,14 +1606,165 @@ async function scanModuleQuality(root) {
     }
 
     if (hasManifest) {
-      summary = addModuleQuality(summary, await analyzeModule(current));
+      const result = await analyzeModule(current);
+      results.push(result);
+      summary = addModuleQuality(summary, result);
     }
   }
 
   return {
     ...summary,
-    issues: [...withoutDuplicateAddonIssues(summary.issues), ...duplicateAddonIssues(summary.addons)],
+    issues: [
+      ...withoutDuplicateAddonIssues(summary.issues),
+      ...duplicateAddonIssues(summary.addons),
+      ...dependencyPolicyIssues(results, policy),
+    ],
   };
+}
+
+function unquotePolicyValue(value) {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function parsePolicyScalar(value) {
+  const trimmed = value.trim();
+  if (trimmed === 'true') return true;
+  if (trimmed === 'false') return false;
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    const inner = trimmed.slice(1, -1).trim();
+    if (!inner) return [];
+    return inner.split(',').map((item) => unquotePolicyValue(item)).filter(Boolean);
+  }
+  return unquotePolicyValue(trimmed);
+}
+
+function normalizePolicy(value) {
+  const groups = value.addonGroups && typeof value.addonGroups === 'object' ? value.addonGroups : {};
+  const normalizedGroups = {};
+  for (const [groupName, addons] of Object.entries(groups)) {
+    normalizedGroups[groupName] = Array.isArray(addons) ? addons.filter((item) => typeof item === 'string') : [];
+  }
+  return {
+    addonGroups: normalizedGroups,
+    enterpriseOnlyDependencies: Array.isArray(value.enterpriseOnlyDependencies)
+      ? value.enterpriseOnlyDependencies.filter((item) => typeof item === 'string')
+      : [],
+    rules: Array.isArray(value.rules)
+      ? value.rules
+          .filter((rule) => rule && typeof rule === 'object' && typeof rule.from === 'string')
+          .map((rule) => ({
+            from: rule.from,
+            ...(rule.mustNotDependOn
+              ? { mustNotDependOn: Array.isArray(rule.mustNotDependOn) ? rule.mustNotDependOn : [rule.mustNotDependOn] }
+              : {}),
+            ...(rule.mayDependOn
+              ? { mayDependOn: Array.isArray(rule.mayDependOn) ? rule.mayDependOn : [rule.mayDependOn] }
+              : {}),
+            ...(rule.mustNotDependOnEnterpriseOnly === true ? { mustNotDependOnEnterpriseOnly: true } : {}),
+          }))
+      : [],
+  };
+}
+
+function parsePolicyYaml(content) {
+  const root = {};
+  let section;
+  let currentGroup;
+  let currentRule;
+
+  for (const rawLine of content.split(/\\r?\\n/)) {
+    const line = rawLine.replace(/\\s+$/u, '');
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+    const indent = line.match(/^ */u)?.[0].length || 0;
+    const trimmed = line.trim();
+
+    if (indent === 0) {
+      currentGroup = undefined;
+      currentRule = undefined;
+      if (trimmed === 'addonGroups:') {
+        section = 'addonGroups';
+        root.addonGroups = {};
+      } else if (trimmed === 'enterpriseOnlyDependencies:') {
+        section = 'enterpriseOnlyDependencies';
+        root.enterpriseOnlyDependencies = [];
+      } else if (trimmed === 'rules:') {
+        section = 'rules';
+        root.rules = [];
+      } else {
+        section = undefined;
+      }
+      continue;
+    }
+
+    if (section === 'enterpriseOnlyDependencies' && trimmed.startsWith('- ')) {
+      root.enterpriseOnlyDependencies.push(unquotePolicyValue(trimmed.slice(2)));
+      continue;
+    }
+
+    if (section === 'addonGroups') {
+      if (indent === 2 && trimmed.endsWith(':')) {
+        currentGroup = trimmed.slice(0, -1).trim();
+        root.addonGroups[currentGroup] = [];
+        continue;
+      }
+      if (indent >= 4 && currentGroup && trimmed.startsWith('- ')) {
+        root.addonGroups[currentGroup].push(unquotePolicyValue(trimmed.slice(2)));
+        continue;
+      }
+    }
+
+    if (section === 'rules') {
+      if (indent === 2 && trimmed.startsWith('- ')) {
+        currentRule = {};
+        root.rules.push(currentRule);
+        const firstEntry = trimmed.slice(2).trim();
+        const separator = firstEntry.indexOf(':');
+        if (separator !== -1) {
+          currentRule[firstEntry.slice(0, separator).trim()] = parsePolicyScalar(firstEntry.slice(separator + 1));
+        }
+        continue;
+      }
+      if (indent >= 4 && currentRule) {
+        const separator = trimmed.indexOf(':');
+        if (separator !== -1) {
+          currentRule[trimmed.slice(0, separator).trim()] = parsePolicyScalar(trimmed.slice(separator + 1));
+        }
+      }
+    }
+  }
+
+  return normalizePolicy(root);
+}
+
+async function readAddonPolicy() {
+  const policyPath = '.wpmoo/policy.yaml';
+  if (!(await exists(join(target, policyPath)))) return {};
+  try {
+    const content = await readFile(join(target, policyPath), 'utf8');
+    return {
+      policy: content.trim().startsWith('{') ? normalizePolicy(JSON.parse(content)) : parsePolicyYaml(content),
+    };
+  } catch (error) {
+    return {
+      issue: {
+        moduleName: 'policy',
+        path: policyPath,
+        issue:
+          'Invalid addon policy in ' +
+          policyPath +
+          ': ' +
+          (error instanceof Error ? error.message : String(error)),
+        severity: 'error',
+      },
+    };
+  }
 }
 
 function parseEnvContent(content) {
@@ -1771,10 +1999,17 @@ async function getStatus() {
   }
 
   let moduleQuality = emptyModuleQuality();
+  const policyResult = await readAddonPolicy();
+  if (policyResult.issue) {
+    moduleQuality = {
+      ...moduleQuality,
+      issues: [...moduleQuality.issues, policyResult.issue],
+    };
+  }
   for (const repo of sourceRepoLocations) {
     moduleQuality = mergeModuleQuality(
       moduleQuality,
-      await scanModuleQuality(join(target, 'odoo/custom/src', repo.sourceType, repo.path)),
+      await scanModuleQuality(join(target, 'odoo/custom/src', repo.sourceType, repo.path), policyResult.policy),
     );
   }
   const moduleCandidateCount = moduleQuality.totalModules;

@@ -37,6 +37,7 @@ import {
   mergeModuleQualitySummaries,
   scanModuleQuality,
 } from './module-quality.js';
+import { addonPolicyPath, readOdooAddonPolicy } from './odoo-addon-policy.js';
 import type { SourceRepo } from './types.js';
 
 export type DoctorCommandRunner = (
@@ -804,10 +805,28 @@ export async function getDoctorReport(
   checks.push(`OK source repos ${sourceRepos.length} checked`);
 
   let moduleQuality = emptyModuleQualitySummary();
+  const policyResult = await readOdooAddonPolicy(target);
+  if (!policyResult.ok) {
+    moduleQuality = {
+      ...moduleQuality,
+      issues: [
+        ...moduleQuality.issues,
+        {
+          moduleName: 'policy',
+          path: addonPolicyPath,
+          issue: policyResult.error,
+          severity: 'error',
+        },
+      ],
+    };
+  }
   for (const repo of sourceRepos) {
     const sourceType = normalizeSourceType(repo.sourceType);
     const repoRoot = join(target, sourceRepoPath(sourceType, repo.path));
-    moduleQuality = mergeModuleQualitySummaries(moduleQuality, await scanModuleQuality(repoRoot, target));
+    moduleQuality = mergeModuleQualitySummaries(
+      moduleQuality,
+      await scanModuleQuality(repoRoot, target, policyResult.ok ? policyResult.policy : undefined),
+    );
   }
   checks.push(`OK module quality ${moduleQuality.totalModules} module${moduleQuality.totalModules === 1 ? '' : 's'} scanned`);
   errors.push(

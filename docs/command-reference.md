@@ -16,7 +16,7 @@ unscoped `npx wpmoo` short alias is optional and best-effort; scripts should use
 | `npx @wpmoo/toolkit` | Open cockpit or create wizard | No | Opens the create wizard outside an environment and the cockpit inside one. |
 | `npx @wpmoo/toolkit create ...` | Create wizard | No | Creates a generated environment. Use `--target <path>` for a custom folder. |
 | `npx @wpmoo/toolkit status` | Diagnostics -> Environment status | Yes, `--json` | Fast local metadata and file check. |
-| `npx @wpmoo/toolkit doctor [--fix] [--postgres] [--fail-on-warning]` | Diagnostics -> Run doctor | Yes, `--json` | Deeper health checks. Fails on duplicate Odoo addon technical names. `--postgres` is read-only and advisory; `--fail-on-warning` is for strict automation gates. |
+| `npx @wpmoo/toolkit doctor [--fix] [--postgres] [--fail-on-warning]` | Diagnostics -> Run doctor | Yes, `--json` | Deeper health checks. Fails on duplicate Odoo addon technical names and configured addon dependency policy violations. `--postgres` is read-only and advisory; `--fail-on-warning` is for strict automation gates. |
 | `npx @wpmoo/toolkit source list` | Repositories | Yes, `--json` | Lists known source repositories. |
 | `npx @wpmoo/toolkit source sync` | Repositories | Yes, `--json` | Refreshes source manifest data. |
 | `npx @wpmoo/toolkit add-repo --repo-url <url>` | Repositories -> Add source repo | No | Adds a source repository category entry. |
@@ -89,6 +89,40 @@ Current JSON contract notes:
 - Minor and patch releases may add optional fields without a breaking release.
 - Removing, renaming, or changing the meaning of a documented field requires a
   major release or a `schemaVersion` bump.
+
+## Optional Addon Policy
+
+Generated environments may define `.wpmoo/policy.yaml` to enforce project-specific
+addon dependency boundaries without hardcoding those rules into WPMoo Toolkit.
+When present, `status`, `doctor`, generated `./moo status --json`, and future gate
+commands include policy violations as module-quality errors.
+
+Example:
+
+```yaml
+enterpriseOnlyDependencies:
+  - documents
+  - helpdesk
+
+addonGroups:
+  community:
+    - community_core
+    - community_portal
+  pro:
+    - pro_account
+    - pro_certificate
+
+rules:
+  - from: community
+    mustNotDependOn: pro
+    mustNotDependOnEnterpriseOnly: true
+  - from: pro
+    mayDependOn: community
+```
+
+The file is optional. Unknown addons are ignored unless they are listed in a
+group. This keeps the policy mechanism useful for any Odoo product layout, not
+only one specific project.
 
 ## Environment Variables
 

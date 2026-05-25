@@ -9,6 +9,7 @@ import {
   scanModuleQuality,
   type ModuleQualitySummary,
 } from './module-quality.js';
+import { addonPolicyPath, readOdooAddonPolicy } from './odoo-addon-policy.js';
 import { isValidPathSegment, validateRepoPath } from './path-validation.js';
 
 type StatusKind = 'no_environment' | 'invalid_metadata' | 'environment';
@@ -251,8 +252,26 @@ export async function getEnvironmentStatus(target: string): Promise<EnvironmentS
   const repoRoots = sourceRepoLocations.map(({ sourceType, path }) => sourceRepoPath(target, sourceType, path));
 
   let moduleQuality = emptyModuleQualitySummary();
+  const policyResult = await readOdooAddonPolicy(target);
+  if (!policyResult.ok) {
+    moduleQuality = {
+      ...moduleQuality,
+      issues: [
+        ...moduleQuality.issues,
+        {
+          moduleName: 'policy',
+          path: addonPolicyPath,
+          issue: policyResult.error,
+          severity: 'error',
+        },
+      ],
+    };
+  }
   for (const repoRoot of repoRoots) {
-    moduleQuality = mergeModuleQualitySummaries(moduleQuality, await scanModuleQuality(repoRoot, target));
+    moduleQuality = mergeModuleQualitySummaries(
+      moduleQuality,
+      await scanModuleQuality(repoRoot, target, policyResult.ok ? policyResult.policy : undefined),
+    );
   }
   const moduleCandidateCount = moduleQuality.totalModules;
 

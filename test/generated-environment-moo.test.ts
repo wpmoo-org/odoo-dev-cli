@@ -350,6 +350,59 @@ exit 1
     await expect(readFile(callsPath, 'utf8')).resolves.toBe('');
   });
 
+  it('reports generated status dependency policy violations locally', async () => {
+    const { env, root } = await createMooFixture();
+    await writeGeneratedStatusFixture(root);
+    await writeFile(
+      join(root, '.wpmoo/policy.yaml'),
+      [
+        'addonGroups:',
+        '  community:',
+        '    - community_core',
+        '  pro:',
+        '    - pro_account',
+        'rules:',
+        '  - from: community',
+        '    mustNotDependOn: pro',
+        '',
+      ].join('\n'),
+    );
+
+    const modulePath = join(root, 'odoo/custom/src/private/sale_tools/community_core');
+    await mkdir(join(modulePath, 'views'), { recursive: true });
+    await writeFile(
+      join(modulePath, '__manifest__.py'),
+      [
+        '{',
+        "  'name': 'Community Core',",
+        "  'installable': True,",
+        "  'depends': ['base', 'pro_account'],",
+        '}',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(
+      join(modulePath, 'views', 'community_core_menus.xml'),
+      '<odoo><record id="action_community_core" model="ir.actions.act_window"/><menuitem id="menu_community_core" action="action_community_core"/></odoo>\n',
+    );
+
+    const result = await execa(join(root, 'moo'), ['status', '--json'], { cwd: root, env });
+    const payload = JSON.parse(result.stdout) as ReturnType<typeof environmentStatusJson>;
+
+    expect(payload.ok).toBe(false);
+    expect(payload.status.kind).toBe('environment');
+    if (payload.status.kind !== 'environment') return;
+    expect(payload.status.moduleQuality.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'community_core',
+          severity: 'error',
+          issue: 'dependency policy violation: community_core (community) must not depend on pro_account (pro)',
+        }),
+      ]),
+    );
+  });
+
   it('parses generated status JSON boolean options like the direct CLI', async () => {
     const { env, root } = await createMooFixture();
     await writeGeneratedStatusFixture(root);

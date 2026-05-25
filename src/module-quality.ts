@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
 
 import { parseOdooManifest, type OdooManifest } from './module-manifest.js';
+import type { OdooAddonPolicy } from './odoo-addon-policy.js';
 
 export type ModuleQualityIssue = {
   moduleName: string;
@@ -599,7 +600,81 @@ function withoutDuplicateAddonIssues(issues: readonly ModuleQualityIssue[]): Mod
   return issues.filter((issue) => !issue.issue.startsWith('duplicate addon technical name:'));
 }
 
-export async function scanModuleQuality(root: string, target: string): Promise<ModuleQualitySummary> {
+function addonGroupByName(policy: OdooAddonPolicy): Map<string, string> {
+  const byName = new Map<string, string>();
+  for (const [groupName, addons] of Object.entries(policy.addonGroups)) {
+    for (const addon of addons) {
+      byName.set(addon, groupName);
+    }
+  }
+  return byName;
+}
+
+function policyTargets(targets: readonly string[] | undefined): Set<string> {
+  return new Set(targets ?? []);
+}
+
+function dependencyMatchesPolicyTarget(
+  dependency: string,
+  dependencyGroup: string | undefined,
+  targets: ReadonlySet<string>,
+): boolean {
+  return targets.has(dependency) || (dependencyGroup !== undefined && targets.has(dependencyGroup));
+}
+
+function dependencyPolicyIssues(
+  results: readonly ModuleQualityResult[],
+  policy: OdooAddonPolicy | undefined,
+): ModuleQualityIssue[] {
+  if (!policy) return [];
+
+  const groupByName = addonGroupByName(policy);
+  const enterpriseOnly = new Set(policy.enterpriseOnlyDependencies);
+  const issues: ModuleQualityIssue[] = [];
+
+  for (const result of results) {
+    const sourceGroup = groupByName.get(result.moduleName);
+    if (!sourceGroup) continue;
+
+    for (const rule of policy.rules.filter((candidate) => candidate.from === sourceGroup)) {
+      const forbiddenTargets = policyTargets(rule.mustNotDependOn);
+      for (const dependency of result.depends) {
+        const dependencyGroup = groupByName.get(dependency);
+
+        if (dependencyMatchesPolicyTarget(dependency, dependencyGroup, forbiddenTargets)) {
+          const targetLabel = dependencyGroup ? `${dependency} (${dependencyGroup})` : dependency;
+          issues.push(
+            moduleQualityIssue(
+              result.moduleName,
+              result.relativePath,
+              `dependency policy violation: ${result.moduleName} (${sourceGroup}) must not depend on ${targetLabel}`,
+              'error',
+            ),
+          );
+        }
+
+        if (rule.mustNotDependOnEnterpriseOnly === true && enterpriseOnly.has(dependency)) {
+          issues.push(
+            moduleQualityIssue(
+              result.moduleName,
+              result.relativePath,
+              `dependency policy violation: ${result.moduleName} (${sourceGroup}) must not depend on Enterprise-only addon ${dependency}`,
+              'error',
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  return issues;
+}
+
+export async function scanModuleQuality(
+  root: string,
+  target: string,
+  policy?: OdooAddonPolicy,
+): Promise<ModuleQualitySummary> {
   try {
     const rootStat = await stat(root);
     if (!rootStat.isDirectory()) return emptyModuleQualitySummary();
@@ -641,6 +716,11 @@ export async function scanModuleQuality(root: string, target: string): Promise<M
   return {
     ...summary,
     ...(hasDependencyGraphIssues ? { dependencyGraph: dependencyGraph.graph } : {}),
-    issues: [...withoutDuplicateAddonIssues(summary.issues), ...duplicateIssues, ...dependencyGraph.issues],
+    issues: [
+      ...withoutDuplicateAddonIssues(summary.issues),
+      ...duplicateIssues,
+      ...dependencyGraph.issues,
+      ...dependencyPolicyIssues(results, policy),
+    ],
   };
 }

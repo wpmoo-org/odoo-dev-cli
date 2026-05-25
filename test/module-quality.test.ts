@@ -9,6 +9,7 @@ import {
   scanModuleQuality,
   type ModuleQualitySummary,
 } from '../src/module-quality.js';
+import { parseOdooAddonPolicy } from '../src/odoo-addon-policy.js';
 
 type ScanResultWithDependencyGraph = ModuleQualitySummary & {
   dependencyGraph?: {
@@ -748,6 +749,110 @@ describe('scanModuleQuality dependency graph checks', () => {
         expect.objectContaining({
           moduleName: 'module_b',
           issue: 'dependency cycle detected: module_b -> module_a -> module_b',
+        }),
+      ]),
+    );
+  });
+
+  it('reports configured Community to PRO dependency policy violations', async () => {
+    const target = await makeTarget('wpmoo-module-quality-policy-community-pro-');
+    const modulesRoot = join(target, 'modules');
+    const communityPath = join(modulesRoot, 'community_core');
+    const proPath = join(modulesRoot, 'pro_account');
+
+    await writeText(
+      join(communityPath, '__manifest__.py'),
+      buildManifest({
+        depends: ['base', 'pro_account'],
+        data: ['security/ir.model.access.csv', 'views/demo_views.xml'],
+      }),
+    );
+    await writeText(
+      join(proPath, '__manifest__.py'),
+      buildManifest({
+        depends: ['base', 'community_core'],
+        data: ['security/ir.model.access.csv', 'views/demo_views.xml'],
+      }),
+    );
+    await writeStandardQualityFiles(communityPath, 'community_core');
+    await writeStandardQualityFiles(proPath, 'pro_account');
+
+    const policy = parseOdooAddonPolicy(
+      [
+        'addonGroups:',
+        '  community:',
+        '    - community_core',
+        '  pro:',
+        '    - pro_account',
+        'rules:',
+        '  - from: community',
+        '    mustNotDependOn: pro',
+        '  - from: pro',
+        '    mayDependOn: community',
+        '',
+      ].join('\n'),
+    );
+
+    const result = await scanModuleQuality(modulesRoot, target, policy);
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'community_core',
+          path: 'modules/community_core',
+          severity: 'error',
+          issue: 'dependency policy violation: community_core (community) must not depend on pro_account (pro)',
+        }),
+      ]),
+    );
+    expect(result.issues).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'pro_account',
+          issue: expect.stringContaining('dependency policy violation'),
+        }),
+      ]),
+    );
+  });
+
+  it('reports configured Enterprise-only dependency policy violations', async () => {
+    const target = await makeTarget('wpmoo-module-quality-policy-enterprise-');
+    const modulesRoot = join(target, 'modules');
+    const modulePath = join(modulesRoot, 'community_core');
+
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({
+        depends: ['base', 'documents'],
+        data: ['security/ir.model.access.csv', 'views/demo_views.xml'],
+      }),
+    );
+    await writeStandardQualityFiles(modulePath, 'community_core');
+
+    const policy = parseOdooAddonPolicy(
+      [
+        'enterpriseOnlyDependencies:',
+        '  - documents',
+        'addonGroups:',
+        '  community:',
+        '    - community_core',
+        'rules:',
+        '  - from: community',
+        '    mustNotDependOnEnterpriseOnly: true',
+        '',
+      ].join('\n'),
+    );
+
+    const result = await scanModuleQuality(modulesRoot, target, policy);
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'community_core',
+          path: 'modules/community_core',
+          severity: 'error',
+          issue:
+            'dependency policy violation: community_core (community) must not depend on Enterprise-only addon documents',
         }),
       ]),
     );

@@ -114,6 +114,7 @@ Status and doctor:
   doctor: deeper health check. May check Docker CLI access and GitHub workflows.
   doctor --fix: applies safe file-level repairs. Runs doctor again after fixes.
   doctor --fail-on-warning: returns non-zero when advisory warnings are present.
+  doctor/status read optional .wpmoo/policy.yaml addon dependency rules when present.
   doctor --postgres: adds read-only PostgreSQL diagnostics such as database size,
     sessions currently running queries with pg_stat_activity.state = 'active',
     connection utilization against max_connections, slow-query readiness,
