@@ -281,6 +281,8 @@ describe('help', () => {
     expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json --postgres');
     expect(readmeText).toContain('doctor --postgres');
     expect(readmeText).toContain('doctor --fail-on-warning');
+    expect(readmeText).toContain('WPMoo prints a short relevant excerpt');
+    expect(commandReference).toContain('prints a short excerpt from matching');
     expect(readmeText).toContain('JSON output is optional; human-readable output remains the default.');
   });
 });

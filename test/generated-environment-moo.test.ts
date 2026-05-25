@@ -124,6 +124,31 @@ describe('generated environment moo delegation matrix', () => {
     );
   }, 15000);
 
+  it('prints a relevant Odoo log excerpt when generated moo test fails', async () => {
+    const { env, root } = await createMooFixture();
+    await mkdir(join(root, 'logs'), { recursive: true });
+    await writeFile(
+      join(root, 'logs', 'odoo-test-sale.log'),
+      [
+        'INFO setup',
+        'Traceback (most recent call last):',
+        '  File "/odoo/addons/sale/tests/test_demo.py", line 12, in test_demo',
+        'AssertionError: expected total 10, got 9',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(join(root, 'scripts', 'test.sh'), '#!/usr/bin/env bash\nexit 7\n');
+    await chmod(join(root, 'scripts', 'test.sh'), 0o755);
+
+    const result = await execa(join(root, 'moo'), ['test', 'sale'], { cwd: root, env, reject: false });
+
+    expect(result.exitCode).toBe(7);
+    expect(result.stderr).toContain('Test failed: sale');
+    expect(result.stderr).toContain('Relevant log excerpt:');
+    expect(result.stderr).toContain('AssertionError: expected total 10, got 9');
+    expect(result.stderr).toContain('Full log: ./logs/odoo-test-sale.log');
+  });
+
   it('falls back to package command for doctor', async () => {
     const { callsPath, env, root } = await createMooFixture();
 

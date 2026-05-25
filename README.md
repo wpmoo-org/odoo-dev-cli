@@ -228,6 +228,11 @@ diagnostics.
 All `doctor --json` reports also include optional `sections` entries that group
 checks, warnings, and errors without changing the legacy flat arrays.
 
+When `./moo test <module>` or `npx @wpmoo/toolkit test <module>` fails and an
+Odoo test log exists under `./logs`, WPMoo prints a short relevant excerpt and
+the full log path. The default lookup checks `./logs/odoo-test-<module>.log`,
+`./logs/test-<module>.log`, and common generic Odoo test log names.
+
 JSON compatibility policy:
 
 - Automation should ignore unknown JSON fields.

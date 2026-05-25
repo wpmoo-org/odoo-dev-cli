@@ -920,6 +920,55 @@ run_script() {
   exec "$script" "$@"
 }
 
+show_test_failure_excerpt() {
+  local modules="\${1:-unknown}"
+  local first_module="\${modules%%,*}"
+  first_module="\${first_module//[[:space:]]/}"
+  local log_path=""
+  local candidate
+
+  for candidate in \
+    "./logs/odoo-test-\${first_module}.log" \
+    "./logs/test-\${first_module}.log" \
+    "./logs/odoo-test.log" \
+    "./logs/test.log" \
+    "./logs/odoo.log"; do
+    if [[ -s "$candidate" ]]; then
+      log_path="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$log_path" ]]; then
+    return 0
+  fi
+
+  echo "" >&2
+  echo "Test failed: $modules" >&2
+  echo "" >&2
+  echo "Relevant log excerpt:" >&2
+  tail -n "\${WPMOO_TEST_LOG_LINES:-120}" "$log_path" >&2 || true
+  echo "" >&2
+  echo "Full log: $log_path" >&2
+}
+
+run_test_script() {
+  if [[ ! -x ./scripts/test.sh ]]; then
+    echo "Missing daily action script: scripts/test.sh" >&2
+    exit 1
+  fi
+
+  set +e
+  ./scripts/test.sh "$@"
+  local status="$?"
+  set -e
+
+  if [[ "$status" -ne 0 ]]; then
+    show_test_failure_excerpt "$@"
+    exit "$status"
+  fi
+}
+
 run_package_command() {
   exec npx --yes ${fallbackPackageSpec()} "$@"
 }
@@ -1024,7 +1073,7 @@ case "$command" in
     validate_test_args "$@"
     require_prod_lifecycle_allowed "$command"
     require_migrations_allowed "$command"
-    run_script ./scripts/test.sh "$@"
+    run_test_script "$@"
     ;;
   "resetdb")
     shift

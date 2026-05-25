@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
-import { access } from 'node:fs/promises';
-import { join } from 'node:path';
+import { access, readFile } from 'node:fs/promises';
+import { basename, join, relative } from 'node:path';
 
 import { readActiveApprovals, type ActiveApproval, type ApprovalScope } from './approval-ledger.js';
 import { appendAuditLog } from './audit-log.js';
@@ -94,6 +94,7 @@ const ANSI_DIM_INFO = '\u001B[2m\u001B[38;2;120;157;181m';
 const ANSI_WARNING = '\u001B[33m';
 const ANSI_DEFAULT_FOREGROUND = '\u001B[39m';
 const ANSI_RESET = '\u001B[0m';
+const defaultTestLogLines = 120;
 
 const dailyActionCommandSet = new Set<string>(dailyActionCommands);
 
@@ -473,8 +474,85 @@ async function spawnDailyAction(plan: DailyActionPlan): Promise<void> {
   });
 
   if (exitCode !== 0) {
+    const logExcerpt = await renderTestFailureLogExcerpt(plan);
+    if (logExcerpt) {
+      console.error(logExcerpt);
+    }
     throw new Error(`Daily action script exited with code ${exitCode ?? 'unknown'}: ${plan.scriptPath}`);
   }
+}
+
+function isTestActionPlan(plan: DailyActionPlan): boolean {
+  return basename(plan.scriptPath) === dailyActionScripts.test;
+}
+
+function testModuleNames(args: readonly string[]): string[] {
+  return (args[0] ?? 'unknown')
+    .split(',')
+    .map((moduleName) => moduleName.trim())
+    .filter(Boolean);
+}
+
+function testLogCandidates(plan: DailyActionPlan): string[] {
+  const modules = testModuleNames(plan.args);
+  const moduleCandidates = modules.flatMap((moduleName) => [
+    join(plan.cwd, 'logs', `odoo-test-${moduleName}.log`),
+    join(plan.cwd, 'logs', `test-${moduleName}.log`),
+  ]);
+  return [
+    ...moduleCandidates,
+    join(plan.cwd, 'logs', 'odoo-test.log'),
+    join(plan.cwd, 'logs', 'test.log'),
+    join(plan.cwd, 'logs', 'odoo.log'),
+  ];
+}
+
+async function firstReadableLog(candidates: readonly string[]): Promise<{ path: string; content: string } | undefined> {
+  for (const candidate of candidates) {
+    try {
+      const content = await readFile(candidate, 'utf8');
+      if (content.trim()) {
+        return { path: candidate, content };
+      }
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
+}
+
+function relevantTestLogExcerpt(content: string, maxLines = defaultTestLogLines): string {
+  const lines = content.trimEnd().split(/\r?\n/u);
+  const relevantPattern = /(?:Traceback \(most recent call last\)|\b(?:ERROR|FAIL)\b|AssertionError|Exception:|FAILED)/u;
+  let relevantIndex = -1;
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (relevantPattern.test(lines[index] ?? '')) {
+      relevantIndex = index;
+      break;
+    }
+  }
+  const start = relevantIndex >= 0 ? Math.max(0, relevantIndex - 20) : Math.max(0, lines.length - maxLines);
+  return lines.slice(start, start + maxLines).join('\n');
+}
+
+async function renderTestFailureLogExcerpt(plan: DailyActionPlan): Promise<string | undefined> {
+  if (!isTestActionPlan(plan)) {
+    return undefined;
+  }
+  const log = await firstReadableLog(testLogCandidates(plan));
+  if (!log) {
+    return undefined;
+  }
+  const displayPath = `./${relative(plan.cwd, log.path)}`;
+  return [
+    '',
+    `Test failed: ${plan.args[0] ?? 'unknown'}`,
+    '',
+    'Relevant log excerpt:',
+    relevantTestLogExcerpt(log.content),
+    '',
+    `Full log: ${displayPath}`,
+  ].join('\n');
 }
 
 function renderDailyActionOutputLine(line: string): string {
@@ -536,6 +614,10 @@ async function spawnDailyActionWithStyledOutput(
   }
 
   if (exitCode !== 0) {
+    const logExcerpt = await renderTestFailureLogExcerpt(plan);
+    if (logExcerpt) {
+      writer(renderDailyActionOutput(`${logExcerpt}\n`));
+    }
     throw new Error(`Daily action script exited with code ${exitCode ?? 'unknown'}: ${plan.scriptPath}`);
   }
 }

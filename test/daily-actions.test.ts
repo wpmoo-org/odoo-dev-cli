@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   dailyActionPlan,
@@ -753,6 +753,53 @@ describe('daily actions', () => {
     expect(chunks.join('')).toContain('regular output');
     expect(chunks.join('')).toContain('\u001B[33mWARNING:\u001B[39m');
     expect(chunks.join('')).toContain('\u001B[2m\u001B[38;2;120;157;181m streamed warning\u001B[0m');
+  });
+
+  it('surfaces Odoo test log excerpts when styled test runs fail', async () => {
+    const target = await makeEnvironment({ scripts: ['test.sh'] });
+    const scriptPath = join(target, 'scripts', 'test.sh');
+    await mkdir(join(target, 'logs'), { recursive: true });
+    await writeFile(
+      join(target, 'logs', 'odoo-test-module_a.log'),
+      [
+        'INFO setup',
+        'Traceback (most recent call last):',
+        '  File "/odoo/addons/module_a/tests/test_demo.py", line 12, in test_demo',
+        'AssertionError: expected Category Rank 1, got 2',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(scriptPath, '#!/usr/bin/env bash\nexit 7\n');
+    await chmod(scriptPath, 0o755);
+    const chunks: string[] = [];
+
+    await expect(runDailyActionWithStyledOutput('test', ['module_a'], target, (chunk) => chunks.push(chunk))).rejects.toThrow(
+      `Daily action script exited with code 7: ${scriptPath}`,
+    );
+
+    const output = chunks.join('');
+    expect(output).toContain('Test failed: module_a');
+    expect(output).toContain('Relevant log excerpt:');
+    expect(output).toContain('AssertionError: expected Category Rank 1, got 2');
+    expect(output).toContain('Full log: ./logs/odoo-test-module_a.log');
+  });
+
+  it('surfaces Odoo test log excerpts when inherited-output test runs fail', async () => {
+    const target = await makeEnvironment({ scripts: ['test.sh'] });
+    const scriptPath = join(target, 'scripts', 'test.sh');
+    await mkdir(join(target, 'logs'), { recursive: true });
+    await writeFile(join(target, 'logs', 'odoo-test-module_a.log'), 'FAIL: test_demo\nAssertionError: broken\n');
+    await writeFile(scriptPath, '#!/usr/bin/env bash\nexit 7\n');
+    await chmod(scriptPath, 0o755);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(runDailyAction('test', ['module_a'], target)).rejects.toThrow(
+      `Daily action script exited with code 7: ${scriptPath}`,
+    );
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Test failed: module_a'));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('AssertionError: broken'));
+    errorSpy.mockRestore();
   });
 
   it('rejects invalid test arguments with existing error wording', async () => {
