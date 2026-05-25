@@ -146,6 +146,9 @@ search so names, repositories, and source categories can be filtered quickly.
 Runtime actions that need running services or a ready database are disabled in
 the cockpit until the environment is ready; file-only actions such as module
 scaffolding, source repository changes, and safe reset remain available.
+Doctor, test, and environment lint result pages include a `Run ... again`
+action above `Back to menu`, reusing the same selected modules, database, and
+mode for fast verification loops.
 
 ```bash
 ./moo start

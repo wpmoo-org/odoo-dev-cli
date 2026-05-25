@@ -23,6 +23,8 @@ import {
   selectCockpitTopLevelMenu,
 } from './cockpit/menu.js';
 import {
+  cockpitResultActionOptions,
+  type CockpitResultActionValue,
   renderCockpitDoctorResult,
   renderCockpitEnvironmentStatusResult,
 } from './cockpit/result-view.js';
@@ -1421,7 +1423,7 @@ async function selectDatabaseArg(
   const databaseResult = normalizeDatabaseListResult(await listEnvironmentDatabases(cwd, options));
   const databases: string[] = databaseResult.databases;
   if (databases.length > 0) {
-    const selected = await selectPrompt({
+    const selected = await selectPrompt<string>({
       message: menuPromptMessage(message, 'back'),
       options: [
         ...databases.map((database) => ({ value: database, label: database })),
@@ -1494,30 +1496,44 @@ async function renderCockpitSubmenuPage(title: string, cwd: string): Promise<voi
   introPrompt(title);
 }
 
-async function waitForModuleActionBack(): Promise<boolean> {
+type CockpitResultSelection = CockpitResultActionValue | false;
+
+function dailyActionRerunLabel(command: DailyActionCommand): string | undefined {
+  if (command === 'test') return 'Run tests again';
+  if (command === 'lint') return 'Run environment lint again';
+  return undefined;
+}
+
+async function waitForCockpitResultSelection(rerunLabel?: string): Promise<CockpitResultSelection> {
   console.log(renderBackHelp());
   if (!process.stdin.isTTY) {
     return false;
   }
 
+  const options = cockpitResultActionOptions(rerunLabel);
   try {
-    const back = await selectPrompt({
+    const selected = await selectPrompt<CockpitResultActionValue>({
       message: 'Result',
-      options: [{ value: 'back', label: 'Back to menu' }],
+      options,
       initialValue: 'back',
-      pageSize: 1,
+      pageSize: options.length,
       hideMessage: true,
       navigationHelp: 'back',
     });
-    handleCancel(back, 'back');
+    if (isPromptCancel(selected)) {
+      handleCancel(selected, 'back');
+    }
+    return selected as CockpitResultActionValue;
   } catch (error) {
     if (isMenuBackSignal(error)) {
-      return true;
+      return 'back';
     }
     throw error;
   }
+}
 
-  return true;
+async function waitForModuleActionBack(): Promise<boolean> {
+  return (await waitForCockpitResultSelection()) === 'back';
 }
 
 function installEscAbortController(controller: AbortController): () => void {
@@ -1590,14 +1606,15 @@ async function showCockpitResultPage(
   cwd: string,
   output: string,
   noteTitle: string | false = title,
-): Promise<boolean> {
+  options: { rerunLabel?: string } = {},
+): Promise<CockpitResultSelection> {
   await renderCockpitSubmenuPage(title, cwd);
   if (noteTitle === false) {
     notePrompt(output, title, { indent: false, showTitle: false });
   } else {
     notePrompt(output, noteTitle, { indent: false });
   }
-  return waitForModuleActionBack();
+  return waitForCockpitResultSelection(options.rerunLabel);
 }
 
 async function runDailyActionResultPage(
@@ -1608,18 +1625,30 @@ async function runDailyActionResultPage(
   selectedLabel = dailyActionSelectedLabel(command, argv),
   completedLabel = commandCompletedLabel(command),
 ): Promise<boolean> {
-  await renderDailyActionResultPageHeader(title, selectedLabel, cwd);
-  try {
-    await runDailyActionWithStyledOutput(command, argv, cwd);
-    notePrompt(renderCompletedText(completedLabel), 'Done');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    notePrompt(message, 'Error');
-    await waitForModuleActionBack();
-    throw error;
-  }
+  const rerunLabel = dailyActionRerunLabel(command);
 
-  return waitForModuleActionBack();
+  while (true) {
+    await renderDailyActionResultPageHeader(title, selectedLabel, cwd);
+    try {
+      await runDailyActionWithStyledOutput(command, argv, cwd);
+      notePrompt(renderCompletedText(completedLabel), 'Done');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      notePrompt(message, 'Error');
+      const selection = await waitForCockpitResultSelection(rerunLabel);
+      if (selection === 'rerun') {
+        continue;
+      }
+      throw error;
+    }
+
+    const selection = await waitForCockpitResultSelection(rerunLabel);
+    if (selection === 'rerun') {
+      continue;
+    }
+
+    return selection === 'back';
+  }
 }
 
 async function runSelectedModuleDailyAction(action: ModuleActionId, module: ListedModule, cwd: string): Promise<boolean> {
@@ -1828,7 +1857,18 @@ async function runCockpitCommand(command: CockpitCommand, cwd: string): Promise<
   }
 
   if (command.id === 'doctor') {
-    await showCockpitResultPage('Run doctor', cwd, renderCockpitDoctorResult(await getDoctorReport(cwd)), 'Doctor');
+    while (true) {
+      const selection = await showCockpitResultPage(
+        'Run doctor',
+        cwd,
+        renderCockpitDoctorResult(await getDoctorReport(cwd)),
+        'Doctor',
+        { rerunLabel: 'Run doctor again' },
+      );
+      if (selection !== 'rerun') {
+        break;
+      }
+    }
     return 'continue';
   }
 

@@ -1036,6 +1036,35 @@ describe('cli menu environment routes', () => {
     });
   });
 
+  it('reruns doctor from the result page without returning to the menu first', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    const originalIsTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('doctor'))
+      .mockResolvedValueOnce('rerun')
+      .mockResolvedValueOnce('back')
+      .mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    try {
+      await runCli([], '/tmp/environment');
+
+      expect(mocks.getDoctorReport).toHaveBeenCalledTimes(2);
+      const resultPrompts = vi.mocked(prompts.selectPrompt).mock.calls
+        .map((call) => call[0])
+        .filter((options): options is { message: string; options: Array<{ label: string; value: string }> } => {
+          return typeof options === 'object' && options !== null && 'message' in options && options.message === 'Result';
+        });
+      expect(resultPrompts[0]?.options.map((option) => option.label)).toEqual([
+        'Run doctor again',
+        'Back to menu',
+      ]);
+    } finally {
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalIsTTY });
+    }
+  });
+
   it.each([
     ['update', 'update', ['odoo_sample_module_base'], 'Update module'],
     ['test', 'test', ['odoo_sample_module_base'], 'Test module'],
@@ -1071,6 +1100,87 @@ describe('cli menu environment routes', () => {
     } finally {
       writeSpy.mockRestore();
       Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: originalIsTTY });
+    }
+  });
+
+  it('reruns selected module tests with the same module arguments from the result page', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    const selectedModule = {
+      moduleName: 'odoo_sample_module_base',
+      repoPath: 'odoo_sample_module',
+      sourceType: 'private' as const,
+    };
+    const originalStdinIsTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    mocks.listModulesInEnvironment.mockResolvedValue([selectedModule]);
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('test'))
+      .mockResolvedValueOnce(selectedModule)
+      .mockResolvedValueOnce('rerun')
+      .mockResolvedValueOnce('back')
+      .mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    try {
+      await runCli([], '/tmp/environment');
+
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledTimes(2);
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenNthCalledWith(
+        1,
+        'test',
+        ['odoo_sample_module_base'],
+        '/tmp/environment',
+      );
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenNthCalledWith(
+        2,
+        'test',
+        ['odoo_sample_module_base'],
+        '/tmp/environment',
+      );
+      const resultPrompts = vi.mocked(prompts.selectPrompt).mock.calls
+        .map((call) => call[0])
+        .filter((options): options is { message: string; options: Array<{ label: string; value: string }> } => {
+          return typeof options === 'object' && options !== null && 'message' in options && options.message === 'Result';
+        });
+      expect(resultPrompts[0]?.options.map((option) => option.label)).toEqual([
+        'Run tests again',
+        'Back to menu',
+      ]);
+    } finally {
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalStdinIsTTY });
+    }
+  });
+
+  it('reruns environment lint with the same arguments from the result page', async () => {
+    const prompts = await import('../src/prompts/index.js');
+    const originalStdinIsTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/environment');
+    vi.mocked(prompts.selectPrompt)
+      .mockResolvedValueOnce(cockpitCommand('lint'))
+      .mockResolvedValueOnce('rerun')
+      .mockResolvedValueOnce('back')
+      .mockResolvedValueOnce('exit');
+    const { runCli } = await loadCli();
+
+    try {
+      await runCli([], '/tmp/environment');
+
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenCalledTimes(2);
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenNthCalledWith(1, 'lint', [], '/tmp/environment');
+      expect(mocks.runDailyActionWithStyledOutput).toHaveBeenNthCalledWith(2, 'lint', [], '/tmp/environment');
+      const resultPrompts = vi.mocked(prompts.selectPrompt).mock.calls
+        .map((call) => call[0])
+        .filter((options): options is { message: string; options: Array<{ label: string; value: string }> } => {
+          return typeof options === 'object' && options !== null && 'message' in options && options.message === 'Result';
+        });
+      expect(resultPrompts[0]?.options.map((option) => option.label)).toEqual([
+        'Run environment lint again',
+        'Back to menu',
+      ]);
+    } finally {
+      Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: originalStdinIsTTY });
     }
   });
 

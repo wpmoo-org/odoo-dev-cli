@@ -3,6 +3,25 @@ import type { EnvironmentStatus } from '../status.js';
 
 type ResultRow = readonly [string, string];
 
+export type CockpitResultActionValue = 'rerun' | 'back';
+
+export type CockpitResultActionOption = {
+  value: CockpitResultActionValue;
+  label: string;
+};
+
+export function cockpitResultActionOptions(rerunLabel?: string): CockpitResultActionOption[] {
+  const back = { value: 'back', label: 'Back to menu' } satisfies CockpitResultActionOption;
+  if (!rerunLabel) {
+    return [back];
+  }
+
+  return [
+    { value: 'rerun', label: rerunLabel },
+    back,
+  ];
+}
+
 function supportsAnsi(): boolean {
   return Boolean(process.stdout.isTTY) && process.env.NO_COLOR === undefined;
 }

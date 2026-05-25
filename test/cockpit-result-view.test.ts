@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  cockpitResultActionOptions,
   renderCockpitDoctorResult,
   renderCockpitEnvironmentStatusResult,
 } from '../src/cockpit/result-view.js';
@@ -8,6 +9,17 @@ import type { DoctorReport } from '../src/doctor.js';
 import type { EnvironmentStatus } from '../src/status.js';
 
 describe('cockpit result views', () => {
+  it('places rerun actions above back navigation when a result can be repeated', () => {
+    expect(cockpitResultActionOptions('Run doctor again')).toEqual([
+      { value: 'rerun', label: 'Run doctor again' },
+      { value: 'back', label: 'Back to menu' },
+    ]);
+  });
+
+  it('keeps back navigation as the only result action by default', () => {
+    expect(cockpitResultActionOptions()).toEqual([{ value: 'back', label: 'Back to menu' }]);
+  });
+
   it('renders environment status as aligned result text with status markers', () => {
     const status: EnvironmentStatus = {
       kind: 'environment',
