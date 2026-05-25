@@ -511,6 +511,7 @@ usage() {
     "snapshot") echo "Usage: ./moo snapshot [--list] [db] [snapshot-name]" ;;
     "restore-snapshot") echo "Usage: ./moo restore-snapshot [--dry-run] <snapshot-name> [db]" ;;
     "lint") echo "Usage: ./moo lint" ;;
+    "gate") echo "Usage: ./moo gate --modules <module[,module]> [--db <database>]" ;;
     "pot") echo "Usage: ./moo pot <module[,module]> [db] [output]" ;;
   esac
 }
@@ -524,7 +525,7 @@ Daily commands:
   install, update, test, resetdb, snapshot, restore-snapshot, lint, pot
 
 Management commands:
-  source, add-repo, remove-repo, add-module, remove-module, reset, doctor
+  source, add-repo, remove-repo, add-module, remove-module, reset, doctor, gate
 
 Local diagnostics:
   status [--json]
@@ -1071,7 +1072,7 @@ case "$command" in
     fi
     run_package_command "$command" "$@"
     ;;
-  "create"|"add-repo"|"remove-repo"|"add-module"|"remove-module"|"source"|"reset")
+  "create"|"add-repo"|"remove-repo"|"add-module"|"remove-module"|"source"|"reset"|"gate")
     run_package_command "$@"
     ;;
   "start")

@@ -247,6 +247,16 @@ exit 1
     await expect(readFile(callsPath, 'utf8')).resolves.toBe(`npx|--yes ${expectedFallbackPackageSpec} doctor --help\n`);
   });
 
+  it('delegates generated gate to the package fallback command', async () => {
+    const { callsPath, env, root } = await createMooFixture();
+
+    await execa(join(root, 'moo'), ['gate', '--modules', 'sale', '--db', 'odoo_19'], { cwd: root, env });
+
+    await expect(readFile(callsPath, 'utf8')).resolves.toBe(
+      `npx|--yes ${expectedFallbackPackageSpec} gate --modules sale --db odoo_19\n`,
+    );
+  });
+
   it('delegates doctor JSON PostgreSQL checks to the package fallback command', async () => {
     const { callsPath, env, root } = await createMooFixture({ includeDoctorScript: true });
     await writeFile(

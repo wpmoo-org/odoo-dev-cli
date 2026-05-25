@@ -22,6 +22,7 @@ Usage:
   npx @wpmoo/toolkit reset [--dry-run]
   npx @wpmoo/toolkit doctor [--fix] [--postgres] [--fail-on-warning]
   npx @wpmoo/toolkit doctor --json [--postgres] [--fail-on-warning]
+  npx @wpmoo/toolkit gate --modules <module[,module]> [--db <database>] [--strict] [--json]
   npx @wpmoo/toolkit start
   npx @wpmoo/toolkit stop
   npx @wpmoo/toolkit logs [service] [tail-lines]
@@ -120,6 +121,13 @@ Status and doctor:
     connection utilization against max_connections, slow-query readiness,
     extension visibility, and settings.
     Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics.
+
+Train gate:
+  gate --modules <module[,module]> --db <database>: runs update, test, lint,
+    doctor, and status --json in sequence.
+  gate --strict or --fail-on-warning: fails when doctor/status warnings are present.
+  gate --changed: infers changed addons from git diff when --modules is omitted.
+  gate --include-dependent: also gates addons that depend on selected modules.
 
 Task recipes:
   Create environment:

@@ -17,6 +17,7 @@ unscoped `npx wpmoo` short alias is optional and best-effort; scripts should use
 | `npx @wpmoo/toolkit create ...` | Create wizard | No | Creates a generated environment. Use `--target <path>` for a custom folder. |
 | `npx @wpmoo/toolkit status` | Diagnostics -> Environment status | Yes, `--json` | Fast local metadata and file check. |
 | `npx @wpmoo/toolkit doctor [--fix] [--postgres] [--fail-on-warning]` | Diagnostics -> Run doctor | Yes, `--json` | Deeper health checks. Fails on duplicate Odoo addon technical names and configured addon dependency policy violations. `--postgres` is read-only and advisory; `--fail-on-warning` is for strict automation gates. |
+| `npx @wpmoo/toolkit gate --modules <module[,module]> [--db <database>]` | None | Yes, `--json` | Runs update, test, lint, doctor, and status as one train gate. Use `--strict` or `--fail-on-warning` for CI-style warning failures. |
 | `npx @wpmoo/toolkit source list` | Repositories | Yes, `--json` | Lists known source repositories. |
 | `npx @wpmoo/toolkit source sync` | Repositories | Yes, `--json` | Refreshes source manifest data. |
 | `npx @wpmoo/toolkit add-repo --repo-url <url>` | Repositories -> Add source repo | No | Adds a source repository category entry. |
@@ -54,6 +55,7 @@ managed.
 | `./moo resetdb [db] [module[,module]]` | Database -> Reset database | Yes | Destructive database reset. |
 | `./moo doctor [--fix] [--postgres] [--fail-on-warning]` | Diagnostics -> Run doctor | No | Local health checks. |
 | `./moo status` | Diagnostics -> Environment status | No | Local environment status. |
+| `./moo gate --modules <module[,module]> [--db <database>]` | None | Yes, `--json` through package fallback | Runs the standard train gate sequence from a generated environment. |
 
 ## JSON Output
 

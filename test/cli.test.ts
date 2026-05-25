@@ -2,6 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   runDoctor: vi.fn(async () => 'doctor report'),
+  runTrainGate: vi.fn(async () => ({
+    schemaVersion: 1,
+    command: 'gate',
+    ok: true,
+    outcome: 'PASS',
+    target: '/tmp/example',
+    modules: ['module_a'],
+    steps: [],
+    warnings: [],
+  })),
+  renderTrainGateSummary: vi.fn(() => 'gate summary'),
   runDailyAction: vi.fn(async () => undefined),
   safeResetEnvironment: vi.fn(async () => undefined),
   renderSafeResetPreview: vi.fn(() => 'safe reset preview'),
@@ -47,6 +58,15 @@ vi.mock('../src/prompts/index.js', () => {
 vi.mock('../src/doctor.js', () => ({
   runDoctor: mocks.runDoctor,
 }));
+
+vi.mock('../src/train-gate.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/train-gate.js')>();
+  return {
+    ...actual,
+    runTrainGate: mocks.runTrainGate,
+    renderTrainGateSummary: mocks.renderTrainGateSummary,
+  };
+});
 
 vi.mock('../src/daily-actions.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/daily-actions.js')>();
@@ -164,6 +184,23 @@ describe('cli runCli', () => {
     expect(logSpy).toHaveBeenCalledWith('mock banner');
     expect(logSpy).toHaveBeenCalledWith('doctor fixed report');
     expect(mocks.runDoctor).toHaveBeenCalledWith('/tmp/example', { fix: true });
+  });
+
+  it('runs train gate with parsed args', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runCli } = await loadCli();
+
+    await runCli(['gate', '--modules', 'module_a', '--db', 'odoo_19'], '/tmp/example');
+
+    expect(mocks.runTrainGate).toHaveBeenCalledWith(
+      '/tmp/example',
+      expect.objectContaining({
+        modules: ['module_a'],
+        db: 'odoo_19',
+      }),
+    );
+    expect(mocks.renderTrainGateSummary).toHaveBeenCalledTimes(1);
+    expect(logSpy).toHaveBeenCalledWith('gate summary');
   });
 
   it('runs daily actions with argv and cwd', async () => {

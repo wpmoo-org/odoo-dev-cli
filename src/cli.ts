@@ -137,6 +137,11 @@ import {
   type PromptCancelAction,
 } from './menu-navigation.js';
 import { validateModuleName } from './path-validation.js';
+import {
+  renderTrainGateSummary,
+  runTrainGate,
+  trainGateOptionsFromArgs,
+} from './train-gate.js';
 
 function handleCancel(value: unknown, action: PromptCancelAction): void {
   handlePromptCancel(isPromptCancel(value), action);
@@ -2154,6 +2159,22 @@ export async function runCli(cliArgv = process.argv.slice(2), cwd = process.cwd(
         ? await runDoctor(cwd)
         : await runDoctor(cwd, doctorOptions),
     );
+    return;
+  }
+
+  if (route.command === 'gate') {
+    const options = trainGateOptionsFromArgs(route.argv);
+    const result = await runTrainGate(cwd, options);
+    if (options.json) {
+      printJson(result);
+      return;
+    }
+
+    console.log(renderBanner());
+    console.log(renderTrainGateSummary(result));
+    if (!result.ok) {
+      throw new Error(`Gate failed: ${result.outcome}`);
+    }
     return;
   }
 
