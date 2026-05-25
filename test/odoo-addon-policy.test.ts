@@ -15,6 +15,17 @@ describe('Odoo addon policy parser', () => {
         '  notificationDependency:',
         '    requiredDependency: moo_mail',
         '  controllerWrites: true',
+        'backendMenu:',
+        '  severity: error',
+        '  allowedTopLevel:',
+        '    - Events',
+        '    - Projects',
+        'notifications:',
+        '  requiredAddon: community_mail',
+        '  templateModels:',
+        '    - mail.template',
+        '  ruleModels:',
+        '    - community.notification.rule',
         'addonGroups:',
         '  community:',
         '    - community_core',
@@ -43,6 +54,15 @@ describe('Odoo addon policy parser', () => {
         notificationDependency: {
           requiredDependency: 'moo_mail',
         },
+      },
+      backendMenu: {
+        allowedTopLevel: ['Events', 'Projects'],
+        severity: 'error',
+      },
+      notifications: {
+        requiredAddon: 'community_mail',
+        templateModels: ['mail.template'],
+        ruleModels: ['community.notification.rule'],
       },
       rules: [
         {

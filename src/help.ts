@@ -118,6 +118,8 @@ Status and doctor:
   doctor/status read optional .wpmoo/policy.yaml addon dependency and lint rules when present.
   policy lint can warn on configured Odoo-version patterns, controller writes,
     direct state writes, and notification XML without the configured mail dependency.
+  backend menu bucket and notification framework checks are configured per project,
+    so Toolkit stays useful for general Odoo module development.
   doctor --postgres: adds read-only PostgreSQL diagnostics such as database size,
     sessions currently running queries with pg_stat_activity.state = 'active',
     connection utilization against max_connections, slow-query readiness,

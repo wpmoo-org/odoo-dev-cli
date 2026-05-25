@@ -60,17 +60,62 @@ function isTestOrMigration(relativePath: string): boolean {
   return relativePath.startsWith('tests/') || relativePath.includes('/tests/') || relativePath.includes('/migrations/');
 }
 
-function issue(moduleName: string, moduleRelativePath: string, detailPath: string, message: string): ModuleQualityIssue {
+function issue(
+  moduleName: string,
+  moduleRelativePath: string,
+  detailPath: string,
+  message: string,
+  severity: NonNullable<ModuleQualityIssue['severity']> = 'warning',
+): ModuleQualityIssue {
   return {
     moduleName,
     path: `${moduleRelativePath}/${detailPath}`,
     issue: message,
-    severity: 'warning',
+    severity,
   };
 }
 
-function hasNotificationXml(content: string): boolean {
-  return /model=(["'])mail\.template\1/u.test(content) || /model=(["'])moo\.olympiad\.notification\.rule\1/u.test(content);
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+function xmlAttributeValues(tag: string, attributeName: string): string[] {
+  const values: string[] = [];
+  const pattern = new RegExp(`\\b${attributeName}=(["'])(.*?)\\1`, 'gsu');
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(tag))) {
+    const value = match[2]?.trim();
+    if (value) values.push(value);
+  }
+  return values;
+}
+
+function menuTags(content: string): string[] {
+  return Array.from(content.matchAll(/<menuitem\b[^>]*>/gsu), (match) => match[0]);
+}
+
+function notificationModels(policy: OdooAddonPolicy): string[] {
+  const configured = [
+    ...(policy.notifications?.templateModels ?? []),
+    ...(policy.notifications?.ruleModels ?? []),
+  ];
+  if (configured.length > 0) return configured;
+  return ['mail.template', 'moo.olympiad.notification.rule'];
+}
+
+function hasNotificationXml(content: string, policy: OdooAddonPolicy): boolean {
+  return notificationModels(policy).some((model) => {
+    const pattern = new RegExp(`model=(["'])${escapeRegExp(model)}\\1`, 'u');
+    return pattern.test(content);
+  });
+}
+
+function hasHardcodedWorkflowEmailContent(content: string): boolean {
+  return (
+    /mail\.mail/u.test(content) &&
+    /(["']subject["']\s*:|\bsubject\s*=)/u.test(content) &&
+    /(["']body_html["']\s*:|\bbody_html\s*=|\bbody\s*=)/u.test(content)
+  );
 }
 
 export async function lintOdooAddonPolicy(options: {
@@ -117,6 +162,27 @@ export async function lintOdooAddonPolicy(options: {
     }
   }
 
+  const allowedTopLevelMenus = new Set(policy.backendMenu?.allowedTopLevel ?? []);
+  if (allowedTopLevelMenus.size > 0) {
+    const severity = policy.backendMenu?.severity ?? 'warning';
+    for (const file of files.filter((candidate) => xmlFilePattern.test(candidate.relativePath))) {
+      for (const tag of menuTags(file.content)) {
+        if (xmlAttributeValues(tag, 'parent').length > 0) continue;
+        const menuName = xmlAttributeValues(tag, 'name')[0] ?? xmlAttributeValues(tag, 'id')[0] ?? 'unknown';
+        if (allowedTopLevelMenus.has(menuName)) continue;
+        issues.push(
+          issue(
+            moduleName,
+            moduleRelativePath,
+            file.relativePath,
+            `Odoo policy warning: uncontrolled top-level backend menu ${menuName}; use an allowed menu bucket`,
+            severity,
+          ),
+        );
+      }
+    }
+  }
+
   for (const file of files.filter((candidate) => pythonFilePattern.test(candidate.relativePath))) {
     if (isTestOrMigration(file.relativePath)) continue;
     const lines = file.content.split(/\r?\n/u);
@@ -152,13 +218,24 @@ export async function lintOdooAddonPolicy(options: {
         }
       }
     }
+
+    if (policy.notifications && hasHardcodedWorkflowEmailContent(file.content)) {
+      issues.push(
+        issue(
+          moduleName,
+          moduleRelativePath,
+          file.relativePath,
+          'Odoo policy warning: hardcoded workflow email content detected; use configured notification templates',
+        ),
+      );
+    }
   }
 
-  const notificationDependency = policy.lint.notificationDependency?.requiredDependency;
+  const notificationDependency = policy.notifications?.requiredAddon ?? policy.lint.notificationDependency?.requiredDependency;
   if (notificationDependency && !depends.includes(notificationDependency)) {
     const hasNotificationData = files
       .filter((candidate) => xmlFilePattern.test(candidate.relativePath))
-      .some((file) => hasNotificationXml(file.content));
+      .some((file) => hasNotificationXml(file.content, policy));
     if (hasNotificationData) {
       issues.push(
         issue(

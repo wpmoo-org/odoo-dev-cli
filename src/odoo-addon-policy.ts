@@ -14,12 +14,21 @@ export type OdooAddonPolicy = {
   odooVersion?: string;
   addonGroups: Record<string, string[]>;
   enterpriseOnlyDependencies: string[];
+  backendMenu?: {
+    allowedTopLevel: string[];
+    severity?: 'error' | 'warning';
+  };
   lint: {
     directStateWrite?: boolean;
     controllerWrites?: boolean;
     notificationDependency?: {
       requiredDependency: string;
     };
+  };
+  notifications?: {
+    requiredAddon?: string;
+    templateModels: string[];
+    ruleModels: string[];
   };
   rules: OdooAddonPolicyRule[];
 };
@@ -40,6 +49,10 @@ function asStringArray(value: unknown): string[] {
     return [value.trim()];
   }
   return [];
+}
+
+function asSeverity(value: unknown): 'error' | 'warning' | undefined {
+  return value === 'error' || value === 'warning' ? value : undefined;
 }
 
 function normalizePolicy(value: unknown): OdooAddonPolicy {
@@ -79,6 +92,14 @@ function normalizePolicy(value: unknown): OdooAddonPolicy {
     ...(typeof value.odooVersion === 'string' && value.odooVersion.trim() ? { odooVersion: value.odooVersion.trim() } : {}),
     addonGroups,
     enterpriseOnlyDependencies: asStringArray(value.enterpriseOnlyDependencies),
+    ...(isRecord(value.backendMenu)
+      ? {
+          backendMenu: {
+            allowedTopLevel: asStringArray(value.backendMenu.allowedTopLevel),
+            ...(asSeverity(value.backendMenu.severity) ? { severity: asSeverity(value.backendMenu.severity) } : {}),
+          },
+        }
+      : {}),
     lint: isRecord(value.lint)
       ? {
           ...(value.lint.directStateWrite === true ? { directStateWrite: true } : {}),
@@ -94,6 +115,17 @@ function normalizePolicy(value: unknown): OdooAddonPolicy {
             : {}),
         }
       : {},
+    ...(isRecord(value.notifications)
+      ? {
+          notifications: {
+            ...(typeof value.notifications.requiredAddon === 'string' && value.notifications.requiredAddon.trim()
+              ? { requiredAddon: value.notifications.requiredAddon.trim() }
+              : {}),
+            templateModels: asStringArray(value.notifications.templateModels),
+            ruleModels: asStringArray(value.notifications.ruleModels),
+          },
+        }
+      : {}),
     rules,
   };
 }
@@ -138,8 +170,18 @@ function stripComment(line: string): string {
 
 function parseYamlPolicy(content: string): OdooAddonPolicy {
   const root: Record<string, unknown> = {};
-  let section: 'odoo' | 'addonGroups' | 'enterpriseOnlyDependencies' | 'lint' | 'notificationDependency' | 'rules' | undefined;
+  let section:
+    | 'odoo'
+    | 'addonGroups'
+    | 'enterpriseOnlyDependencies'
+    | 'backendMenu'
+    | 'notifications'
+    | 'lint'
+    | 'notificationDependency'
+    | 'rules'
+    | undefined;
   let currentGroup: string | undefined;
+  let currentListKey: string | undefined;
   let currentRule: Record<string, unknown> | undefined;
 
   for (const rawLine of content.split(/\r?\n/u)) {
@@ -150,6 +192,7 @@ function parseYamlPolicy(content: string): OdooAddonPolicy {
 
     if (indent === 0) {
       currentGroup = undefined;
+      currentListKey = undefined;
       currentRule = undefined;
       if (trimmed === 'odoo:') {
         section = 'odoo';
@@ -163,6 +206,16 @@ function parseYamlPolicy(content: string): OdooAddonPolicy {
       if (trimmed === 'enterpriseOnlyDependencies:') {
         section = 'enterpriseOnlyDependencies';
         root.enterpriseOnlyDependencies = [];
+        continue;
+      }
+      if (trimmed === 'backendMenu:') {
+        section = 'backendMenu';
+        root.backendMenu = {};
+        continue;
+      }
+      if (trimmed === 'notifications:') {
+        section = 'notifications';
+        root.notifications = {};
         continue;
       }
       if (trimmed === 'rules:') {
@@ -183,6 +236,27 @@ function parseYamlPolicy(content: string): OdooAddonPolicy {
       const separator = trimmed.indexOf(':');
       if (separator !== -1 && trimmed.slice(0, separator).trim() === 'version') {
         root.odooVersion = parseScalar(trimmed.slice(separator + 1));
+      }
+      continue;
+    }
+
+    if ((section === 'backendMenu' || section === 'notifications') && indent >= 2) {
+      const target = root[section] as Record<string, unknown>;
+      if (indent === 2 && trimmed.endsWith(':')) {
+        currentListKey = trimmed.slice(0, -1).trim();
+        target[currentListKey] = [];
+        continue;
+      }
+      if (indent >= 4 && currentListKey && trimmed.startsWith('- ')) {
+        (target[currentListKey] as string[]).push(unquote(trimmed.slice(2)));
+        continue;
+      }
+      if (indent === 2) {
+        currentListKey = undefined;
+        const separator = trimmed.indexOf(':');
+        if (separator !== -1) {
+          target[trimmed.slice(0, separator).trim()] = parseScalar(trimmed.slice(separator + 1));
+        }
       }
       continue;
     }

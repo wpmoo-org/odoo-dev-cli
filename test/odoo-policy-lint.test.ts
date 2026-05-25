@@ -142,4 +142,149 @@ describe('Odoo addon policy lint', () => {
       ]),
     );
   });
+
+  it('accepts root backend menus that match the configured top-level bucket names', async () => {
+    const target = await makeTarget('wpmoo-odoo-policy-lint-menu-pass-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, 'views', 'menu.xml'),
+      [
+        '<odoo>',
+        '  <menuitem id="menu_events" name="Events"/>',
+        '  <menuitem id="menu_event_projects" name="Projects" parent="menu_events"/>',
+        '</odoo>',
+        '',
+      ].join('\n'),
+    );
+
+    const issues = await lintOdooAddonPolicy({
+      moduleName: 'demo_module',
+      modulePath,
+      moduleRelativePath: 'addons/demo_module',
+      depends: ['base'],
+      policy: parseOdooAddonPolicy(
+        ['backendMenu:', '  allowedTopLevel:', '    - Events', '    - Projects', ''].join('\n'),
+      ),
+    });
+
+    expect(issues.filter((issue) => issue.issue.includes('top-level backend menu'))).toEqual([]);
+  });
+
+  it('warns about uncontrolled root backend menus by default', async () => {
+    const target = await makeTarget('wpmoo-odoo-policy-lint-menu-warning-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, 'views', 'menu.xml'),
+      '<odoo><menuitem id="menu_surprise" name="Surprise"/></odoo>\n',
+    );
+
+    const issues = await lintOdooAddonPolicy({
+      moduleName: 'demo_module',
+      modulePath,
+      moduleRelativePath: 'addons/demo_module',
+      depends: ['base'],
+      policy: parseOdooAddonPolicy(['backendMenu:', '  allowedTopLevel:', '    - Events', ''].join('\n')),
+    });
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'addons/demo_module/views/menu.xml',
+          severity: 'warning',
+          issue: 'Odoo policy warning: uncontrolled top-level backend menu Surprise; use an allowed menu bucket',
+        }),
+      ]),
+    );
+  });
+
+  it('can raise backend menu policy violations to errors', async () => {
+    const target = await makeTarget('wpmoo-odoo-policy-lint-menu-error-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, 'views', 'menu.xml'),
+      '<odoo><menuitem id="menu_surprise" name="Surprise"/></odoo>\n',
+    );
+
+    const issues = await lintOdooAddonPolicy({
+      moduleName: 'demo_module',
+      modulePath,
+      moduleRelativePath: 'addons/demo_module',
+      depends: ['base'],
+      policy: parseOdooAddonPolicy(
+        ['backendMenu:', '  severity: error', '  allowedTopLevel:', '    - Events', ''].join('\n'),
+      ),
+    });
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'error',
+          issue: 'Odoo policy warning: uncontrolled top-level backend menu Surprise; use an allowed menu bucket',
+        }),
+      ]),
+    );
+  });
+
+  it('passes notification XML dependency checks when the configured dependency is present', async () => {
+    const target = await makeTarget('wpmoo-odoo-policy-lint-notification-pass-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, 'data', 'mail_template.xml'),
+      '<odoo><record id="mail_template_demo" model="community.notification.rule"/></odoo>\n',
+    );
+
+    const issues = await lintOdooAddonPolicy({
+      moduleName: 'demo_module',
+      modulePath,
+      moduleRelativePath: 'addons/demo_module',
+      depends: ['base', 'community_mail'],
+      policy: parseOdooAddonPolicy(
+        [
+          'notifications:',
+          '  requiredAddon: community_mail',
+          '  templateModels:',
+          '    - mail.template',
+          '  ruleModels:',
+          '    - community.notification.rule',
+          '',
+        ].join('\n'),
+      ),
+    });
+
+    expect(issues.filter((issue) => issue.issue.includes('notification XML requires'))).toEqual([]);
+  });
+
+  it('warns about hardcoded workflow email content when notification policy is configured', async () => {
+    const target = await makeTarget('wpmoo-odoo-policy-lint-hardcoded-mail-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, 'models', 'demo_model.py'),
+      [
+        'class Demo:',
+        '    def action_notify(self):',
+        '        self.env["mail.mail"].create({"subject": "Approved", "body_html": "<p>Done</p>"})',
+        '',
+      ].join('\n'),
+    );
+
+    const issues = await lintOdooAddonPolicy({
+      moduleName: 'demo_module',
+      modulePath,
+      moduleRelativePath: 'addons/demo_module',
+      depends: ['base', 'community_mail'],
+      policy: parseOdooAddonPolicy(['notifications:', '  requiredAddon: community_mail', ''].join('\n')),
+    });
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'addons/demo_module/models/demo_model.py',
+          severity: 'warning',
+          issue: 'Odoo policy warning: hardcoded workflow email content detected; use configured notification templates',
+        }),
+      ]),
+    );
+  });
 });

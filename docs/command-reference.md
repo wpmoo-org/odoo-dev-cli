@@ -117,6 +117,23 @@ lint:
   notificationDependency:
     requiredDependency: community_mail
 
+backendMenu:
+  severity: warning
+  allowedTopLevel:
+    - Events
+    - Projects
+    - Participants
+    - Evaluation
+    - Operations
+    - Configuration
+
+notifications:
+  requiredAddon: community_mail
+  templateModels:
+    - mail.template
+  ruleModels:
+    - community.notification.rule
+
 addonGroups:
   community:
     - community_core
@@ -148,6 +165,13 @@ for example:
 # wpmoo-lint: disable=direct-state-write reason="migration adapter"
 record.write({"state": "done"})
 ```
+
+`backendMenu.allowedTopLevel` keeps generated diagnostics general-purpose: each
+project defines its own approved root menu names. Uncontrolled root menu findings
+are warnings by default; set `backendMenu.severity: error` to make them fail
+doctor/gate. `notifications.requiredAddon`, `templateModels`, and `ruleModels`
+let any Odoo product declare its own notification framework dependency and XML
+record models without Toolkit knowing product-specific addon names.
 
 ## Environment Variables
 
