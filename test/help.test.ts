@@ -19,9 +19,10 @@ describe('help', () => {
     const output = renderHelp();
 
     expect(output).toContain('WPMoo Toolkit for Odoo lifecycle workflows.');
-    expect(readme).toContain('# WPMoo Toolkit');
+    expect(readme).toContain('<h1 align="center">WPMoo Toolkit</h1>');
+    expect(readme).toContain('A calmer Odoo development workflow.');
     expect(readme).toContain(
-      'WPMoo Toolkit is an independent project and is not affiliated with, endorsed by, or sponsored by Odoo S.A.',
+      'WPMoo Toolkit is independent from Odoo S.A. and is not affiliated with, endorsed by, or sponsored by Odoo S.A.',
     );
   });
 
@@ -35,12 +36,9 @@ describe('help', () => {
       'npx @wpmoo/odoo and npx @wpmoo/odoo-dev remain deprecated compatibility aliases through 1.x.',
     );
     expect(output).toContain('Removing a compatibility alias requires a future major release and prior notice.');
-    expect(readme).toContain('Optional short alias: `npx wpmoo`.');
-    expect(readmeText).toContain('Use `npx @wpmoo/toolkit` for documentation, scripts, and automation.');
-    expect(readmeText).toContain(
-      'Deprecated package paths `npx @wpmoo/odoo` and `npx @wpmoo/odoo-dev` remain available through the 1.x line as compatibility aliases',
-    );
+    expect(readme).toContain('Legacy aliases are documented in the [command reference]');
     expect(commandReferenceText).toContain('Deprecated compatibility aliases remain available through the 1.x line.');
+    expect(commandReferenceText).toContain('new automation should use `@wpmoo/toolkit`');
     expect(readiness).toContain('Compatibility aliases remain available through the 1.x line.');
   });
 
@@ -69,7 +67,6 @@ describe('help', () => {
     expect(handoffText).toContain('For a 1.0.0 tag, run generated-environment acceptance smoke with WPMOO_SMOKE_ENVIRONMENT=1.');
     expect(handoffText).toContain('Smoke step:');
     expect(handoffText).toContain('module add/status/remove lifecycle');
-    expect(readmeText).toContain('For `1.0.0`, generated-environment acceptance smoke is required before the release is considered final.');
   });
 
   it('keeps 1.0 readiness evidence version-agnostic and release commands aligned', () => {
@@ -135,14 +132,8 @@ describe('help', () => {
     expect(output).toContain('resetdb and real restore-snapshot require WPMOO_ALLOW_DESTRUCTIVE=1 in stage/prod.');
     expect(output).toContain('restore-snapshot --dry-run remains allowed for preview.');
     expect(output).toContain('Time-bounded local approvals may also be recorded in .wpmoo/approvals.jsonl.');
-    expect(readme).toContain(
-      'In `WPMOO_ENV=stage`, `install`, `update`, `stop`, and `restart` require `WPMOO_ALLOW_STAGE_LIFECYCLE=1`.',
-    );
-    expect(readme).toContain(
-      'In `WPMOO_ENV=prod`, `install`, `update`, `test`, `stop`, and `restart` require `WPMOO_ALLOW_PROD_LIFECYCLE=1`.',
-    );
-    expect(readme).toContain('`restore-snapshot --dry-run` remains allowed for preview.');
-    expect(readme).toContain('For short-lived local approvals, add JSONL entries to `.wpmoo/approvals.jsonl`');
+    expect(readiness).toContain('Environment-variable approvals remain supported through 1.x.');
+    expect(readinessText).toContain('`.wpmoo/approvals.jsonl` adds time-bounded local approvals');
   });
 
   it('documents source repo category option', () => {
@@ -192,20 +183,8 @@ describe('help', () => {
     );
     expect(output).toContain('Module names must be lower snake_case; use letters, numbers, and underscores only.');
     expect(output).toContain('Must be lower snake_case; use letters, numbers, and underscores only.');
-    expect(readme).toContain('`add-module` creates a minimal Odoo module skeleton');
-    expect(readme).toContain('`__init__.py`');
-    expect(readme).toContain('`__manifest__.py`');
-    expect(readme).toContain('`models/<module>.py`');
-    expect(readme).toContain('`models/__init__.py`');
-    expect(readme).toContain('`security/ir.model.access.csv`');
-    expect(readme).toContain('`views/<module>_views.xml`');
-    expect(readme).toContain('`views/<module>_menus.xml`');
-    expect(readme).toContain('`tests/test_<module>.py`');
-    expect(readme).toContain(
-      'The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and internal-user menu entry; the test skeleton adds a post-install TransactionCase smoke test.',
-    );
-    expect(readme).toContain('WPMoo reports scaffold quality after generation');
-    expect(readme).toContain('Module names must be lower `snake_case`; use letters, numbers, and underscores only.');
+    expect(commandReference).toContain('Creates an Odoo module skeleton in a source repository.');
+    expect(commandReference).toContain('Profiles include `core`, `documents`, `scoring`, `portal`, `exhibition`, `ai_review`, `mail`, and `pro`.');
   });
 
   it('documents JSON output options for automation and cockpit integration', () => {
@@ -223,35 +202,29 @@ describe('help', () => {
     expect(output).toContain('npx @wpmoo/toolkit doctor --json [--postgres]');
     expect(output).toContain('doctor --json --postgres includes a structured postgres object for automation.');
     expect(output).toContain('doctor --json is read-only; run doctor --fix first, then doctor --json for post-fix state.');
-    expect(readme).toContain('`doctor --json --fix` is intentionally unsupported');
     expect(commandReference).toContain('Run `doctor --fix` first, then `doctor --json`');
     expect(commandReference).toContain('post-fix state.');
     expect(commandReference).toContain('`doctor --fail-on-warning` keeps warning details visible');
-    expect(readme).toContain('Incomplete or malformed PostgreSQL metric rows are reported as unavailable diagnostics');
-    expect(readme).toContain('Optional PostgreSQL probe permission failures appear under');
-    expect(readme).toContain('`postgres.optionalProbeFailures`');
     expect(commandReference).toContain('`postgres.optionalProbeFailures`');
-    expect(readme).toContain('sessions currently running queries');
-    expect(readme).toContain("`pg_stat_activity.state = 'active'`");
-    expect(readme).toContain('connection utilization against');
-    expect(readme).toContain('`max_connections`');
     expect(output).toContain('--postgres');
     expect(output).toContain('--fail-on-warning');
     expect(output).toContain('Include read-only PostgreSQL health/performance diagnostics in doctor.');
     expect(output).toContain('Make doctor fail when advisory warnings are present.');
-    expect(readme).toContain('`doctor --json --postgres` includes a structured `postgres` object for automation.');
+    expect(commandReference).toContain('`doctor --json --postgres` adds `postgres.contractVersion`');
   });
 
-  it('documents source-type defaults for module commands in README examples', () => {
-    expect(readme).toContain('`private`, `oca`, or `external`');
-    expect(readmeText).toContain('npx @wpmoo/toolkit add-module');
-    expect(readmeText).toContain('npx @wpmoo/toolkit remove-module');
-    expect(readmeText).toContain('--source-type oca');
-    expect(readmeText).toContain('Default is `private`');
+  it('documents source-type defaults for module commands', () => {
+    const output = renderHelp();
+
+    expect(readme).toContain('private/');
+    expect(readme).toContain('oca/');
+    expect(readme).toContain('external/');
+    expect(output).toContain('--source-type <category>');
+    expect(output).toContain('--source-type oca');
+    expect(output).toContain('private, oca, external');
   });
 
   it('documents cockpit runtime disabled states', () => {
-    expect(readme).toContain('Runtime actions that need running services or a ready database are disabled in');
     expect(commandReference).toContain('The cockpit disables runtime actions such as `psql`, `snapshot`, `resetdb`');
     expect(troubleshooting).toContain('The cockpit disables database or module runtime actions because Docker,');
     expect(troubleshooting).toContain('If Docker is running but the cockpit says the database is not ready');
@@ -268,32 +241,28 @@ describe('help', () => {
     expect(output).toContain('Add source repos later from the cockpit or with add-repo.');
   });
 
-  it('documents optional GitHub setup in the README quick start', () => {
-    expect(readme).toContain('GitHub CLI (`gh`) is optional.');
-    expect(readme).toContain('Before environment setup starts, WPMoo checks Git, Docker, Docker Compose, and the Docker Engine.');
-    expect(readme).toContain('Choose any environment folder; the default is `./<product>_dev`.');
-    expect(readmeText).toContain('Choose local-only setup to skip Git/GitHub connection and source repo prompts.');
-    expect(readmeText).toContain(
-      'Add source repositories later from the cockpit (`Repositories` -> `add-repo`) or `npx @wpmoo/toolkit add-repo`.',
-    );
-    expect(readmeText).toContain(
-      'Direct `create` commands keep the existing repo URL options; use `--target <path>` to choose a custom folder.',
-    );
+  it('keeps README quick start focused while detailed setup lives in help docs', () => {
+    expect(readmeText).toContain('npx @wpmoo/toolkit cd <product>_dev ./moo');
+    expect(readmeText).toContain('No long Docker commands. No guessing addon paths.');
+    expect(readmeText).toContain('WPMoo turns that recurring setup into one repeatable Odoo workflow.');
+    const output = renderHelp();
+    expect(output).toContain('Before setup starts, WPMoo checks Git, Docker, Docker Compose, and Docker Engine.');
+    expect(output).toContain('Choose any environment folder; the default is ./<product>_dev.');
+    expect(output).toContain('Skip Git/GitHub connection to create a local-only environment.');
   });
 
-  it('documents JSON output usage in README for automation and cockpit integration', () => {
-    expect(readme).toContain('For automation and VS Code cockpit integration');
-    expect(readmeText).toContain('npx @wpmoo/toolkit status --json');
-    expect(readmeText).toContain('npx @wpmoo/toolkit source list --json');
-    expect(readmeText).toContain('npx @wpmoo/toolkit source sync --json');
-    expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json');
-    expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json --fail-on-warning');
-    expect(readmeText).toContain('npx @wpmoo/toolkit doctor --json --postgres');
-    expect(readmeText).toContain('./moo update sale stock --db devel');
-    expect(readmeText).toContain('doctor --postgres');
-    expect(readmeText).toContain('doctor --fail-on-warning');
-    expect(readmeText).toContain('WPMoo prints a short relevant excerpt');
+  it('documents JSON output usage for automation and cockpit integration', () => {
+    expect(commandReference).toContain('Machine-readable output is available for automation:');
+    expect(commandReferenceText).toContain('npx @wpmoo/toolkit status --json');
+    expect(commandReferenceText).toContain('npx @wpmoo/toolkit source list --json');
+    expect(commandReferenceText).toContain('npx @wpmoo/toolkit source sync --json');
+    expect(commandReferenceText).toContain('npx @wpmoo/toolkit doctor --json');
+    expect(commandReferenceText).toContain('npx @wpmoo/toolkit doctor --json --fail-on-warning');
+    expect(commandReferenceText).toContain('npx @wpmoo/toolkit doctor --json --postgres');
+    expect(commandReferenceText).toContain('./moo update <module> <module> --db <db>');
+    expect(commandReferenceText).toContain('doctor [--fix] [--postgres] [--fail-on-warning]');
+    expect(commandReferenceText).toContain('On failure, prints a short excerpt');
     expect(commandReference).toContain('prints a short excerpt from matching');
-    expect(readmeText).toContain('JSON output is optional; human-readable output remains the default.');
+    expect(commandReferenceText).toContain('Automation should ignore unknown JSON fields.');
   });
 });
