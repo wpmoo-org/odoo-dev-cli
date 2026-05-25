@@ -889,6 +889,7 @@ async function addModuleOptionsFromArgs(argv: string[]): Promise<ModulePromptOpt
     repoPath,
     moduleName,
     sourceType: optionalSourceTypeValue(values),
+    profile: stringOption(values, 'profile') as ModulePromptOptions['profile'],
     odooVersion: await commandOdooVersion(target, stringOption(values, 'odooVersion')),
     stage: booleanOption(values, 'stage', true),
   };

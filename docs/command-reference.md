@@ -22,7 +22,7 @@ unscoped `npx wpmoo` short alias is optional and best-effort; scripts should use
 | `npx @wpmoo/toolkit source sync` | Repositories | Yes, `--json` | Refreshes source manifest data. |
 | `npx @wpmoo/toolkit add-repo --repo-url <url>` | Repositories -> Add source repo | No | Adds a source repository category entry. |
 | `npx @wpmoo/toolkit remove-repo --repo <name>` | Repositories -> Remove source repo | No | Removes a source repository from the environment. |
-| `npx @wpmoo/toolkit add-module --repo <repo> --module <name>` | Modules -> Add module | No | Creates an Odoo module skeleton in a source repository. |
+| `npx @wpmoo/toolkit add-module --repo <repo> --module <name> [--profile <profile>]` | Modules -> Add module | No | Creates an Odoo module skeleton in a source repository. Profiles include `core`, `documents`, `scoring`, `portal`, `exhibition`, `ai_review`, `mail`, and `pro`. |
 | `npx @wpmoo/toolkit remove-module --repo <repo> --module <name>` | Modules -> Remove module | No | Removes module metadata; pass `--delete-files` to delete module files after dirty checks. |
 | `npx @wpmoo/toolkit reset [--dry-run]` | Maintenance -> Safe reset environment | No | Refreshes generated files while preserving source repositories. |
 

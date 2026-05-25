@@ -17,7 +17,7 @@ Usage:
   npx @wpmoo/toolkit source sync --json
   npx @wpmoo/toolkit source add --repo-url <url> [--source-type private|oca|external]
   npx @wpmoo/toolkit source remove --repo <name> [--source-type private|oca|external]
-  npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> [--source-type <category>]
+  npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> [--source-type <category>] [--profile <profile>]
   npx @wpmoo/toolkit remove-module --repo <source-repo> --module <module-name> [--source-type <category>]
   npx @wpmoo/toolkit reset [--dry-run]
   npx @wpmoo/toolkit doctor [--fix] [--postgres] [--fail-on-warning]
@@ -60,6 +60,7 @@ Options:
   --repo <name>                Source repo folder name for repo/module actions.
   --module <name>              Odoo module technical name for module actions.
                                Must be lower snake_case; use letters, numbers, and underscores only.
+  --profile <profile>          Optional add-module scaffold profile: core, documents, scoring, portal, exhibition, ai_review, mail, or pro.
   --delete-files               Also delete module files in remove-module. Default: false.
   --odoo-version <branch>      Override the environment Odoo branch for add-repo/add-module.
   --source-repo-url <url>      Source repo URL. Repeat for multiple repos.
@@ -145,9 +146,10 @@ Task recipes:
     npx @wpmoo/toolkit source list
     npx @wpmoo/toolkit source sync
   Add module:
-    npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> --source-type private|oca|external
+    npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> --source-type private|oca|external [--profile portal|scoring|...]
     Creates a minimal skeleton: __init__.py, __manifest__.py, models/<module>.py, models/__init__.py, security/ir.model.access.csv, views/<module>_views.xml, views/<module>_menus.xml, and tests/test_<module>.py.
     The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and internal-user menu entry; the test skeleton adds a post-install TransactionCase smoke test.
+    Profile scaffolds add minimal install-safe directories, dependencies, or templates for common Odoo addon types without product-specific business names.
     WPMoo reports scaffold quality after generation and status reports installable modules, non-installable modules, and modules without actionable menus.
     Module names must be lower snake_case; use letters, numbers, and underscores only.
   Remove module:

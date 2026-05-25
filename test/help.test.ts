@@ -160,12 +160,19 @@ describe('help', () => {
   it('documents source-type for module actions with non-private examples', () => {
     const output = renderHelp();
 
-    expect(output).toContain('npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> [--source-type <category>]');
+    expect(output).toContain(
+      'npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> [--source-type <category>] [--profile <profile>]',
+    );
     expect(output).toContain('npx @wpmoo/toolkit remove-module --repo <source-repo> --module <module-name> [--source-type <category>]');
-    expect(output).toContain('npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> --source-type private|oca|external');
+    expect(output).toContain(
+      'npx @wpmoo/toolkit add-module --repo <source-repo> --module <module-name> --source-type private|oca|external [--profile portal|scoring|...]',
+    );
     expect(output).toContain('npx @wpmoo/toolkit remove-module --repo <source-repo> --module <module-name> --source-type private|oca|external');
     expect(output).toContain('npx @wpmoo/toolkit add-module --repo sale-workflow --module sale_order_line_no_discount --source-type oca');
     expect(output).toContain('--source-type <category>     Source repo category for add-repo/remove-repo/add-module/remove-module. One of private, oca, external. Default: private.');
+    expect(output).toContain(
+      '--profile <profile>          Optional add-module scaffold profile: core, documents, scoring, portal, exhibition, ai_review, mail, or pro.',
+    );
   });
 
   it('documents add-module skeleton files and module name rules', () => {
@@ -176,6 +183,9 @@ describe('help', () => {
     );
     expect(output).toContain(
       'The view XML adds list/tree and form views; the menu XML adds a basic Odoo action and internal-user menu entry; the test skeleton adds a post-install TransactionCase smoke test.',
+    );
+    expect(output).toContain(
+      'Profile scaffolds add minimal install-safe directories, dependencies, or templates for common Odoo addon types without product-specific business names.',
     );
     expect(output).toContain(
       'WPMoo reports scaffold quality after generation and status reports installable modules, non-installable modules, and modules without actionable menus.',

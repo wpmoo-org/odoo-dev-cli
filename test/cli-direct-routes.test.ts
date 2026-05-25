@@ -546,6 +546,8 @@ describe('cli direct command routes', () => {
         'odoo_sample_module',
         '--module',
         'sale_demo',
+        '--profile',
+        'portal',
         '--target',
         target,
         '--odoo-version',
@@ -560,6 +562,7 @@ describe('cli direct command routes', () => {
       target,
       repoPath: 'odoo_sample_module',
       moduleName: 'sale_demo',
+      profile: 'portal',
       odooVersion: '18.0-mocked',
       stage: false,
     });

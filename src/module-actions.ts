@@ -25,6 +25,17 @@ export type ListedModule = {
 
 const sourceTypeSortOrder: SourceRepoType[] = ['private', 'oca', 'external'];
 const githubRepoUrlPattern = /^(?:https?:\/\/|git@)github\.com[/:]([^/]+)\/([^/.#?]+)(?:\.git)?(?:[/?#].*)?$/i;
+export const addonScaffoldProfiles = [
+  'core',
+  'documents',
+  'scoring',
+  'portal',
+  'exhibition',
+  'ai_review',
+  'mail',
+  'pro',
+] as const;
+export type AddonScaffoldProfile = (typeof addonScaffoldProfiles)[number];
 
 export type AddModuleOptions = {
   target: string;
@@ -32,6 +43,7 @@ export type AddModuleOptions = {
   moduleName: string;
   odooVersion: string;
   sourceType?: SourceRepoType;
+  profile?: AddonScaffoldProfile;
   stage: boolean;
 };
 
@@ -110,6 +122,15 @@ function validateSupportedOdooVersion(value: string): SupportedOdooVersion {
   );
 }
 
+function validateScaffoldProfile(value: AddonScaffoldProfile | undefined): AddonScaffoldProfile | undefined {
+  if (value === undefined) return undefined;
+  if (addonScaffoldProfiles.includes(value)) return value;
+
+  throw new Error(
+    `Unsupported addon scaffold profile: ${value}. Supported profiles: ${addonScaffoldProfiles.join(', ')}.`,
+  );
+}
+
 function sourceRepoPath(target: string, sourceType: SourceRepoType, repoPath: string): string {
   return pathUnderBase(join(target, `odoo/custom/src/${sourceType}`), repoPath, 'repo path');
 }
@@ -160,6 +181,31 @@ function actionViewMode(odooVersion: string): string {
   return Number.isFinite(majorVersion) && majorVersion < 18 ? 'tree,form' : 'list,form';
 }
 
+function manifestList(values: readonly string[]): string {
+  return `[${values.map((value) => `"${value}"`).join(', ')}]`;
+}
+
+function profileDepends(profile: AddonScaffoldProfile | undefined): string[] {
+  switch (profile) {
+    case 'portal':
+      return ['base', 'portal', 'website'];
+    case 'documents':
+    case 'scoring':
+    case 'ai_review':
+    case 'mail':
+      return ['base', 'mail'];
+    case 'core':
+    case 'exhibition':
+    case 'pro':
+    case undefined:
+      return ['base'];
+  }
+}
+
+function profileDataEntries(moduleName: string, profile: AddonScaffoldProfile | undefined): string[] {
+  return profile === 'portal' ? [`views/${moduleName}_portal_templates.xml`] : [];
+}
+
 function listViewTag(odooVersion: string): 'list' | 'tree' {
   const majorVersion = Number.parseInt(odooVersion.split('.', 1)[0] ?? '', 10);
   return Number.isFinite(majorVersion) && majorVersion < 18 ? 'tree' : 'list';
@@ -179,25 +225,33 @@ class ${moduleClassName(moduleName)}(models.Model):
 `;
 }
 
-function manifestContent(moduleName: string, odooVersion: string): string {
+function manifestContent(moduleName: string, odooVersion: string, profile: AddonScaffoldProfile | undefined): string {
   const moduleTitle = titleizeModule(moduleName);
+  const dataEntries = [
+    'security/ir.model.access.csv',
+    `views/${moduleName}_views.xml`,
+    `views/${moduleName}_menus.xml`,
+    ...profileDataEntries(moduleName, profile),
+  ];
 
   return `{
     "name": "${moduleTitle}",
     "version": "${odooVersion}.1.0.0",
     "category": "Productivity",
     "summary": "${moduleTitle} module",
-    "depends": ["base"],
+    "depends": ${manifestList(profileDepends(profile))},
     "data": [
-        "security/ir.model.access.csv",
-        "views/${moduleName}_views.xml",
-        "views/${moduleName}_menus.xml",
+${dataEntries.map((entry) => `        "${entry}",`).join('\n')}
     ],
     "installable": True,
     "application": False,
     "license": "LGPL-3",
 }
 `;
+}
+
+function rootInitContent(profile: AddonScaffoldProfile | undefined): string {
+  return profile === 'portal' ? 'from . import models\nfrom . import controllers\n' : 'from . import models\n';
 }
 
 function viewXmlContent(moduleName: string, odooVersion: string): string {
@@ -247,6 +301,39 @@ function menuXmlContent(moduleName: string, odooVersion: string): string {
 
     <menuitem id="menu_${moduleName}_root" name="${moduleTitle}" groups="base.group_user" sequence="10"/>
     <menuitem id="menu_${moduleName}" name="${moduleTitle}" parent="menu_${moduleName}_root" action="action_${moduleName}" groups="base.group_user" sequence="10"/>
+</odoo>
+`;
+}
+
+function portalRoutePath(moduleName: string): string {
+  return `/${moduleName.replace(/_/gu, '-')}`;
+}
+
+function portalControllerContent(moduleName: string): string {
+  return `from odoo import http
+from odoo.http import request
+
+
+class ${moduleClassName(moduleName)}Portal(http.Controller):
+
+    @http.route("${portalRoutePath(moduleName)}", type="http", auth="public", website=True)
+    def index(self, **kwargs):
+        return request.render("${moduleName}.portal_index", {})
+`;
+}
+
+function portalTemplateContent(moduleName: string): string {
+  const moduleTitle = titleizeModule(moduleName);
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="portal_index" name="${moduleTitle} Portal">
+        <t t-call="website.layout">
+            <div class="container">
+                <h1>${moduleTitle}</h1>
+            </div>
+        </t>
+    </template>
 </odoo>
 `;
 }
@@ -589,14 +676,22 @@ export async function addModuleToSourceRepo(
   const moduleName = validateModuleName(options.moduleName);
   const odooVersion = validateSupportedOdooVersion(options.odooVersion);
   const sourceType = normalizeSourceType(options.sourceType);
+  const profile = validateScaffoldProfile(options.profile);
   const destination = modulePath(options.target, sourceType, repoPath, moduleName);
   await mkdir(join(destination, 'models'), { recursive: true });
   await mkdir(join(destination, 'security'), { recursive: true });
   await mkdir(join(destination, 'tests'), { recursive: true });
   await mkdir(join(destination, 'views'), { recursive: true });
+  if (profile === 'portal') {
+    await mkdir(join(destination, 'controllers'), { recursive: true });
+  }
+  if (profile === 'scoring') {
+    await mkdir(join(destination, 'data'), { recursive: true });
+    await mkdir(join(destination, 'reports'), { recursive: true });
+  }
 
-  await writeIfMissing(join(destination, '__init__.py'), 'from . import models\n');
-  await writeIfMissing(join(destination, '__manifest__.py'), manifestContent(moduleName, odooVersion));
+  await writeIfMissing(join(destination, '__init__.py'), rootInitContent(profile));
+  await writeIfMissing(join(destination, '__manifest__.py'), manifestContent(moduleName, odooVersion, profile));
   await writeIfMissing(join(destination, 'models/__init__.py'), `from . import ${moduleName}\n`);
   await writeIfMissing(join(destination, `models/${moduleName}.py`), modelContent(moduleName));
   await writeIfMissing(join(destination, 'tests/__init__.py'), testInitContent(moduleName));
@@ -607,6 +702,18 @@ export async function addModuleToSourceRepo(
   );
   await writeIfMissing(join(destination, `views/${moduleName}_views.xml`), viewXmlContent(moduleName, odooVersion));
   await writeIfMissing(join(destination, `views/${moduleName}_menus.xml`), menuXmlContent(moduleName, odooVersion));
+  if (profile === 'portal') {
+    await writeIfMissing(join(destination, 'controllers/__init__.py'), 'from . import main\n');
+    await writeIfMissing(join(destination, 'controllers/main.py'), portalControllerContent(moduleName));
+    await writeIfMissing(
+      join(destination, `views/${moduleName}_portal_templates.xml`),
+      portalTemplateContent(moduleName),
+    );
+  }
+  if (profile === 'scoring') {
+    await writeIfMissing(join(destination, 'data/.gitkeep'), '');
+    await writeIfMissing(join(destination, 'reports/.gitkeep'), '');
+  }
   await writeIfMissing(join(destination, 'views/.gitkeep'), '');
 
   await assertGeneratedModuleScaffold(options.target, sourceType, repoPath, moduleName);

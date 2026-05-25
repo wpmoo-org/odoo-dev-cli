@@ -59,6 +59,7 @@ describe('generated module scaffold v2 defaults', () => {
     await expect(readFile(join(modulePath, `tests/__init__.py`), 'utf8')).resolves.toContain(`from . import test_${moduleName}`);
     await expect(readFile(join(modulePath, `tests/test_${moduleName}.py`), 'utf8')).resolves.toContain('class TestSalesTracker');
     await expect(stat(join(modulePath, 'views/.gitkeep'))).resolves.toBeTruthy();
+    await expect(stat(join(modulePath, 'controllers'))).rejects.toThrow();
 
     expect(report.checks.every((check) => check.ok)).toBe(true);
     expect(report.warnings).toEqual([]);
@@ -71,6 +72,56 @@ describe('generated module scaffold v2 defaults', () => {
       'tests',
       'registration',
     ]);
+  });
+
+  it('writes portal profile files without changing generic scaffold requirements', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-v2-portal-profile-'));
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
+
+    const report = await addModuleToSourceRepo({
+      target,
+      repoPath: 'odoo_sample_module',
+      moduleName: 'customer_portal',
+      odooVersion: '19.0',
+      profile: 'portal',
+      stage: false,
+    });
+
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/customer_portal');
+    const manifest = await readFile(join(modulePath, '__manifest__.py'), 'utf8');
+
+    expect(manifest).toContain('"depends": ["base", "portal", "website"]');
+    expect(manifest).toContain('"views/customer_portal_portal_templates.xml"');
+    await expect(readFile(join(modulePath, '__init__.py'), 'utf8')).resolves.toContain('from . import controllers');
+    await expect(readFile(join(modulePath, 'controllers/__init__.py'), 'utf8')).resolves.toBe('from . import main\n');
+    await expect(readFile(join(modulePath, 'controllers/main.py'), 'utf8')).resolves.toContain(
+      '@http.route("/customer-portal", type="http", auth="public", website=True)',
+    );
+    await expect(readFile(join(modulePath, 'views/customer_portal_portal_templates.xml'), 'utf8')).resolves.toContain(
+      't-call="website.layout"',
+    );
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+  });
+
+  it('writes scoring profile dependencies and extension placeholders', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'wpmoo-module-v2-scoring-profile-'));
+    await mkdir(join(target, 'odoo/custom/src/private/odoo_sample_module'), { recursive: true });
+
+    await addModuleToSourceRepo({
+      target,
+      repoPath: 'odoo_sample_module',
+      moduleName: 'event_scoring',
+      odooVersion: '19.0',
+      profile: 'scoring',
+      stage: false,
+    });
+
+    const modulePath = join(target, 'odoo/custom/src/private/odoo_sample_module/event_scoring');
+    const manifest = await readFile(join(modulePath, '__manifest__.py'), 'utf8');
+
+    expect(manifest).toContain('"depends": ["base", "mail"]');
+    await expect(stat(join(modulePath, 'data/.gitkeep'))).resolves.toBeTruthy();
+    await expect(stat(join(modulePath, 'reports/.gitkeep'))).resolves.toBeTruthy();
   });
 
   it('keeps existing user files intact when re-scaffolding a partially existing module', async () => {
