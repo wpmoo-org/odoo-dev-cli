@@ -59,13 +59,28 @@ export function isInstallableManifest(content: string): boolean {
   return parsed.ok && parsed.manifest.installable !== false;
 }
 
+function normalizedActionRef(value: string): string {
+  const dynamicRef = value.trim().match(/^%\((.*?)\)d$/u)?.[1];
+  const ref = dynamicRef ?? value.trim();
+  return ref.includes('.') ? (ref.split('.').pop() ?? ref) : ref;
+}
+
+function isExternalActionRef(value: string, moduleName: string): boolean {
+  const dynamicRef = value.trim().match(/^%\((.*?)\)d$/u)?.[1];
+  const ref = dynamicRef ?? value.trim();
+  if (!ref.includes('.')) return false;
+  return !ref.startsWith(`${moduleName}.`);
+}
+
+function hasActionableMenuXmlFiles(xmlFiles: readonly string[], moduleName: string): boolean {
+  const actionIds = declaredActionIds(xmlFiles);
+  return menuActionReferences(xmlFiles).some((actionRef) => {
+    return actionIds.has(normalizedActionRef(actionRef)) || isExternalActionRef(actionRef, moduleName);
+  });
+}
+
 export function hasActionableMenuXml(content: string, moduleName: string): boolean {
-  const actionId = `action_${moduleName}`;
-  return (
-    content.includes(`id="${actionId}"`) &&
-    content.includes('model="ir.actions.act_window"') &&
-    content.includes(`action="${actionId}"`)
-  );
+  return hasActionableMenuXmlFiles([content], moduleName);
 }
 
 async function readMenusXml(modulePath: string): Promise<string[]> {
@@ -100,6 +115,12 @@ async function readViewXmlFiles(modulePath: string): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+async function readManifestXmlFiles(modulePath: string, entries: readonly string[]): Promise<string[]> {
+  const paths = Array.from(new Set(entries.filter((entry) => entry.endsWith('.xml')).map((entry) => join(modulePath, entry))));
+  const contents = await Promise.all(paths.map((path) => readOptionalFile(path)));
+  return contents.filter((content): content is string => content !== undefined);
 }
 
 async function directoryExists(path: string): Promise<boolean> {
@@ -156,7 +177,7 @@ function dataIncludesAccessCsv(data: readonly string[]): boolean {
 }
 
 function dataIncludesViewXml(data: readonly string[]): boolean {
-  return data.some((entry) => entry.startsWith('views/') && entry.endsWith('.xml') && !entry.endsWith('_menus.xml'));
+  return data.some((entry) => entry.endsWith('.xml'));
 }
 
 function moduleHasOdooStructures(modelFiles: readonly string[], viewFiles: readonly string[], menuXml: readonly string[], data: readonly string[]): boolean {
@@ -164,7 +185,7 @@ function moduleHasOdooStructures(modelFiles: readonly string[], viewFiles: reado
     modelFiles.length > 0 ||
     viewFiles.length > 0 ||
     menuXml.length > 0 ||
-    data.some((entry) => entry.startsWith('security/') || entry.startsWith('views/'))
+    data.some((entry) => entry.startsWith('security/') || entry.endsWith('.xml'))
   );
 }
 
@@ -334,10 +355,11 @@ export async function analyzeModuleDirectory(
   const modelFiles = await readPythonModelFiles(modulePath);
   const viewFiles = await readViewXmlFiles(modulePath);
   const viewXml = await Promise.all(viewFiles.map(async (fileName) => (await readOptionalFile(join(modulePath, 'views', fileName))) ?? ''));
-  const allViewXml = [...viewXml, ...menuXml];
   const depends = manifestDepends(manifest);
   const data = manifestData(manifest);
   const demo = manifestDemo(manifest);
+  const manifestXml = await readManifestXmlFiles(modulePath, [...data, ...demo]);
+  const allViewXml = [...viewXml, ...menuXml, ...manifestXml];
   const hasOdooStructures = moduleHasOdooStructures(modelFiles, viewFiles, menuXml, data);
 
   for (const entry of data) {
@@ -411,13 +433,13 @@ export async function analyzeModuleDirectory(
   }
 
   const actionIds = declaredActionIds(allViewXml);
-  for (const actionRef of menuActionReferences(menuXml)) {
-    if (!actionIds.has(actionRef)) {
+  for (const actionRef of menuActionReferences(allViewXml)) {
+    if (!isExternalActionRef(actionRef, moduleName) && !actionIds.has(normalizedActionRef(actionRef))) {
       issues.push(moduleQualityIssue(moduleName, relativePath, `menu XML references missing action id: ${actionRef}`, 'error'));
     }
   }
 
-  const hasMenuAction = menuXml.some((content) => hasActionableMenuXml(content, moduleName));
+  const hasMenuAction = hasActionableMenuXmlFiles(allViewXml, moduleName);
   if (!hasMenuAction) {
     issues.push(moduleIssue(moduleName, relativePath, 'missing actionable menu XML'));
   }

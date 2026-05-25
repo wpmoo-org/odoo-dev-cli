@@ -479,6 +479,98 @@ describe('analyzeModuleDirectory module quality v2 checks', () => {
     );
   });
 
+  it('accepts bucket navigation when actions and menus use non-module XML ids in any views XML file', async () => {
+    const target = await makeTarget('wpmoo-module-quality-bucket-menu-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({ depends: ['base'], data: ['security/ir.model.access.csv', 'views/menu.xml'] }),
+    );
+    await writeText(join(modulePath, '__init__.py'), 'from . import models\n');
+    await writeText(join(modulePath, 'models', '__init__.py'), 'from . import demo_model\n');
+    await writeText(
+      join(modulePath, 'models', 'demo_model.py'),
+      "from odoo import models\n\nclass DemoModel(models.Model):\n    _name = 'demo.model'\n",
+    );
+    await writeText(join(modulePath, 'security', 'ir.model.access.csv'), 'id,name\n');
+    await mkdir(join(modulePath, 'tests'), { recursive: true });
+    await writeText(
+      join(modulePath, 'views', 'menu.xml'),
+      [
+        '<odoo>',
+        '  <record id="action_demo_projects" model="ir.actions.act_window">',
+        '    <field name="name">Projects</field>',
+        '    <field name="res_model">demo.model</field>',
+        '  </record>',
+        '  <menuitem id="menu_projects_bucket" name="Projects"/>',
+        '  <menuitem id="menu_demo_projects" parent="menu_projects_bucket" action="action_demo_projects"/>',
+        '</odoo>',
+        '',
+      ].join('\n'),
+    );
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.hasMenuAction).toBe(true);
+    expect(result.issues).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing actionable menu XML',
+        }),
+      ]),
+    );
+  });
+
+  it('detects actionable menus from XML data files outside views', async () => {
+    const target = await makeTarget('wpmoo-module-quality-data-menu-');
+    const modulePath = join(target, 'demo_module');
+    await writeText(
+      join(modulePath, '__manifest__.py'),
+      buildManifest({ depends: ['base'], data: ['security/ir.model.access.csv', 'data/navigation.xml'] }),
+    );
+    await writeText(join(modulePath, '__init__.py'), 'from . import models\n');
+    await writeText(join(modulePath, 'models', '__init__.py'), 'from . import demo_model\n');
+    await writeText(
+      join(modulePath, 'models', 'demo_model.py'),
+      "from odoo import models\n\nclass DemoModel(models.Model):\n    _name = 'demo.model'\n",
+    );
+    await writeText(join(modulePath, 'security', 'ir.model.access.csv'), 'id,name\n');
+    await writeText(
+      join(modulePath, 'data', 'navigation.xml'),
+      [
+        '<odoo>',
+        '  <record id="action_demo_records" model="ir.actions.act_window">',
+        '    <field name="name">Records</field>',
+        '    <field name="res_model">demo.model</field>',
+        '  </record>',
+        '  <menuitem id="menu_demo_records" action="demo_module.action_demo_records"/>',
+        '</odoo>',
+        '',
+      ].join('\n'),
+    );
+    await mkdir(join(modulePath, 'tests'), { recursive: true });
+
+    const result = await analyzeModuleDirectory(modulePath, 'demo_module', 'repo/demo_module');
+
+    expect(result.hasMenuAction).toBe(true);
+    expect(result.issues).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing actionable menu XML',
+        }),
+        expect.objectContaining({
+          moduleName: 'demo_module',
+          path: 'repo/demo_module',
+          issue: 'missing views XML under views/',
+        }),
+      ]),
+    );
+  });
+
   it('flags missing tests directory', async () => {
     const target = await makeTarget('wpmoo-module-quality-missing-tests-dir-');
     const modulePath = join(target, 'demo_module');
