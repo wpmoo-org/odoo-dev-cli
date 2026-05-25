@@ -112,7 +112,9 @@ Completed checks:
   `test/smoke-published-script.test.ts`, including create, source list/sync,
   module add/status/remove lifecycle, safe reset preview, `doctor --fix`,
   snapshot, restore dry-run steps, and generated `./moo status --json`
-  environment contract checks.
+  environment contract checks. It also verifies profile-aware scaffolding by
+  creating a portal-profile addon and checking the generated controller and
+  `website.layout` template files.
 - Train 32 rehearsed the registry-backed `0.9.36` acceptance smoke and found
   that environment creation still depended on the host Docker Engine despite
   the smoke's Docker stub. The acceptance script now runs environment creation

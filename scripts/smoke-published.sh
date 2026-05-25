@@ -306,17 +306,34 @@ run_environment_smoke() {
     --module wpmoo_smoke_extra \
     --stage=false >/dev/null
 
+  echo "- Adding portal profile smoke module"
+  run_wpmoo_in "$target" add-module \
+    --repo wpmoo_smoke_module \
+    --module wpmoo_smoke_portal \
+    --profile portal \
+    --stage=false >/dev/null
+  [[ -f "$source_repo_checkout/wpmoo_smoke_portal/controllers/main.py" ]] ||
+    {
+      echo "Expected portal profile scaffold to create controllers/main.py." >&2
+      exit 1
+    }
+  grep -q 'website.layout' "$source_repo_checkout/wpmoo_smoke_portal/views/wpmoo_smoke_portal_portal_templates.xml" ||
+    {
+      echo "Expected portal profile scaffold template to inherit website.layout." >&2
+      exit 1
+    }
+
   echo "- Checking package status --json"
   status_report="$(run_wpmoo_in "$target" status --json)"
   if ! matches_text "$status_report" '"schemaVersion"[[:space:]]*:[[:space:]]*1' ||
     ! matches_text "$status_report" '"command"[[:space:]]*:[[:space:]]*"status"' ||
-    ! matches_text "$status_report" '"moduleCandidateCount"[[:space:]]*:[[:space:]]*1'; then
-    echo "Expected wpmoo status --json to report one module candidate after add-module, got:" >&2
+    ! matches_text "$status_report" '"moduleCandidateCount"[[:space:]]*:[[:space:]]*2'; then
+    echo "Expected wpmoo status --json to report two module candidates after add-module, got:" >&2
     echo "$status_report" >&2
     exit 1
   fi
 
-  git_in "$source_repo_checkout" add wpmoo_smoke_extra
+  git_in "$source_repo_checkout" add wpmoo_smoke_extra wpmoo_smoke_portal
   git_in "$source_repo_checkout" commit -m "Add smoke module" >/dev/null
 
   echo "- Checking reset preview"
@@ -344,7 +361,7 @@ run_environment_smoke() {
     ! matches_text "$moo_status_report" '"command"[[:space:]]*:[[:space:]]*"status"' ||
     ! matches_text "$moo_status_report" '"ok"[[:space:]]*:[[:space:]]*true' ||
     ! matches_text "$moo_status_report" '"kind"[[:space:]]*:[[:space:]]*"environment"' ||
-    ! matches_text "$moo_status_report" '"moduleCandidateCount"[[:space:]]*:[[:space:]]*1'; then
+    ! matches_text "$moo_status_report" '"moduleCandidateCount"[[:space:]]*:[[:space:]]*2'; then
     echo "Expected ./moo status --json to emit the generated environment status contract, got:" >&2
     echo "$moo_status_report" >&2
     exit 1
@@ -401,6 +418,37 @@ run_environment_smoke() {
   [[ ! -e "$target/odoo/custom/src/private/wpmoo_smoke_module/wpmoo_smoke_extra" ]] ||
     {
       echo "Expected wpmoo_smoke_extra directory to be removed." >&2
+      exit 1
+    }
+
+  echo "- Checking portal profile remove-module --dry-run"
+  removal_preview="$(run_wpmoo_in "$target" remove-module \
+    --repo wpmoo_smoke_module \
+    --module wpmoo_smoke_portal \
+    --dry-run \
+    --stage=false)"
+  [[ "$removal_preview" == *"Previewed removal of module wpmoo_smoke_portal"* ]] ||
+    {
+      echo "Expected remove-module --dry-run to preview portal module removal, got:" >&2
+      echo "$removal_preview" >&2
+      exit 1
+    }
+
+  echo "- Removing portal profile smoke module"
+  removal_report="$(run_wpmoo_in "$target" remove-module \
+    --repo wpmoo_smoke_module \
+    --module wpmoo_smoke_portal \
+    --deleteFiles \
+    --stage=false)"
+  [[ "$removal_report" == *"Removed module wpmoo_smoke_portal"* ]] ||
+    {
+      echo "Expected remove-module to remove the portal smoke module, got:" >&2
+      echo "$removal_report" >&2
+      exit 1
+    }
+  [[ ! -e "$target/odoo/custom/src/private/wpmoo_smoke_module/wpmoo_smoke_portal" ]] ||
+    {
+      echo "Expected wpmoo_smoke_portal directory to be removed." >&2
       exit 1
     }
 

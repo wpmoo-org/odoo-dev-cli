@@ -79,7 +79,10 @@ add/status/remove lifecycle, safe reset preview, `doctor --fix`, snapshot, and
 restore dry-run behavior without requiring a live Odoo service. It also checks
 that generated `./moo status --json` keeps the versioned environment status
 contract, including `ok: true`, `kind: "environment"`, and the detected module
-candidate count after module creation.
+candidate count after module creation. The acceptance smoke also exercises a
+portal-profile `add-module` scaffold and verifies that the generated controller
+and `website.layout` portal template files are present before removing the
+module.
 
 For a 1.0.0 tag, run generated-environment acceptance smoke with
 WPMOO_SMOKE_ENVIRONMENT=1. Treat the release as final only after that smoke

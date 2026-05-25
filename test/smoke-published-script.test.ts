@@ -240,7 +240,7 @@ if [[ "$1" == "status" && "$2" == "--json" ]]; then
   "ok": true,
   "status": {
     "kind": "environment",
-    "moduleCandidateCount": 1
+    "moduleCandidateCount": 2
   }
 }
 JSON
@@ -260,18 +260,60 @@ MOO
     echo "private/wpmoo_smoke_module @ 19.0 -> local"
     ;;
   "add-module")
-    mkdir -p odoo/custom/src/private/wpmoo_smoke_module/wpmoo_smoke_extra
-    printf '{}\n' >odoo/custom/src/private/wpmoo_smoke_module/wpmoo_smoke_extra/__manifest__.py
-    echo "Added module wpmoo_smoke_extra under source repo wpmoo_smoke_module."
+    module_name=""
+    profile=""
+    while [[ "$#" -gt 0 ]]; do
+      case "$1" in
+        "--module")
+          module_name="$2"
+          shift 2
+          ;;
+        "--profile")
+          profile="$2"
+          shift 2
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    [[ -n "$module_name" ]] || exit 2
+    module_dir="odoo/custom/src/private/wpmoo_smoke_module/$module_name"
+    mkdir -p "$module_dir"
+    printf '{}\n' >"$module_dir/__manifest__.py"
+    if [[ "$profile" == "portal" ]]; then
+      mkdir -p "$module_dir/controllers" "$module_dir/views"
+      printf '# portal controller\\n' >"$module_dir/controllers/main.py"
+      printf '<odoo><template id="portal" inherit_id="website.layout"/></odoo>\\n' >"$module_dir/views/${'$'}{module_name}_portal_templates.xml"
+    fi
+    echo "Added module $module_name under source repo wpmoo_smoke_module."
     ;;
   "remove-module")
-    if [[ "$*" == *"--dry-run"* ]]; then
-      echo "Previewed removal of module wpmoo_smoke_extra from source repo wpmoo_smoke_module."
+    module_name=""
+    dry_run=0
+    while [[ "$#" -gt 0 ]]; do
+      case "$1" in
+        "--module")
+          module_name="$2"
+          shift 2
+          ;;
+        "--dry-run")
+          dry_run=1
+          shift
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    [[ -n "$module_name" ]] || exit 2
+    if [[ "$dry_run" -eq 1 ]]; then
+      echo "Previewed removal of module $module_name from source repo wpmoo_smoke_module."
       exit 0
     fi
 
-    rm -rf odoo/custom/src/private/wpmoo_smoke_module/wpmoo_smoke_extra
-    echo "Removed module wpmoo_smoke_extra from source repo wpmoo_smoke_module."
+    rm -rf "odoo/custom/src/private/wpmoo_smoke_module/$module_name"
+    echo "Removed module $module_name from source repo wpmoo_smoke_module."
     ;;
   "reset")
     printf 'S\\033[36mummary:\\033[0m 3 files will be refreshed\\n'
@@ -303,7 +345,7 @@ MOO
   "ok": true,
   "status": {
     "kind": "environment",
-    "moduleCandidateCount": 1
+    "moduleCandidateCount": 2
   }
 }
 JSON
@@ -488,6 +530,7 @@ describe('published package smoke script', () => {
     expect(commands.some((command) => command.includes(' wpmoo create '))).toBe(true);
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo source list');
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo add-module --repo wpmoo_smoke_module --module wpmoo_smoke_extra --stage=false');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo add-module --repo wpmoo_smoke_module --module wpmoo_smoke_portal --profile portal --stage=false');
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo status --json');
     expect(commands.some((command) => command.includes(' wpmoo reset --dry-run '))).toBe(true);
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo doctor --fix');
@@ -497,5 +540,7 @@ describe('published package smoke script', () => {
     expect(commands).toContain('moo:restore-snapshot --dry-run smoke-before devel');
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo remove-module --repo wpmoo_smoke_module --module wpmoo_smoke_extra --dry-run --stage=false');
     expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo remove-module --repo wpmoo_smoke_module --module wpmoo_smoke_extra --deleteFiles --stage=false');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo remove-module --repo wpmoo_smoke_module --module wpmoo_smoke_portal --dry-run --stage=false');
+    expect(commands).toContain('--yes --package @wpmoo/toolkit@9.8.7 wpmoo remove-module --repo wpmoo_smoke_module --module wpmoo_smoke_portal --deleteFiles --stage=false');
   });
 });
