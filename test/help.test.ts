@@ -245,6 +245,9 @@ describe('help', () => {
     expect(readmeText).toContain('npx @wpmoo/toolkit cd <product>_dev ./moo');
     expect(readmeText).toContain('No long Docker commands. No guessing addon paths.');
     expect(readmeText).toContain('WPMoo turns that recurring setup into one repeatable Odoo workflow.');
+    expect(readme).not.toContain('```mermaid');
+    expect(readme).toContain('docs/assets/wpmoo-flow.png');
+    expect(readme).toContain('alt="WPMoo Toolkit Odoo workflow"');
     const output = renderHelp();
     expect(output).toContain('Before setup starts, WPMoo checks Git, Docker, Docker Compose, and Docker Engine.');
     expect(output).toContain('Choose any environment folder; the default is ./<product>_dev.');

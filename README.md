@@ -70,24 +70,9 @@ WPMoo turns that recurring setup into one repeatable Odoo workflow.
 
 ## How It Works
 
-```mermaid
-flowchart LR
-    Dev[Odoo Developer] --> Toolkit[WPMoo Toolkit]
-    Toolkit --> Env[Generated Odoo Dev Environment]
-    Env --> Compose[Docker Compose]
-    Env --> Odoo[Odoo]
-    Env --> DB[PostgreSQL]
-    Env --> Sources[Addon Sources]
-    Sources --> Private[private]
-    Sources --> OCA[oca]
-    Sources --> External[external]
-    Toolkit --> Moo[./moo cockpit]
-    Moo --> Update[update / test]
-    Moo --> Snapshot[snapshot / restore]
-    Moo --> Doctor[doctor / status]
-```
-
-The generated environment can be refreshed safely. Your source repositories stay clean and versioned separately.
+<p align="center">
+  <img src="docs/assets/wpmoo-flow.png" alt="WPMoo Toolkit Odoo workflow" width="860" />
+</p>
 
 ## Clean Source Layout
 
